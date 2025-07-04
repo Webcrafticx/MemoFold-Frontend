@@ -116,7 +116,7 @@ const PrivacyPolicy = () => {
                         Reach us at{" "}
                         <a
                             href="mailto:privacy@memofold.com"
-                            className="text-blue-600 hover:underline"
+                            className="text-blue-600 hover:underline cursor-pointer"
                         >
                             privacy@memofold.com
                         </a>{" "}
@@ -169,7 +169,7 @@ const PrivacyPolicy = () => {
             {/* Top Bar */}
             <div className="bg-white rounded-xl shadow-md mb-8 p-5 max-w-6xl mx-auto">
                 <div className="flex justify-end">
-                    <button className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all">
+                    <button className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all cursor-pointer">
                         <img
                             src={logo}
                             alt="Avatar"
@@ -205,7 +205,7 @@ const PrivacyPolicy = () => {
                         >
                             <button
                                 onClick={() => toggleSection(index)}
-                                className="w-full flex justify-between items-center font-bold text-lg focus:outline-none"
+                                className="w-full flex justify-between items-center font-bold text-lg focus:outline-none cursor-pointer"
                             >
                                 <span>{section.title}</span>
                                 <span className="text-xl">

@@ -54,14 +54,14 @@ const HelpPage = () => {
             {/* Top Bar */}
             <header className="bg-white shadow-sm py-4 px-6 md:px-8 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                 <a
-                    href="mailto:support@example.com"
-                    className="text-blue-600 font-medium hover:underline text-sm md:text-base"
+                    href="mailto:memofold@gmail.com"
+                    className="text-blue-600 font-medium hover:underline text-sm md:text-base cursor-pointer"
                 >
                     Email Us
                 </a>
 
                 <div className="w-full md:w-auto flex justify-end">
-                    <button className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2 px-5 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all">
+                    <button className="flex cursor-pointer items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2 px-5 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all">
                         <img
                             src={logo}
                             alt="User"
@@ -75,7 +75,7 @@ const HelpPage = () => {
             {/* Mobile Sidebar Toggle Button */}
             <button
                 onClick={toggleSidebar}
-                className="md:hidden fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-xl z-40 hover:bg-blue-700 transition-all"
+                className="md:hidden fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-xl z-40 hover:bg-blue-700 transition-all cursor-pointer"
             >
                 {sidebarActive ? "✕" : "☰"}
             </button>
@@ -93,7 +93,7 @@ const HelpPage = () => {
                             <div key={index} className="group relative">
                                 <button
                                     onClick={() => setActiveLink(link.title)}
-                                    className={`w-full text-left py-2 px-4 rounded-lg transition-all ${
+                                    className={`w-full text-left py-2 px-4 rounded-lg transition-all cursor-pointer ${
                                         activeLink === link.title
                                             ? "bg-gray-100 text-blue-600"
                                             : "hover:bg-gray-50 hover:text-blue-600"
@@ -114,7 +114,7 @@ const HelpPage = () => {
                 {/* Overlay for mobile sidebar */}
                 {sidebarActive && (
                     <div
-                        className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+                        className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden cursor-pointer"
                         onClick={toggleSidebar}
                     />
                 )}
@@ -139,7 +139,7 @@ const HelpPage = () => {
 
                         <button
                             type="submit"
-                            className="mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all"
+                            className="mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all cursor-pointer"
                         >
                             Submit
                         </button>
@@ -165,17 +165,17 @@ const HelpPage = () => {
                             </h3>
                             <ul className="space-y-2 text-sm text-blue-600">
                                 <li>
-                                    <a href="#" className="hover:underline">
+                                    <a href="#" className="hover:underline cursor-pointer">
                                         How to create your first memory
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="#" className="hover:underline">
+                                    <a href="#" className="hover:underline cursor-pointer">
                                         Privacy settings explained
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="#" className="hover:underline">
+                                    <a href="#" className="hover:underline cursor-pointer">
                                         Troubleshooting common issues
                                     </a>
                                 </li>
