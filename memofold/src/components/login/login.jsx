@@ -20,7 +20,7 @@ const LoginPage = () => {
             <main className="flex-1 flex flex-col lg:flex-row justify-center items-center lg:items-start gap-12 lg:gap-20 py-12 px-4 sm:px-6">
                 {/* Story Carousel */}
                 <div className="relative w-72 h-[500px] flex items-center justify-center">
-                    <div className="absolute w-64 h-[450px] -left-8 -rotate-3 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:z-10">
+                    <div className="absolute w-64 h-[450px] -left-8 -rotate-3 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 z-10 hover:z-30">
                         <img
                             src={snip1}
                             alt="Story 1"
@@ -28,7 +28,7 @@ const LoginPage = () => {
                         />
                         <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 w-3/5 h-2 border-2 border-white rounded-full opacity-90"></div>
                     </div>
-                    <div className="absolute w-64 h-[450px] z-10 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:z-20">
+                    <div className="absolute w-64 h-[450px] z-20 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:z-30">
                         <img
                             src={snip2}
                             alt="Story 2"
@@ -36,7 +36,7 @@ const LoginPage = () => {
                         />
                         <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 w-3/5 h-2 border-2 border-white rounded-full opacity-90"></div>
                     </div>
-                    <div className="absolute w-64 h-[450px] left-8 rotate-3 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:z-10">
+                    <div className="absolute w-64 h-[450px] left-8 rotate-3 overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-2 z-10 hover:z-30">
                         <img
                             src={snip3}
                             alt="Story 3"

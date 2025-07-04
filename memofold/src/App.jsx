@@ -19,6 +19,7 @@ import ProfilePage from "./components/profile/profile";
 import ResetPassword from "./components/resetPass/resetPass";
 import Survey from "./components/survey/survey";
 import MainDashboard from "./components/updMain/updMain";
+import ApiDocumentation from "./components/ApiDocumentation";
 
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
@@ -83,12 +84,13 @@ function App() {
                             path="/reset-password/:token"
                             element={<ResetPassword />}
                         />
+                        <Route path="/api" element={<ApiDocumentation />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/privacy" element={<PrivacyPolicy />} />
                         <Route path="/help" element={<HelpPage />} />
                         <Route path="/feedback" element={<FeedbackForm />} />
                         <Route
-                            path="/contact-uploading"
+                            path="/contact"
                             element={<ContactUploading />}
                         />
                         <Route
