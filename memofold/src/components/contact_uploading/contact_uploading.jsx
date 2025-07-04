@@ -15,8 +15,8 @@ const ContactUploading = () => {
             <header className="w-full py-3 px-4 sm:px-6 bg-white/90 shadow-sm sticky top-0 z-10 backdrop-blur-sm">
                 <div className="max-w-7xl mx-auto flex justify-end">
                     <a
-                        href="#"
-                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2 px-5 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        href="/login"
+                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2 px-5 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:outline-none"
                     >
                         <img
                             src={logo}
@@ -180,27 +180,39 @@ const ContactUploading = () => {
                                 />
                             </div>
 
-                            <div>
-                                <label
-                                    htmlFor="request"
-                                    className="block font-semibold text-gray-800 mb-1"
-                                >
-                                    Request Type <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    id="request"
-                                    name="request"
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    defaultValue=""
-                                >
-                                    <option value="" disabled>Select a type of request</option>
-                                    <option value="delete">🗑️ Delete My Uploaded Contacts</option>
-                                    <option value="info">📘 Request More Info About Data Use</option>
-                                    <option value="non-user">🚫 Remove Me from Contact Database (Non-User)</option>
-                                    <option value="general">✉️ General Privacy Concern or Feedback</option>
-                                </select>
-                            </div>
+                        <div>
+                            <label
+                                htmlFor="request"
+                                className="font-semibold text-gray-800"
+                            >
+                                Request Type{" "}
+                                <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                id="request"
+                                name="request"
+                                required
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                defaultValue=""
+                            >
+                                <option value="" disabled>
+                                    Select a type of request
+                                </option>
+                                <option value="delete">
+                                    🗑️ Delete My Uploaded Contacts
+                                </option>
+                                <option value="info">
+                                    📘 Request More Info About Data Use
+                                </option>
+                                <option value="non-user">
+                                    🚫 Remove Me from Contact Database
+                                    (Non-User)
+                                </option>
+                                <option value="general">
+                                    ✉️ General Privacy Concern or Feedback
+                                </option>
+                            </select>
+                        </div>
 
                             <div>
                                 <label
@@ -218,15 +230,15 @@ const ContactUploading = () => {
                                 ></textarea>
                             </div>
 
-                            <button
-                                type="submit"
-                                className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-all shadow-md hover:shadow-lg mt-2"
-                            >
-                                Send Request
-                            </button>
-                        </form>
-                    </section>
-                </div>
+                        <button
+                            type="submit"
+                            className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
+                        >
+                            Send Request
+                        </button>
+                    </form>
+                </section>
+            </div>
 
                 {/* Footer */}
                 <footer className="text-center mt-12 text-sm text-gray-500 pb-8">

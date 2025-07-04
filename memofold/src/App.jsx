@@ -20,6 +20,8 @@ import ResetPassword from "./components/resetPass/resetPass";
 import Survey from "./components/survey/survey";
 import MainDashboard from "./components/updMain/updMain";
 import ApiDocumentation from "./components/ApiDocumentation";
+import TermsOfService from "./components/terms/terms";
+
 
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
@@ -89,6 +91,7 @@ function App() {
                         <Route path="/privacy" element={<PrivacyPolicy />} />
                         <Route path="/help" element={<HelpPage />} />
                         <Route path="/feedback" element={<FeedbackForm />} />
+                        <Route path="/terms" element={<TermsOfService />} />
                         <Route
                             path="/contact"
                             element={<ContactUploading />}

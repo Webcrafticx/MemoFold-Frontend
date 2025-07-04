@@ -13,7 +13,7 @@ const TermsOfService = () => {
             <header className="flex justify-end items-center py-3 px-6 bg-gray-50 shadow-sm">
                 <button
                     onClick={redirectToLogin}
-                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 transition-colors"
+                    className="flex cursor-pointer items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 transition-colors"
                 >
                     <img
                         src={logo}
