@@ -9,7 +9,7 @@ const ContactUploading = () => {
                 <div className="absolute left-6 top-1/2 -translate-y-1/2 md:static md:transform-none">
                     <a
                         href="#"
-                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2 px-5 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:outline-none"
+                        className="flex cursor-pointer items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2 px-5 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:outline-none"
                     >
                         <img
                             src={logo}
@@ -195,7 +195,7 @@ const ContactUploading = () => {
                                 id="request"
                                 name="request"
                                 required
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full cursor-pointer px-3 py-2 border border-gray-300 rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 defaultValue=""
                             >
                                 <option value="" disabled>
@@ -235,7 +235,7 @@ const ContactUploading = () => {
 
                         <button
                             type="submit"
-                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
+                            className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
                         >
                             Send Request
                         </button>

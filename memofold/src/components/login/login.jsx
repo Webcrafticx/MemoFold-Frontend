@@ -82,7 +82,7 @@ const LoginPage = () => {
                             />
                             <button
                                 type="submit"
-                                className="w-full py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all"
+                                className="w-full cursor-pointer py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all"
                             >
                                 Log In
                             </button>
