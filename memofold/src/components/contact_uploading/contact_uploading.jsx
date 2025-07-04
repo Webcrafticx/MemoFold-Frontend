@@ -15,7 +15,7 @@ const ContactUploading = () => {
             <header className="w-full py-3 px-4 sm:px-6 bg-white/90 shadow-sm sticky top-0 z-10 backdrop-blur-sm">
                 <div className="max-w-7xl mx-auto flex justify-end">
                     <a
-                        href="#"
+                        href="/login"
                         className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-2 px-5 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 focus:outline-none"
                     >
                         <img
@@ -232,7 +232,7 @@ const ContactUploading = () => {
 
                         <button
                             type="submit"
-                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
+                            className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
                         >
                             Send Request
                         </button>
