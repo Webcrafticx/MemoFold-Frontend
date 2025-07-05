@@ -269,7 +269,7 @@ const LoginPage = () => {
                     {[
                         "About",
                         "Help",
-                        "API",
+                        // "API",
                         "Privacy",
                         "Terms",
                         "Contact",

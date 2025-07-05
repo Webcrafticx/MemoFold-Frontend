@@ -238,12 +238,12 @@ const HelpPage = () => {
                 <div className="w-full md:w-auto flex justify-end">
                     <button
                         onClick={handleLoginClick}
-                        className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2 px-5 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all duration-300"
+                        className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2 px-5 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                     >
                         <img
                             src={logo}
                             alt="User"
-                            className="w-7 h-7 rounded-full object-cover shadow-sm"
+                            className="w-7 h-7 rounded-full object-cover shadow-sm cursor-pointer"
                         />
                         {token ? "My Profile" : "Log in"}
                     </button>
@@ -253,7 +253,7 @@ const HelpPage = () => {
             {/* Mobile Sidebar Toggle Button */}
             <button
                 onClick={toggleSidebar}
-                className="md:hidden fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-xl z-40 hover:bg-blue-700 transition-all duration-300"
+                className="md:hidden fixed bottom-6 right-6 bg-blue-600 text-white p-3 rounded-full shadow-xl z-40 hover:bg-blue-700 transition-all duration-300 cursor-pointer"
             >
                 {sidebarActive ? "✕" : "☰"}
             </button>
@@ -276,7 +276,7 @@ const HelpPage = () => {
                                             setSidebarActive(false);
                                         }
                                     }}
-                                    className={`w-full text-left py-2 px-4 rounded-lg transition-all duration-200 ${
+                                    className={`w-full text-left py-2 px-4 rounded-lg transition-all duration-200 cursor-pointer ${
                                         activeLink === link.title
                                             ? "bg-gray-100 text-blue-600"
                                             : "hover:bg-gray-50 hover:text-blue-600"
@@ -310,19 +310,19 @@ const HelpPage = () => {
 
                     <form onSubmit={handleSubmit} className="mb-8">
                         <div className="flex items-center bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all duration-300">
-                            <span className="text-gray-500 mr-2">🔍</span>
+                            <span className="text-gray-500 mr-2 cursor-pointer">🔍</span>
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Ask me..."
-                                className="flex-1 outline-none text-sm md:text-base"
+                                className="flex-1 outline-none text-sm md:text-base cursor-text"
                             />
                         </div>
 
                         <button
                             type="submit"
-                            className="mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all duration-300"
+                            className="mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
                         >
                             Search
                         </button>
