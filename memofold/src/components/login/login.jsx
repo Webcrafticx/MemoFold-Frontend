@@ -147,7 +147,7 @@ const LoginPage = () => {
                                 />
                                 <button
                                     type="button"
-                                    className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+                                    className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 cursor-pointer"
                                     onClick={() =>
                                         setShowPassword(!showPassword)
                                     }
@@ -200,7 +200,7 @@ const LoginPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex items-center justify-center py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="w-full flex items-center justify-center py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {loading ? (
                                     <>
@@ -242,7 +242,7 @@ const LoginPage = () => {
 
                         <Link
                             to="/forgot-password"
-                            className="text-sm text-blue-400 hover:text-blue-500 hover:underline"
+                            className="text-sm text-blue-400 hover:text-blue-500 hover:underline cursor-pointer"
                         >
                             Forgot password?
                         </Link>
@@ -254,7 +254,7 @@ const LoginPage = () => {
                             Don't have an account?{" "}
                             <Link
                                 to="/signup"
-                                className="text-blue-400 font-bold hover:text-blue-500 hover:underline"
+                                className="text-blue-400 font-bold hover:text-blue-500 hover:underline cursor-pointer"
                             >
                                 Sign up
                             </Link>
@@ -269,7 +269,6 @@ const LoginPage = () => {
                     {[
                         "About",
                         "Help",
-                        // "API",
                         "Privacy",
                         "Terms",
                         "Contact",
@@ -277,7 +276,7 @@ const LoginPage = () => {
                         <Link
                             key={item}
                             to={`/${item.toLowerCase()}`}
-                            className="text-xs sm:text-sm text-gray-600 hover:underline"
+                            className="text-xs sm:text-sm text-gray-600 hover:underline cursor-pointer"
                         >
                             {item}
                         </Link>
