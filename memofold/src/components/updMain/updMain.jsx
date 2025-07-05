@@ -1,294 +1,653 @@
-// MainDashboard.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import {
-    FaBars,
     FaUserCircle,
-    FaMoon,
-    FaCommentDots,
+    FaHeart,
+    FaRegHeart,
+    FaTrashAlt,
+    FaBars,
     FaHome,
+    FaMoon,
+    FaSun,
+    FaCommentDots,
 } from "react-icons/fa";
+import { IoMdSend } from "react-icons/io";
 
 const MainDashboard = () => {
     const [darkMode, setDarkMode] = useState(false);
     const [postContent, setPostContent] = useState("");
     const [selectedDate, setSelectedDate] = useState("");
     const [currentTime, setCurrentTime] = useState("--:--:--");
-
-    const toggleDarkMode = () => {
-        setDarkMode(!darkMode);
-    };
-
-    const updateTime = () => {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString();
-        setCurrentTime(timeString);
-    };
+    const [posts, setPosts] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [showCommentDropdown, setShowCommentDropdown] = useState(false);
+    const { token, username, realname, logout } = useAuth();
+    const navigate = useNavigate();
+    const API_BASE = "https://memofold1.onrender.com/api";
 
     // Update time every second
-    React.useEffect(() => {
-        const timer = setInterval(updateTime, 1000);
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = new Date();
+            setCurrentTime(now.toLocaleTimeString());
+        }, 1000);
+
         return () => clearInterval(timer);
     }, []);
 
-    const handleDateChange = (e) => {
-        setSelectedDate(e.target.value);
+    // Check for saved dark mode preference
+    useEffect(() => {
+        const savedMode = localStorage.getItem("darkMode") === "true";
+        setDarkMode(savedMode);
+        document.body.classList.toggle("dark", savedMode);
+    }, []);
+
+    // Apply dark mode class to body
+    useEffect(() => {
+        if (darkMode) {
+            document.body.classList.add("dark");
+        } else {
+            document.body.classList.remove("dark");
+        }
+    }, [darkMode]);
+
+    // Fetch posts on component mount and when token changes
+    useEffect(() => {
+        const fetchPosts = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const response = await fetch(`${API_BASE}/posts`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch posts");
+                }
+
+                const data = await response.json();
+                setPosts(data);
+            } catch (err) {
+                setError(err.message);
+                console.error("Error fetching posts:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (token) {
+            fetchPosts();
+        } else {
+            navigate("/login");
+        }
+    }, [token, navigate]);
+
+    const toggleDarkMode = () => {
+        const newMode = !darkMode;
+        setDarkMode(newMode);
+        localStorage.setItem("darkMode", newMode);
+    };
+
+    const handlePostSubmit = async () => {
+        if (!postContent.trim()) {
+            setError("Post content cannot be empty.");
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`${API_BASE}/posts`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    content: postContent,
+                    date:
+                        selectedDate || new Date().toISOString().split("T")[0],
+                    time: new Date().toLocaleTimeString(),
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to create post");
+            }
+
+            const result = await response.json();
+            setPosts([result, ...posts]);
+            setPostContent("");
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+            console.error("Post error:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleLikePost = async (postId) => {
+        try {
+            const response = await fetch(`${API_BASE}/posts/${postId}/like`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to like post");
+            }
+
+            const data = await response.json();
+            setPosts(
+                posts.map((post) =>
+                    post._id === postId ? { ...post, likes: data.likes } : post
+                )
+            );
+        } catch (err) {
+            setError(err.message);
+            console.error("Error liking post:", err);
+        }
+    };
+
+    const handleDeletePost = async (postId) => {
+        if (!window.confirm("Are you sure you want to delete this post?"))
+            return;
+
+        try {
+            const response = await fetch(`${API_BASE}/posts/${postId}`, {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to delete post");
+            }
+
+            setPosts(posts.filter((post) => post._id !== postId));
+        } catch (err) {
+            setError(err.message);
+            console.error("Error deleting post:", err);
+        }
+    };
+
+    const handleLogout = () => {
+        logout();
+        navigate("/login");
+    };
+
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
+    const quickReactions = [
+        { text: "Congrats", emoji: "🎉" },
+        { text: "Sorrow", emoji: "😭" },
+        { text: "LOL", emoji: "😂" },
+        { text: "Love", emoji: "❤️" },
+        { text: "Interesting", emoji: "🤔" },
+    ];
+
+    const addReaction = (reaction) => {
+        setPostContent((prev) =>
+            `${prev} ${reaction.text} ${reaction.emoji}`.trim()
+        );
     };
 
     return (
         <div
-            className={`min-h-screen flex ${
+            className={`min-h-screen ${
                 darkMode
-                    ? "bg-gray-900 text-gray-100"
+                    ? "dark bg-gray-900 text-gray-100"
                     : "bg-gradient-to-r from-gray-100 to-gray-200"
             }`}
         >
-            <div
-                className={`flex-1 p-5 overflow-y-auto ${
-                    darkMode ? "bg-gray-800" : "bg-transparent"
-                }`}
-            >
+            {/* Error Message */}
+            {error && (
+                <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50">
+                    {error}
+                    <button
+                        onClick={() => setError(null)}
+                        className="ml-2 text-red-700 font-bold"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+
+            <div className="container mx-auto px-4 py-4">
                 {/* Topbar */}
-                <div className="flex justify-end items-center gap-4 mb-3 flex-wrap">
+                <div
+                    className={`flex justify-between items-center mb-6 p-4 rounded-xl ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    } shadow-md`}
+                >
                     {/* Settings Dropdown */}
                     <div className="relative">
-                        <div className="dropdown">
-                            <button
-                                className={`p-2 text-lg rounded-full ${
-                                    darkMode
-                                        ? "bg-gray-700 text-gray-200"
-                                        : "bg-gradient-to-br from-white to-gray-200 text-gray-600"
-                                } shadow-md hover:scale-110 transition-transform`}
-                            >
-                                <FaBars />
-                            </button>
-                            <div
-                                className={`absolute left-0 mt-2 w-56 rounded-lg shadow-xl z-10 ${
-                                    darkMode ? "bg-gray-700" : "bg-white"
-                                } hidden group-hover:block`}
-                            >
-                                <div className="p-2">
-                                    <div className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                        <FaUserCircle className="mr-3" />
-                                        <span>Profile</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                        <div className="flex items-center">
-                                            <FaMoon className="mr-3" />
-                                            <span>Dark Mode</span>
-                                        </div>
-                                        <label className="switch">
-                                            <input
-                                                type="checkbox"
-                                                checked={darkMode}
-                                                onChange={toggleDarkMode}
-                                            />
-                                            <span className="slider"></span>
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                        <FaCommentDots className="mr-3" />
-                                        <span>Feedback</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Home Button and Search */}
-                    <div className="flex items-center gap-2">
                         <button
                             className={`p-2 rounded-full ${
                                 darkMode
-                                    ? "bg-gray-700 text-gray-200"
-                                    : "bg-gradient-to-br from-white to-gray-200 text-gray-600"
-                            } shadow-md hover:scale-110 transition-transform`}
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-100"
+                            } transition-colors`}
+                            onClick={() => setShowDropdown(!showDropdown)}
+                        >
+                            <FaBars className="text-xl" />
+                        </button>
+                        {showDropdown && (
+                            <div
+                                className={`absolute left-0 mt-2 w-56 rounded-md shadow-lg ${
+                                    darkMode ? "bg-gray-800" : "bg-white"
+                                } ring-1 ring-black ring-opacity-5 z-50`}
+                            >
+                                <div className="py-1">
+                                    <span
+                                        className={`block px-4 py-2 text-sm ${
+                                            darkMode
+                                                ? "text-gray-200 hover:bg-gray-700"
+                                                : "text-gray-700 hover:bg-gray-100"
+                                        } cursor-pointer`}
+                                    >
+                                        <FaUserCircle className="inline mr-2" />{" "}
+                                        Profile
+                                    </span>
+                                    <span
+                                        className={`block px-4 py-2 text-sm ${
+                                            darkMode
+                                                ? "text-gray-200 hover:bg-gray-700"
+                                                : "text-gray-700 hover:bg-gray-100"
+                                        } cursor-pointer flex items-center justify-between`}
+                                        onClick={toggleDarkMode}
+                                    >
+                                        <span>
+                                            <FaMoon className="inline mr-2" />{" "}
+                                            Dark Mode
+                                        </span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={darkMode}
+                                                onChange={toggleDarkMode}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                        </label>
+                                    </span>
+                                    <span
+                                        className={`block px-4 py-2 text-sm ${
+                                            darkMode
+                                                ? "text-gray-200 hover:bg-gray-700"
+                                                : "text-gray-700 hover:bg-gray-100"
+                                        } cursor-pointer`}
+                                    >
+                                        <FaCommentDots className="inline mr-2" />{" "}
+                                        Feedback
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                        <button
+                            className={`p-2 rounded-full ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                            } shadow-md transition-all hover:scale-110`}
                             title="Home"
+                            onClick={() => navigate("/")}
                         >
                             <FaHome className="text-xl" />
                         </button>
+
+                        <input
+                            type="date"
+                            className={`px-3 py-1 rounded-lg text-sm border ${
+                                darkMode
+                                    ? "bg-gray-700 border-gray-600"
+                                    : "bg-white border-gray-300"
+                            }`}
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            min="1950-01-01"
+                            max="2025-12-31"
+                        />
+
+                        <button
+                            className={`p-2 rounded-full ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-white hover:bg-gray-100"
+                            } shadow-md`}
+                            title="Main Feed"
+                            onClick={() => navigate("/feed")}
+                        >
+                            <span className="text-xl">📰</span>
+                        </button>
                     </div>
-
-                    {/* Calendar Picker */}
-                    <input
-                        type="date"
-                        className={`px-3 py-1 rounded-lg ${
-                            darkMode
-                                ? "bg-gray-700 border-gray-600"
-                                : "bg-gray-100 border-gray-300"
-                        } border cursor-pointer`}
-                        min="1950-01-01"
-                        max="2025-12-31"
-                        onChange={handleDateChange}
-                    />
-
-                    {/* Main Feed Icon */}
-                    <a
-                        href="/mainFeed"
-                        className={`p-2 rounded-full ${
-                            darkMode
-                                ? "bg-gray-700 text-gray-200"
-                                : "bg-gray-100 text-gray-600"
-                        } shadow-sm hover:bg-gray-200`}
-                        title="Main Feed"
-                    >
-                        📰
-                    </a>
                 </div>
 
-                {/* Content Area */}
-                <div className="max-w-2xl mx-auto mt-16">
+                {/* Main Content */}
+                <div className="max-w-2xl mx-auto">
                     {/* Post Box */}
                     <div
-                        className={`p-4 rounded-xl ${
-                            darkMode ? "bg-gray-700" : "bg-white"
-                        } shadow-md mb-6`}
+                        className={`mb-6 p-4 rounded-xl ${
+                            darkMode ? "bg-gray-800" : "bg-white"
+                        } shadow-md`}
                     >
                         <textarea
-                            className={`w-full p-4 rounded-lg mb-3 ${
+                            className={`w-full p-4 rounded-xl border ${
                                 darkMode
-                                    ? "bg-gray-600 text-white border-gray-500"
+                                    ? "bg-gray-700 border-gray-600"
                                     : "bg-white border-gray-300"
-                            } border resize-y focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            placeholder="Write your post..."
-                            rows="6"
+                            } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none`}
+                            placeholder={`What's on your mind, ${
+                                realname || username
+                            }?`}
+                            rows="4"
                             value={postContent}
                             onChange={(e) => setPostContent(e.target.value)}
-                        ></textarea>
-
-                        <div className="flex items-center gap-4 mb-4">
-                            <button
-                                className={`p-2 rounded-xl ${
-                                    darkMode
-                                        ? "bg-gray-600 text-red-400"
-                                        : "bg-gray-100 text-red-500"
-                                } shadow-md hover:scale-110 transition-transform`}
-                                title="Like"
-                            >
-                                ❤️
-                            </button>
-
-                            {/* Comment Dropdown */}
-                            <div className="relative">
+                            maxLength="500"
+                        />
+                        <div className="flex justify-between items-center mt-3">
+                            <div className="flex space-x-3">
                                 <button
                                     className={`p-2 rounded-xl ${
                                         darkMode
-                                            ? "bg-gray-600 text-gray-200"
-                                            : "bg-gray-100 text-gray-600"
-                                    } shadow-md hover:scale-110 transition-transform`}
+                                            ? "bg-gray-700 hover:bg-gray-600"
+                                            : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                                    } shadow-md transition-all`}
+                                    title="Like"
                                 >
-                                    💬 Comment
+                                    <span className="text-xl">❤️</span>
                                 </button>
-                                <div
-                                    className={`absolute left-0 mt-2 w-48 rounded-lg shadow-xl z-10 ${
-                                        darkMode ? "bg-gray-700" : "bg-white"
-                                    } hidden group-hover:block`}
+
+                                <div className="relative">
+                                    <button
+                                        className={`p-2 rounded-xl ${
+                                            darkMode
+                                                ? "bg-gray-700 hover:bg-gray-600"
+                                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                                        } shadow-md transition-all`}
+                                        onClick={() =>
+                                            setShowCommentDropdown(
+                                                !showCommentDropdown
+                                            )
+                                        }
+                                    >
+                                        <span className="text-xl">💬</span>
+                                    </button>
+                                    {showCommentDropdown && (
+                                        <div
+                                            className={`absolute left-0 mt-2 w-48 rounded-md shadow-lg ${
+                                                darkMode
+                                                    ? "bg-gray-800"
+                                                    : "bg-white"
+                                            } ring-1 ring-black ring-opacity-5 z-50`}
+                                        >
+                                            <div className="py-1">
+                                                {quickReactions.map(
+                                                    (reaction, index) => (
+                                                        <span
+                                                            key={index}
+                                                            className={`block px-4 py-2 text-sm ${
+                                                                darkMode
+                                                                    ? "text-gray-200 hover:bg-gray-700"
+                                                                    : "text-gray-700 hover:bg-gray-100"
+                                                            } cursor-pointer`}
+                                                            onClick={() => {
+                                                                addReaction(
+                                                                    reaction
+                                                                );
+                                                                setShowCommentDropdown(
+                                                                    false
+                                                                );
+                                                            }}
+                                                        >
+                                                            {reaction.text}{" "}
+                                                            {reaction.emoji}
+                                                        </span>
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {postContent && (
+                                    <button
+                                        className={`p-2 rounded-xl ${
+                                            darkMode
+                                                ? "bg-gray-700 hover:bg-gray-600"
+                                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                                        } shadow-md transition-all`}
+                                        title="Delete"
+                                        onClick={() => {
+                                            if (
+                                                window.confirm(
+                                                    "Delete this draft?"
+                                                )
+                                            ) {
+                                                setPostContent("");
+                                            }
+                                        }}
+                                    >
+                                        <span className="text-xl">🗑</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center space-x-4">
+                                <span
+                                    className={`text-xs ${
+                                        darkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
                                 >
-                                    <div className="p-2">
-                                        <div className="p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                            Congrats 🎉
+                                    {postContent.length}/500 characters
+                                </span>
+                                <button
+                                    className={`px-4 py-2 rounded-lg ${
+                                        !postContent.trim() || isLoading
+                                            ? "bg-blue-400 cursor-not-allowed"
+                                            : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                                    } text-white font-medium transition-all`}
+                                    onClick={handlePostSubmit}
+                                    disabled={!postContent.trim() || isLoading}
+                                >
+                                    {isLoading ? (
+                                        <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    ) : (
+                                        "Post"
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Posts Feed */}
+                    {isLoading && posts.length === 0 ? (
+                        <div className="text-center py-10">
+                            <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="mt-2">Loading posts...</p>
+                        </div>
+                    ) : posts.length === 0 ? (
+                        <div
+                            className={`p-4 rounded-xl ${
+                                darkMode ? "bg-gray-800" : "bg-white"
+                            } shadow-md text-center`}
+                        >
+                            <p>
+                                No posts yet. Be the first to share something!
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {posts.map((post) => (
+                                <div
+                                    key={post._id}
+                                    className={`p-4 rounded-xl ${
+                                        darkMode ? "bg-gray-800" : "bg-white"
+                                    } shadow-md`}
+                                >
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex items-center space-x-3">
+                                            <FaUserCircle className="text-3xl text-gray-400" />
+                                            <div>
+                                                <h3 className="font-semibold">
+                                                    {post.author?.realname ||
+                                                        post.author?.username ||
+                                                        "Unknown"}
+                                                </h3>
+                                                <p
+                                                    className={`text-xs ${
+                                                        darkMode
+                                                            ? "text-gray-400"
+                                                            : "text-gray-500"
+                                                    }`}
+                                                >
+                                                    {formatDate(post.createdAt)}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                            Sorrow 😭
-                                        </div>
-                                        <div className="p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                            LOL 😂
-                                        </div>
-                                        <div className="p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                            Love ❤️
-                                        </div>
-                                        <div className="p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                            Interesting 🤔
+                                        {post.author?.username === username && (
+                                            <button
+                                                className="text-red-500 hover:text-red-700 transition-colors"
+                                                onClick={() =>
+                                                    handleDeletePost(post._id)
+                                                }
+                                                title="Delete post"
+                                            >
+                                                <FaTrashAlt />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <p className="mb-4 whitespace-pre-line">
+                                        {post.content}
+                                    </p>
+
+                                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200">
+                                        <button
+                                            className="flex items-center space-x-1 hover:text-red-500 transition-colors"
+                                            onClick={() =>
+                                                handleLikePost(post._id)
+                                            }
+                                        >
+                                            {post.likes?.includes(username) ? (
+                                                <FaHeart className="text-red-500" />
+                                            ) : (
+                                                <FaRegHeart />
+                                            )}
+                                            <span className="text-sm">
+                                                {post.likes?.length || 0}
+                                            </span>
+                                        </button>
+
+                                        <div className="relative">
+                                            <button
+                                                className="flex items-center space-x-1 hover:text-blue-500 transition-colors"
+                                                onClick={() =>
+                                                    setShowCommentDropdown(
+                                                        !showCommentDropdown
+                                                    )
+                                                }
+                                            >
+                                                <FaCommentDots />
+                                                <span className="text-sm">
+                                                    {post.comments?.length || 0}
+                                                </span>
+                                            </button>
+                                            {showCommentDropdown && (
+                                                <div
+                                                    className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${
+                                                        darkMode
+                                                            ? "bg-gray-800"
+                                                            : "bg-white"
+                                                    } ring-1 ring-black ring-opacity-5 z-50`}
+                                                >
+                                                    <div className="py-1">
+                                                        {quickReactions.map(
+                                                            (
+                                                                reaction,
+                                                                index
+                                                            ) => (
+                                                                <span
+                                                                    key={index}
+                                                                    className={`block px-4 py-2 text-sm ${
+                                                                        darkMode
+                                                                            ? "text-gray-200 hover:bg-gray-700"
+                                                                            : "text-gray-700 hover:bg-gray-100"
+                                                                    } cursor-pointer`}
+                                                                    onClick={() => {
+                                                                        // This would need to be implemented to add comments
+                                                                        console.log(
+                                                                            `Adding reaction: ${reaction.text} to post ${post._id}`
+                                                                        );
+                                                                        setShowCommentDropdown(
+                                                                            false
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        reaction.text
+                                                                    }{" "}
+                                                                    {
+                                                                        reaction.emoji
+                                                                    }
+                                                                </span>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <button
-                                className={`p-2 rounded-xl ${
-                                    darkMode
-                                        ? "bg-gray-600 text-gray-200"
-                                        : "bg-gray-100 text-gray-600"
-                                } shadow-md hover:scale-110 transition-transform`}
-                                title="Delete"
-                            >
-                                🗑️
-                            </button>
+                            ))}
                         </div>
-
-                        <button
-                            className={`w-full py-2 px-4 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold hover:from-blue-600 hover:to-cyan-500 transition-all`}
-                        >
-                            Post
-                        </button>
-                        <div className="text-sm mt-2 text-gray-500">
-                            {postContent.length} characters
-                        </div>
-                    </div>
+                    )}
 
                     {/* Date/Time Display */}
                     <div
-                        className={`p-4 rounded-xl ${
-                            darkMode ? "bg-gray-700" : "bg-white"
-                        } shadow-md`}
+                        className={`mt-6 p-4 rounded-xl ${
+                            darkMode ? "bg-gray-800" : "bg-gray-100"
+                        } text-center`}
                     >
-                        <p className="mb-1">
-                            Date: {selectedDate || "Not selected"}
+                        <p className="font-medium">
+                            {selectedDate
+                                ? `Selected Date: ${selectedDate}`
+                                : `Today: ${new Date().toLocaleDateString()}`}
                         </p>
-                        <small className="text-gray-500">
-                            Time: {currentTime}
-                        </small>
+                        <p
+                            className={`text-sm ${
+                                darkMode ? "text-gray-400" : "text-gray-600"
+                            }`}
+                        >
+                            Current Time: {currentTime}
+                        </p>
                     </div>
                 </div>
             </div>
-
-            {/* Dark Mode Toggle Styles */}
-            <style jsx>{`
-                .switch {
-                    position: relative;
-                    display: inline-block;
-                    width: 46px;
-                    height: 24px;
-                    margin-left: 10px;
-                }
-
-                .switch input {
-                    opacity: 0;
-                    width: 0;
-                    height: 0;
-                }
-
-                .slider {
-                    position: absolute;
-                    cursor: pointer;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background-color: #ccc;
-                    transition: 0.4s;
-                    border-radius: 34px;
-                }
-
-                .slider:before {
-                    position: absolute;
-                    content: "";
-                    height: 18px;
-                    width: 18px;
-                    left: 3px;
-                    bottom: 3px;
-                    background-color: white;
-                    transition: 0.4s;
-                    border-radius: 50%;
-                }
-
-                input:checked + .slider {
-                    background-color: #007bff;
-                }
-
-                input:checked + .slider:before {
-                    transform: translateX(22px);
-                }
-            `}</style>
         </div>
     );
 };

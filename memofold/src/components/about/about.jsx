@@ -1,4 +1,6 @@
 import React from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate, Link } from "react-router-dom";
 import logo from "../../assets/logo.png";
 import vacation from "../../assets/vacation.jpg";
 import journey from "../../assets/journey.png";
@@ -7,6 +9,17 @@ import child from "../../assets/child.jpg";
 import college from "../../assets/college.jpg";
 
 const About = () => {
+    const { token, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleAuthAction = () => {
+        if (token) {
+            logout();
+        } else {
+            navigate("/login");
+        }
+    };
+
     return (
         <div className="font-sans bg-gray-50 text-gray-800 leading-relaxed">
             {/* Header */}
@@ -20,17 +33,17 @@ const About = () => {
                             "Write your life before it fades."
                         </div>
                     </div>
-                    <a
-                        href="#"
+                    <button
+                        onClick={handleAuthAction}
                         className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full text-base hover:from-cyan-500 hover:to-blue-600 transition-colors"
                     >
                         <img
                             src={logo}
-                            alt="Login"
+                            alt={token ? "Logout" : "Login"}
                             className="w-8 h-8 rounded-full object-cover"
                         />
-                        Log in
-                    </a>
+                        {token ? "Logout" : "Login"}
+                    </button>
                 </div>
             </header>
 
@@ -48,6 +61,16 @@ const About = () => {
                             first cry to today's smile—like a living diary you
                             build as life unfolds.
                         </p>
+                        {!token && (
+                            <div className="mt-6">
+                                <Link
+                                    to="/signup"
+                                    className="inline-block bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-2 px-6 rounded-full hover:from-emerald-600 hover:to-green-500 transition-all"
+                                >
+                                    Get Started
+                                </Link>
+                            </div>
+                        )}
                     </div>
                     <img
                         src={journey}
@@ -76,6 +99,16 @@ const About = () => {
                             Wikipedia for the unsung, giving voice to the
                             memories that shaped you.
                         </p>
+                        {token && (
+                            <div className="mt-6">
+                                <Link
+                                    to="/dashboard"
+                                    className="inline-block bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold py-2 px-6 rounded-full hover:from-indigo-600 hover:to-blue-500 transition-all"
+                                >
+                                    View Your Memories
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             </section>

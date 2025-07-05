@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import logo from "../../assets/logo.png";
 
 const ResetPassword = () => {
@@ -7,7 +9,10 @@ const ResetPassword = () => {
         confirmPassword: "",
     });
     const [errors, setErrors] = useState({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [searchParams] = useSearchParams();
+    const token = searchParams.get("token");
+    const { resetPassword, loading, error } = useAuth();
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -36,17 +41,18 @@ const ResetPassword = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (validateForm()) {
-            setIsSubmitting(true);
-            // Simulate API call
-            setTimeout(() => {
-                console.log("Password reset successful:", formData);
-                setIsSubmitting(false);
-                // Redirect or show success message
-            }, 1500);
+        if (!validateForm()) return;
+        if (!token) {
+            setErrors({ general: "Invalid or expired reset link" });
+            return;
+        }
+
+        const result = await resetPassword(token, formData.newPassword);
+        if (result.success) {
+            navigate("/login");
         }
     };
 
@@ -73,6 +79,12 @@ const ResetPassword = () => {
                     <p className="text-gray-500 text-center mb-6">
                         Enter your new password below.
                     </p>
+
+                    {(error || errors.general) && (
+                        <div className="mb-4 w-full p-2 bg-red-100 text-red-700 rounded text-sm">
+                            {error || errors.general}
+                        </div>
+                    )}
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="w-full">
@@ -120,16 +132,16 @@ const ResetPassword = () => {
 
                         <button
                             type="submit"
-                            disabled={isSubmitting}
+                            disabled={loading}
                             className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl hover:from-cyan-500 hover:to-blue-600 hover:scale-[1.02] transition-all disabled:opacity-70"
                         >
-                            {isSubmitting ? "Resetting..." : "Reset Password"}
+                            {loading ? "Resetting..." : "Reset Password"}
                         </button>
                     </form>
 
                     {/* Back Button */}
                     <button
-                        onClick={() => (window.location.href = "/login")}
+                        onClick={() => navigate("/login")}
                         className="mt-6 px-6 py-2 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 hover:scale-[1.02] transition-all"
                     >
                         Back to Login

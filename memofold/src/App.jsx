@@ -21,22 +21,11 @@ import Survey from "./components/survey/survey";
 import MainDashboard from "./components/updMain/updMain";
 import ApiDocumentation from "./components/ApiDocumentation";
 import TermsOfService from "./components/terms/terms";
-
+import { useAuth } from "./hooks/useAuth";
 
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Check authentication status (replace with your actual auth check)
-        const checkAuth = async () => {
-            const token = localStorage.getItem("authToken");
-            setIsAuthenticated(!!token);
-            setLoading(false);
-        };
-        checkAuth();
-    }, []);
+    const { token, loading } = useAuth();
 
     if (loading) {
         return (
@@ -46,7 +35,22 @@ const ProtectedRoute = ({ children }) => {
         );
     }
 
-    return isAuthenticated ? children : <Navigate to="/login" replace />;
+    return token ? children : <Navigate to="/login" replace />;
+};
+
+// Public route for already authenticated users
+const PublicRoute = ({ children }) => {
+    const { token, loading } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
+
+    return token ? <Navigate to="/dashboard" replace /> : children;
 };
 
 function App() {
@@ -54,9 +58,9 @@ function App() {
 
     // Check maintenance mode (could be from an API call)
     useEffect(() => {
-        // Simulate maintenance mode check
         const maintenanceCheck = async () => {
             try {
+                // In a real app, you would fetch this from your API
                 setMaintenanceMode(false); // Default to false for now
             } catch (error) {
                 console.error("Error checking maintenance mode:", error);
@@ -72,19 +76,46 @@ function App() {
     return (
         <Router>
             <div className="min-h-screen flex flex-col bg-gray-50">
-                <main className="flex-grow container mx-auto px-4 py-8">
+                <main className="flex-grow">
                     <Routes>
                         {/* Public Routes */}
-                        <Route path="/" element={<LoginPage />} />
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/signup" element={<SignUp />} />
+                        <Route
+                            path="/login"
+                            element={
+                                <PublicRoute>
+                                    <LoginPage />
+                                </PublicRoute>
+                            }
+                        />
+                        <Route
+                            path="/signup"
+                            element={
+                                <PublicRoute>
+                                    <SignUp />
+                                </PublicRoute>
+                            }
+                        />
                         <Route
                             path="/forgot-password"
-                            element={<ForgotPassword />}
+                            element={
+                                <PublicRoute>
+                                    <ForgotPassword />
+                                </PublicRoute>
+                            }
                         />
                         <Route
                             path="/reset-password/:token"
-                            element={<ResetPassword />}
+                            element={
+                                <PublicRoute>
+                                    <ResetPassword />
+                                </PublicRoute>
+                            }
+                        />
+
+                        {/* Other public routes that don't need auth check */}
+                        <Route
+                            path="/"
+                            element={<Navigate to="/dashboard" replace />}
                         />
                         <Route path="/api" element={<ApiDocumentation />} />
                         <Route path="/about" element={<About />} />
@@ -92,10 +123,7 @@ function App() {
                         <Route path="/help" element={<HelpPage />} />
                         <Route path="/feedback" element={<FeedbackForm />} />
                         <Route path="/terms" element={<TermsOfService />} />
-                        <Route
-                            path="/contact"
-                            element={<ContactUploading />}
-                        />
+                        <Route path="/contact" element={<ContactUploading />} />
                         <Route
                             path="/maintenance"
                             element={<MaintenancePage />}
@@ -142,10 +170,10 @@ function App() {
                                             exist.
                                         </p>
                                         <a
-                                            href="/"
+                                            href="/dashboard"
                                             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                                         >
-                                            Return Home
+                                            Return to Dashboard
                                         </a>
                                     </div>
                                 </div>
