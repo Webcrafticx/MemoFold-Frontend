@@ -15,7 +15,7 @@ const MainFeed = () => {
     const [posts, setPosts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [showCommentDropdown, setShowCommentDropdown] = useState(false);
+    const [activeCommentPostId, setActiveCommentPostId] = useState(null);
 
     // Sample posts data
     const samplePosts = [
@@ -82,6 +82,10 @@ const MainFeed = () => {
                 likes: post.isLiked ? post.likes - 1 : post.likes + 1,
             } : post
         ));
+    };
+
+    const toggleCommentDropdown = (postId) => {
+        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
     };
 
     const quickReactions = [
@@ -207,13 +211,31 @@ const MainFeed = () => {
                                 <div className="relative">
                                     <button
                                         className="flex items-center gap-1 text-gray-400 hover:text-blue-500 dark:text-gray-300 cursor-pointer"
-                                        onClick={() => setShowCommentDropdown(!showCommentDropdown)}
+                                        onClick={() => toggleCommentDropdown(post.id)}
                                     >
                                         <FaCommentDots className="text-xl" />
                                         <span className="text-sm font-medium">
                                             {post.comments?.length || 0} comments
                                         </span>
                                     </button>
+                                    
+                                    {activeCommentPostId === post.id && (
+                                        <div className={`absolute right-0 mt-2 w-64 rounded-md shadow-lg py-1 ${darkMode ? "bg-gray-700" : "bg-white"} ring-1 ring-black ring-opacity-5 z-10`}>
+                                            <div className="px-4 py-2">
+                                                <p className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-700"}`}>Add a comment:</p>
+                                                <textarea 
+                                                    className={`mt-1 w-full p-2 border rounded ${darkMode ? "bg-gray-600 border-gray-500" : "border-gray-300"}`}
+                                                    rows="3"
+                                                    placeholder="Write your comment..."
+                                                />
+                                                <button 
+                                                    className={`mt-2 px-3 py-1 text-sm rounded ${darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"} text-white`}
+                                                >
+                                                    Post
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
