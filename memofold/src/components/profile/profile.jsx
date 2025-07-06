@@ -557,7 +557,7 @@ const ProfilePage = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center">
+                    <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 justify-start">
                         <div className={`flex items-center gap-1 sm:gap-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
                             <span className="text-blue-500">📊</span>
                             <span>{stats.posts} Posts</span>
