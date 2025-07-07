@@ -174,26 +174,29 @@ const MainFeed = () => {
     return (
         <div className={`min-h-screen ${darkMode ? "dark bg-gray-900 text-gray-100" : "bg-[#fdfaf6]"}`}>
             <header className={`bg-white shadow-sm px-6 py-4 flex justify-between items-center ${darkMode ? "dark:bg-gray-800" : ""}`}>
-                <h1 className="text-xl font-semibold text-gray-900 tracking-wide dark:text-white cursor-pointer">
+                <h1 
+                    className="text-xl font-semibold text-gray-900 tracking-wide dark:text-white cursor-pointer hover:text-blue-500 transition-colors"
+                    onClick={() => navigate("/dashboard")}
+                >
                     MemoFold
                 </h1>
 
                 <nav className="flex gap-5">
                     <button
                         onClick={() => navigate("/dashboard")}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400"
+                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         Home
                     </button>
                     <button
                         onClick={() => navigate("/profile")}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400"
+                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         My Profile
                     </button>
                     <button
                         onClick={logout}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400"
+                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         Logout
                     </button>
@@ -211,7 +214,7 @@ const MainFeed = () => {
                         <p className="text-lg text-red-500">Error loading posts: {error}</p>
                         <button 
                             onClick={fetchPosts}
-                            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors cursor-pointer"
                         >
                             Retry
                         </button>
@@ -224,11 +227,11 @@ const MainFeed = () => {
                     posts.map((post) => (
                         <div
                             key={post.id}
-                            className={`w-full max-w-2xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 ${
+                            className={`w-full max-w-2xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
                                 darkMode ? "dark:bg-gray-800" : ""
                             }`}
                         >
-                            <div className="flex items-center gap-3 mb-3">
+                            <div className="flex items-center gap-3 mb-3 cursor-pointer" onClick={() => navigate(`/profile/${post.userId}`)}>
                                 <img
                                     src={post.profilePic || `https://ui-avatars.com/api/?name=${post.username}&background=random`}
                                     alt={post.username}
@@ -238,7 +241,7 @@ const MainFeed = () => {
                                     }}
                                 />
                                 <div>
-                                    <h3 className="text-base font-semibold text-gray-800 dark:text-white">
+                                    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
                                         {post.username}
                                     </h3>
                                     <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
@@ -251,7 +254,8 @@ const MainFeed = () => {
                                 <img
                                     src={post.image}
                                     alt="Post"
-                                    className="w-full rounded-xl mb-3"
+                                    className="w-full rounded-xl mb-3 cursor-pointer"
+                                    onClick={() => window.open(post.image, '_blank')}
                                     onError={(e) => {
                                         e.target.style.display = "none";
                                     }}
@@ -267,12 +271,12 @@ const MainFeed = () => {
                                     onClick={() => handleLike(post.id)}
                                     className={`flex items-center gap-1 ${
                                         post.isLiked ? "text-red-500" : "text-gray-400"
-                                    } dark:text-gray-300`}
+                                    } dark:text-gray-300 hover:text-red-500 transition-colors cursor-pointer`}
                                 >
                                     {post.isLiked ? (
                                         <FaHeart className="text-xl animate-pulse" />
                                     ) : (
-                                        <FaRegHeart className="text-xl hover:text-red-500" />
+                                        <FaRegHeart className="text-xl" />
                                     )}
                                     <span className="text-sm font-medium">
                                         {post.likes.length} likes
@@ -281,7 +285,7 @@ const MainFeed = () => {
 
                                 <div className="relative">
                                     <button
-                                        className="flex items-center gap-1 text-gray-400 hover:text-blue-500 dark:text-gray-300"
+                                        className="flex items-center gap-1 text-gray-400 hover:text-blue-500 dark:text-gray-300 transition-colors cursor-pointer"
                                         onClick={() => toggleCommentDropdown(post.id)}
                                     >
                                         <FaCommentDots className="text-xl" />
@@ -296,8 +300,12 @@ const MainFeed = () => {
                                                 {post.comments?.length > 0 ? (
                                                     <div className="mb-3 max-h-40 overflow-y-auto">
                                                         {post.comments.map((comment, index) => (
-                                                            <div key={index} className="mb-2 text-sm">
-                                                                <span className="font-semibold">{comment.username}:</span> {comment.content}
+                                                            <div 
+                                                                key={index} 
+                                                                className="mb-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-1 rounded"
+                                                                onClick={() => navigate(`/profile/${comment.userId}`)}
+                                                            >
+                                                                <span className="font-semibold hover:text-blue-500">{comment.username}:</span> {comment.content}
                                                             </div>
                                                         ))}
                                                     </div>
@@ -307,14 +315,14 @@ const MainFeed = () => {
                                                 
                                                 <p className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-700"}`}>Add a comment:</p>
                                                 <textarea 
-                                                    className={`mt-1 w-full p-2 border rounded ${darkMode ? "bg-gray-600 border-gray-500" : "border-gray-300"}`}
+                                                    className={`mt-1 w-full p-2 border rounded ${darkMode ? "bg-gray-600 border-gray-500" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                                     rows="3"
                                                     placeholder="Write your comment..."
                                                     value={commentTexts[post.id] || ""}
                                                     onChange={(e) => handleCommentTextChange(post.id, e.target.value)}
                                                 />
                                                 <button 
-                                                    className={`mt-2 px-3 py-1 text-sm rounded ${darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"} text-white`}
+                                                    className={`mt-2 px-3 py-1 text-sm rounded ${darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"} text-white transition-colors cursor-pointer`}
                                                     onClick={() => handleCommentSubmit(post.id)}
                                                 >
                                                     Post
@@ -329,7 +337,7 @@ const MainFeed = () => {
                 )}
             </section>
 
-            <div className={`mt-6 p-4 rounded-xl ${darkMode ? "bg-gray-800" : "bg-gray-100"} text-center mx-auto max-w-2xl`}>
+            <div className={`mt-6 p-4 rounded-xl ${darkMode ? "bg-gray-800" : "bg-gray-100"} text-center mx-auto max-w-2xl cursor-default`}>
                 <p className="font-medium dark:text-white">
                     Today: {new Date().toLocaleDateString()}
                 </p>
