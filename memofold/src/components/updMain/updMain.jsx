@@ -11,6 +11,7 @@ import {
     FaMoon,
     FaSun,
     FaCommentDots,
+    FaSignOutAlt,
 } from "react-icons/fa";
 
 const MainDashboard = () => {
@@ -22,7 +23,7 @@ const MainDashboard = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showDropdown, setShowDropdown] = useState(false);
-    const [showCommentDropdown, setShowCommentDropdown] = useState(false);
+    const [activeCommentPostId, setActiveCommentPostId] = useState(null); // Changed from showCommentDropdown
     const { token, username, realname, logout } = useAuth();
     const navigate = useNavigate();
     const API_BASE = "https://memofold1.onrender.com/api";
@@ -59,7 +60,7 @@ const MainDashboard = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await fetch(`${API_BASE}/posts`, {
+                const response = await fetch(`${API_BASE}/posts/user/${username}`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
@@ -84,7 +85,7 @@ const MainDashboard = () => {
         } else {
             navigate("/login");
         }
-    }, [token, navigate]);
+    }, [token, navigate, username]);
 
     const toggleDarkMode = () => {
         const newMode = !darkMode;
@@ -110,8 +111,7 @@ const MainDashboard = () => {
                 },
                 body: JSON.stringify({
                     content: postContent,
-                    date:
-                        selectedDate || new Date().toISOString().split("T")[0],
+                    date: selectedDate || new Date().toISOString().split("T")[0],
                     time: new Date().toLocaleTimeString(),
                 }),
             });
@@ -205,6 +205,10 @@ const MainDashboard = () => {
         );
     };
 
+    const toggleCommentDropdown = (postId) => {
+        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
+    };
+
     const handleProfileClick = () => {
         navigate("/profile");
         setShowDropdown(false);
@@ -214,6 +218,7 @@ const MainDashboard = () => {
         navigate("/feedback");
         setShowDropdown(false);
     };
+
     const handleLogout = async () => {
         try {
             await logout();
@@ -223,6 +228,7 @@ const MainDashboard = () => {
             console.error("Logout error:", err);
         }
     };
+
     return (
         <div
             className={`min-h-screen ${
@@ -281,19 +287,24 @@ const MainDashboard = () => {
                                         <FaUserCircle className="inline mr-2" />{" "}
                                         Profile
                                     </span>
-                                    <span
-                                        className={`block px-4 py-2 text-sm ${
+                                    <div
+                                        className={`flex justify-between items-center px-4 py-2 text-sm ${
                                             darkMode
                                                 ? "text-gray-200 hover:bg-gray-700"
                                                 : "text-gray-700 hover:bg-gray-100"
-                                        } cursor-pointer flex items-center justify-between`}
-                                        onClick={toggleDarkMode}
+                                        } cursor-pointer`}
                                     >
-                                        <span>
+                                        <div 
+                                            className="flex items-center"
+                                            onClick={toggleDarkMode}
+                                        >
                                             <FaMoon className="inline mr-2" />{" "}
                                             Dark Mode
-                                        </span>
-                                        <label className="relative inline-flex items-center cursor-pointer">
+                                        </div>
+                                        <label 
+                                            className="relative inline-flex items-center cursor-pointer"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <input
                                                 type="checkbox"
                                                 className="sr-only peer"
@@ -302,7 +313,7 @@ const MainDashboard = () => {
                                             />
                                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                                         </label>
-                                    </span>
+                                    </div>
                                     <span
                                         className={`block px-4 py-2 text-sm ${
                                             darkMode
@@ -329,7 +340,7 @@ const MainDashboard = () => {
                             title="Home"
                             onClick={handleLogout}
                         >
-                            <FaHome className="text-xl" />
+                            <FaSignOutAlt className="text-xl" />
                         </button>
 
                         <input
@@ -402,14 +413,14 @@ const MainDashboard = () => {
                                                 : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
                                         } shadow-md transition-all cursor-pointer`}
                                         onClick={() =>
-                                            setShowCommentDropdown(
-                                                !showCommentDropdown
+                                            setActiveCommentPostId(
+                                                activeCommentPostId === "new" ? null : "new"
                                             )
                                         }
                                     >
                                         <span className="text-xl">💬</span>
                                     </button>
-                                    {showCommentDropdown && (
+                                    {activeCommentPostId === "new" && (
                                         <div
                                             className={`absolute left-0 mt-2 w-48 rounded-md shadow-lg ${
                                                 darkMode
@@ -431,9 +442,7 @@ const MainDashboard = () => {
                                                                 addReaction(
                                                                     reaction
                                                                 );
-                                                                setShowCommentDropdown(
-                                                                    false
-                                                                );
+                                                                setActiveCommentPostId(null);
                                                             }}
                                                         >
                                                             {reaction.text}{" "}
@@ -529,7 +538,7 @@ const MainDashboard = () => {
                                                 className="text-3xl text-gray-400 cursor-pointer"
                                                 onClick={() =>
                                                     navigate(
-                                                        `/profile/${post.author?.username}`
+                                                        `/profile/${post.userId}`
                                                     )
                                                 }
                                             />
@@ -538,13 +547,11 @@ const MainDashboard = () => {
                                                     className="font-semibold cursor-pointer"
                                                     onClick={() =>
                                                         navigate(
-                                                            `/profile/${post.author?.username}`
+                                                            `/profile/${post.userId}`
                                                         )
                                                     }
                                                 >
-                                                    {post.author?.realname ||
-                                                        post.author?.username ||
-                                                        "Unknown"}
+                                                    {post.username || "Unknown"}
                                                 </h3>
                                                 <p
                                                     className={`text-xs ${
@@ -557,7 +564,7 @@ const MainDashboard = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        {post.author?.username === username && (
+                                        {post.userId === username && (
                                             <button
                                                 className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
                                                 onClick={() =>
@@ -595,9 +602,7 @@ const MainDashboard = () => {
                                             <button
                                                 className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                                                 onClick={() =>
-                                                    setShowCommentDropdown(
-                                                        !showCommentDropdown
-                                                    )
+                                                    toggleCommentDropdown(post._id)
                                                 }
                                             >
                                                 <FaCommentDots />
@@ -605,7 +610,7 @@ const MainDashboard = () => {
                                                     {post.comments?.length || 0}
                                                 </span>
                                             </button>
-                                            {showCommentDropdown && (
+                                            {activeCommentPostId === post._id && (
                                                 <div
                                                     className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${
                                                         darkMode
@@ -630,9 +635,7 @@ const MainDashboard = () => {
                                                                         console.log(
                                                                             `Adding reaction: ${reaction.text} to post ${post._id}`
                                                                         );
-                                                                        setShowCommentDropdown(
-                                                                            false
-                                                                        );
+                                                                        setActiveCommentPostId(null);
                                                                     }}
                                                                 >
                                                                     {
