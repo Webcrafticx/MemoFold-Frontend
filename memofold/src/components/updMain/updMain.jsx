@@ -13,6 +13,7 @@ import {
     FaCommentDots,
     FaSignOutAlt,
 } from "react-icons/fa";
+import config from "../../hooks/config";
 
 const MainDashboard = () => {
     const [darkMode, setDarkMode] = useState(false);
@@ -26,7 +27,6 @@ const MainDashboard = () => {
     const [activeCommentPostId, setActiveCommentPostId] = useState(null); // Changed from showCommentDropdown
     const { token, username, realname, logout } = useAuth();
     const navigate = useNavigate();
-    const API_BASE = "https://memofold1.onrender.com/api";
 
     // Update time every second
     useEffect(() => {
@@ -60,11 +60,14 @@ const MainDashboard = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await fetch(`${API_BASE}/posts/user/${username}`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await fetch(
+                    `${config.apiUrl}/posts/user/${username}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
 
                 if (!response.ok) {
                     throw new Error("Failed to fetch posts");
@@ -103,7 +106,7 @@ const MainDashboard = () => {
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/posts`, {
+            const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -111,7 +114,8 @@ const MainDashboard = () => {
                 },
                 body: JSON.stringify({
                     content: postContent,
-                    date: selectedDate || new Date().toISOString().split("T")[0],
+                    date:
+                        selectedDate || new Date().toISOString().split("T")[0],
                     time: new Date().toLocaleTimeString(),
                 }),
             });
@@ -135,12 +139,15 @@ const MainDashboard = () => {
 
     const handleLikePost = async (postId) => {
         try {
-            const response = await fetch(`${API_BASE}/posts/${postId}/like`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const response = await fetch(
+                `${config.apiUrl}/posts/${postId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             if (!response.ok) {
                 throw new Error("Failed to like post");
@@ -163,7 +170,7 @@ const MainDashboard = () => {
             return;
 
         try {
-            const response = await fetch(`${API_BASE}/posts/${postId}`, {
+            const response = await fetch(`${config.apiUrl}/posts/${postId}`, {
                 method: "DELETE",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -294,14 +301,14 @@ const MainDashboard = () => {
                                                 : "text-gray-700 hover:bg-gray-100"
                                         } cursor-pointer`}
                                     >
-                                        <div 
+                                        <div
                                             className="flex items-center"
                                             onClick={toggleDarkMode}
                                         >
                                             <FaMoon className="inline mr-2" />{" "}
                                             Dark Mode
                                         </div>
-                                        <label 
+                                        <label
                                             className="relative inline-flex items-center cursor-pointer"
                                             onClick={(e) => e.stopPropagation()}
                                         >
@@ -414,7 +421,9 @@ const MainDashboard = () => {
                                         } shadow-md transition-all cursor-pointer`}
                                         onClick={() =>
                                             setActiveCommentPostId(
-                                                activeCommentPostId === "new" ? null : "new"
+                                                activeCommentPostId === "new"
+                                                    ? null
+                                                    : "new"
                                             )
                                         }
                                     >
@@ -442,7 +451,9 @@ const MainDashboard = () => {
                                                                 addReaction(
                                                                     reaction
                                                                 );
-                                                                setActiveCommentPostId(null);
+                                                                setActiveCommentPostId(
+                                                                    null
+                                                                );
                                                             }}
                                                         >
                                                             {reaction.text}{" "}
@@ -602,7 +613,9 @@ const MainDashboard = () => {
                                             <button
                                                 className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                                                 onClick={() =>
-                                                    toggleCommentDropdown(post._id)
+                                                    toggleCommentDropdown(
+                                                        post._id
+                                                    )
                                                 }
                                             >
                                                 <FaCommentDots />
@@ -610,7 +623,8 @@ const MainDashboard = () => {
                                                     {post.comments?.length || 0}
                                                 </span>
                                             </button>
-                                            {activeCommentPostId === post._id && (
+                                            {activeCommentPostId ===
+                                                post._id && (
                                                 <div
                                                     className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${
                                                         darkMode
@@ -635,7 +649,9 @@ const MainDashboard = () => {
                                                                         console.log(
                                                                             `Adding reaction: ${reaction.text} to post ${post._id}`
                                                                         );
-                                                                        setActiveCommentPostId(null);
+                                                                        setActiveCommentPostId(
+                                                                            null
+                                                                        );
                                                                     }}
                                                                 >
                                                                     {
