@@ -17,18 +17,21 @@ import {
     FaCog,
     FaTimes,
     FaArrowLeft,
-    FaBars
+    FaBars,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../../assets/logo.png";
-
-const API_BASE = "https://memofold1.onrender.com/api";
+import config from "../../hooks/config";
 
 const ProfilePage = () => {
-    const [profilePic, setProfilePic] = useState("https://ui-avatars.com/api/?name=User&background=random");
+    const [profilePic, setProfilePic] = useState(
+        "https://ui-avatars.com/api/?name=User&background=random"
+    );
     const [username, setUsername] = useState("");
     const [realName, setRealName] = useState("");
-    const [bio, setBio] = useState("Visual storyteller. Passion meets pixels. ✨");
+    const [bio, setBio] = useState(
+        "Visual storyteller. Passion meets pixels. ✨"
+    );
     const [posts, setPosts] = useState([]);
     const [darkMode, setDarkMode] = useState(false);
     const [postContent, setPostContent] = useState("");
@@ -37,7 +40,7 @@ const ProfilePage = () => {
     const [stats, setStats] = useState({
         posts: 0,
         followers: 0,
-        following: 0
+        following: 0,
     });
     const [loading, setLoading] = useState(true);
     const [editingBio, setEditingBio] = useState(false);
@@ -49,9 +52,9 @@ const ProfilePage = () => {
         realName: "",
         email: "",
         password: "",
-        confirmPassword: ""
+        confirmPassword: "",
     });
-    
+
     const fileInputRef = useRef(null);
     const mobileMenuRef = useRef(null);
 
@@ -66,7 +69,7 @@ const ProfilePage = () => {
         const token = localStorage.getItem("token");
         const storedUsername = localStorage.getItem("username");
         const storedRealname = localStorage.getItem("realname");
-        
+
         if (storedUsername) setUsername(storedUsername);
         if (storedRealname) setRealName(storedRealname);
 
@@ -76,13 +79,13 @@ const ProfilePage = () => {
             realName: storedRealname || "",
             email: localStorage.getItem("email") || "",
             password: "",
-            confirmPassword: ""
+            confirmPassword: "",
         });
 
         // Fetch user profile data
         const fetchUserData = async () => {
             try {
-                const response = await fetch(`${API_BASE}/user/me`, {
+                const response = await fetch(`${config.apiUrl}/user/me`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
@@ -100,7 +103,7 @@ const ProfilePage = () => {
                     setStats({
                         posts: userData.postCount || 0,
                         followers: userData.followerCount || 0,
-                        following: userData.followingCount || 0
+                        following: userData.followingCount || 0,
                     });
                 }
             } catch (error) {
@@ -111,19 +114,28 @@ const ProfilePage = () => {
         // Fetch user posts
         const fetchUserPosts = async () => {
             try {
-                const response = await fetch(`${API_BASE}/posts/user/${storedUsername}`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await fetch(
+                    `${config.apiUrl}/posts/user/${storedUsername}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
 
                 if (response.ok) {
                     const postsData = await response.json();
-                    setPosts(postsData.reverse().map(post => ({
-                        ...post,
-                        isLiked: false,
-                        profilePic: post.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.username)}&background=random`
-                    })));
+                    setPosts(
+                        postsData.reverse().map((post) => ({
+                            ...post,
+                            isLiked: false,
+                            profilePic:
+                                post.profilePic ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    post.username
+                                )}&background=random`,
+                        }))
+                    );
                 }
             } catch (error) {
                 console.error("Error fetching posts:", error);
@@ -137,18 +149,26 @@ const ProfilePage = () => {
 
         // Set up clock
         const updateClock = () => {
-            setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            setCurrentTime(
+                new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                })
+            );
         };
         updateClock();
         const clockInterval = setInterval(updateClock, 1000);
 
         // Set default date to today
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
         setSelectedDate(today);
 
         // Click outside mobile menu handler
         const handleClickOutside = (e) => {
-            if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+            if (
+                mobileMenuRef.current &&
+                !mobileMenuRef.current.contains(e.target)
+            ) {
                 setShowMobileMenu(false);
             }
         };
@@ -167,7 +187,8 @@ const ProfilePage = () => {
         if (darkMode) {
             document.body.className = "bg-gray-900";
         } else {
-            document.body.className = "bg-gradient-to-r from-gray-100 to-gray-300";
+            document.body.className =
+                "bg-gradient-to-r from-gray-100 to-gray-300";
         }
     }, [darkMode]);
 
@@ -180,13 +201,16 @@ const ProfilePage = () => {
 
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`${API_BASE}/user/upload-profile-pic`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                body: formData,
-            });
+            const response = await fetch(
+                `${config.apiUrl}/user/upload-profile-pic`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: formData,
+                }
+            );
 
             if (response.ok) {
                 const data = await response.json();
@@ -204,7 +228,7 @@ const ProfilePage = () => {
     const handleBioUpdate = async () => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`${API_BASE}/user/update-bio`, {
+            const response = await fetch(`${config.apiUrl}/user/update-bio`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -229,12 +253,15 @@ const ProfilePage = () => {
     const toggleLike = async (postId) => {
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`${API_BASE}/posts/${postId}/like`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const response = await fetch(
+                `${config.apiUrl}/posts/${postId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             if (response.ok) {
                 setPosts(
@@ -243,7 +270,9 @@ const ProfilePage = () => {
                             return {
                                 ...post,
                                 isLiked: !post.isLiked,
-                                likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                                likes: post.isLiked
+                                    ? post.likes - 1
+                                    : post.likes + 1,
                             };
                         }
                         return post;
@@ -264,12 +293,12 @@ const ProfilePage = () => {
             formData.append("content", postContent);
             formData.append("date", selectedDate);
             formData.append("time", currentTime);
-            
+
             if (fileInputRef.current.files[0]) {
                 formData.append("image", fileInputRef.current.files[0]);
             }
 
-            const response = await fetch(`${API_BASE}/posts`, {
+            const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -280,23 +309,28 @@ const ProfilePage = () => {
             const result = await response.json();
 
             if (!response.ok) {
-                return alert(`Failed to post: ${result.error || "Unknown error"}`);
+                return alert(
+                    `Failed to post: ${result.error || "Unknown error"}`
+                );
             }
 
-            setPosts([{
-                ...result,
-                isLiked: false,
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                profilePic: profilePic,
-                username: username
-            }, ...posts]);
+            setPosts([
+                {
+                    ...result,
+                    isLiked: false,
+                    likes: 0,
+                    comments: 0,
+                    shares: 0,
+                    profilePic: profilePic,
+                    username: username,
+                },
+                ...posts,
+            ]);
 
-            setStats(prev => ({...prev, posts: prev.posts + 1}));
+            setStats((prev) => ({ ...prev, posts: prev.posts + 1 }));
             setPostContent("");
             if (fileInputRef.current) fileInputRef.current.value = "";
-            
+
             alert("Posted successfully!");
         } catch (error) {
             console.error("Post error:", error);
@@ -313,19 +347,22 @@ const ProfilePage = () => {
 
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`${API_BASE}/user/update-profile`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    username: editFormData.username,
-                    realName: editFormData.realName,
-                    email: editFormData.email,
-                    password: editFormData.password || undefined
-                }),
-            });
+            const response = await fetch(
+                `${config.apiUrl}/user/update-profile`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        username: editFormData.username,
+                        realName: editFormData.realName,
+                        email: editFormData.email,
+                        password: editFormData.password || undefined,
+                    }),
+                }
+            );
 
             if (response.ok) {
                 const data = await response.json();
@@ -352,7 +389,7 @@ const ProfilePage = () => {
         const { name, value } = e.target;
         setEditFormData({
             ...editFormData,
-            [name]: value
+            [name]: value,
         });
     };
 
@@ -374,14 +411,28 @@ const ProfilePage = () => {
     };
 
     return (
-        <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-gray-100' : 'text-gray-800'}`}>
+        <div
+            className={`min-h-screen transition-colors duration-300 ${
+                darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
+            }`}
+        >
             {/* Navigation Bar */}
-            <nav className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b shadow-md px-4 sm:px-6 py-3 sticky top-0 z-50`}>
+            <nav
+                className={`${
+                    darkMode
+                        ? "bg-gray-800 border-gray-700"
+                        : "bg-white border-gray-200"
+                } border-b shadow-md px-4 sm:px-6 py-3 sticky top-0 z-50`}
+            >
                 <div className="max-w-6xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-2 sm:gap-4">
-                        <button 
+                        <button
                             onClick={goBack}
-                            className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors cursor-pointer`}
+                            className={`p-2 rounded-full ${
+                                darkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-100"
+                            } transition-colors cursor-pointer`}
                             title="Go back"
                         >
                             <FaArrowLeft className="text-gray-600 dark:text-gray-300 text-sm sm:text-base" />
@@ -394,33 +445,43 @@ const ProfilePage = () => {
                             />
                         </div>
                     </div>
-                    
+
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-4">
-                        <button 
+                        <button
                             onClick={navigateToMain}
                             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 sm:px-5 rounded-xl hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all cursor-pointer text-sm sm:text-base"
                         >
                             <FaPlusCircle className="text-sm sm:text-lg" />
-                            <span className="hidden sm:inline">Create Post</span>
+                            <span className="hidden sm:inline">
+                                Create Post
+                            </span>
                         </button>
-                        <button 
+                        <button
                             onClick={() => setDarkMode(!darkMode)}
-                            className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'} transition-colors cursor-pointer`}
-                            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                            className={`p-2 rounded-full ${
+                                darkMode
+                                    ? "bg-gray-700 text-yellow-300 hover:bg-gray-600"
+                                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            } transition-colors cursor-pointer`}
+                            title={
+                                darkMode
+                                    ? "Switch to light mode"
+                                    : "Switch to dark mode"
+                            }
                         >
                             {darkMode ? <FaSun /> : <FaMoon />}
                         </button>
-                        <button 
+                        <button
                             onClick={handleLogout}
                             className="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold transition-colors cursor-pointer text-sm sm:text-base"
                         >
                             Logout
                         </button>
                     </div>
-                    
+
                     {/* Mobile Menu Button */}
-                    <button 
+                    <button
                         onClick={toggleMobileMenu}
                         className="md:hidden p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -436,26 +497,34 @@ const ProfilePage = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     ref={mobileMenuRef}
-                    className={`md:hidden fixed top-16 right-4 z-50 w-48 ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+                    className={`md:hidden fixed top-16 right-4 z-50 w-48 ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    } rounded-lg shadow-xl border ${
+                        darkMode ? "border-gray-700" : "border-gray-200"
+                    }`}
                 >
                     <div className="flex flex-col p-4 gap-3">
-                        <button 
+                        <button
                             onClick={navigateToMain}
                             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-lg justify-center"
                         >
                             <FaPlusCircle />
                             <span>Create Post</span>
                         </button>
-                        
-                        <button 
+
+                        <button
                             onClick={() => setDarkMode(!darkMode)}
-                            className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} justify-center`}
+                            className={`flex items-center gap-2 p-2 rounded-lg ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-gray-200 hover:bg-gray-300"
+                            } justify-center`}
                         >
                             {darkMode ? <FaSun /> : <FaMoon />}
                             <span>{darkMode ? "Light Mode" : "Dark Mode"}</span>
                         </button>
-                        
-                        <button 
+
+                        <button
                             onClick={handleLogout}
                             className="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold py-2"
                         >
@@ -466,9 +535,21 @@ const ProfilePage = () => {
             )}
 
             {/* Main Content */}
-            <div className={`pt-4 sm:pt-6 pb-12 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-r from-gray-100 to-gray-300'}`}>
+            <div
+                className={`pt-4 sm:pt-6 pb-12 ${
+                    darkMode
+                        ? "bg-gray-900"
+                        : "bg-gradient-to-r from-gray-100 to-gray-300"
+                }`}
+            >
                 {/* Profile Section */}
-                <div className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}>
+                <div
+                    className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
+                        darkMode
+                            ? "bg-gray-800 border-gray-700"
+                            : "bg-white border-gray-200"
+                    } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}
+                >
                     <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 mb-4 sm:mb-6">
                         <div className="relative group self-center sm:self-auto">
                             <input
@@ -503,20 +584,26 @@ const ProfilePage = () => {
                                         {realName}
                                     </p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => setEditingBio(!editingBio)}
                                     className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
                                 >
                                     <FaEdit />
                                 </button>
                             </div>
-                            
+
                             {editingBio ? (
                                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
                                     <textarea
                                         value={newBio}
-                                        onChange={(e) => setNewBio(e.target.value)}
-                                        className={`w-full p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                        onChange={(e) =>
+                                            setNewBio(e.target.value)
+                                        }
+                                        className={`w-full p-2 rounded-lg ${
+                                            darkMode
+                                                ? "bg-gray-700 text-white"
+                                                : "bg-gray-100"
+                                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                         rows="2"
                                     />
                                     <div className="flex gap-2 justify-end sm:justify-start">
@@ -538,12 +625,16 @@ const ProfilePage = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-gray-600 dark:text-gray-300 mt-3 text-center sm:text-left">{bio}</p>
+                                <p className="text-gray-600 dark:text-gray-300 mt-3 text-center sm:text-left">
+                                    {bio}
+                                </p>
                             )}
 
                             <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
-                                <button 
-                                    onClick={() => setShowEditProfileModal(true)}
+                                <button
+                                    onClick={() =>
+                                        setShowEditProfileModal(true)
+                                    }
                                     className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1 sm:gap-2 text-sm sm:text-base"
                                 >
                                     <FaEdit className="text-xs sm:text-sm" />
@@ -558,15 +649,33 @@ const ProfilePage = () => {
                     </div>
 
                     <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 justify-start">
-                        <div className={`flex items-center gap-1 sm:gap-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
+                        <div
+                            className={`flex items-center gap-1 sm:gap-2 ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-gray-100 hover:bg-gray-200"
+                            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                        >
                             <span className="text-blue-500">📊</span>
                             <span>{stats.posts} Posts</span>
                         </div>
-                        <div className={`flex items-center gap-1 sm:gap-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
+                        <div
+                            className={`flex items-center gap-1 sm:gap-2 ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-gray-100 hover:bg-gray-200"
+                            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                        >
                             <span className="text-blue-500">👥</span>
                             <span>{stats.followers} Followers</span>
                         </div>
-                        <div className={`flex items-center gap-1 sm:gap-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
+                        <div
+                            className={`flex items-center gap-1 sm:gap-2 ${
+                                darkMode
+                                    ? "bg-gray-700 hover:bg-gray-600"
+                                    : "bg-gray-100 hover:bg-gray-200"
+                            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                        >
                             <span className="text-blue-500">❤️</span>
                             <span>{stats.following} Following</span>
                         </div>
@@ -588,22 +697,41 @@ const ProfilePage = () => {
                                 animate={{ y: 0, opacity: 1 }}
                                 exit={{ y: 50, opacity: 0 }}
                                 transition={{ type: "spring", damping: 25 }}
-                                className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-xl p-4 sm:p-6`}
+                                className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto ${
+                                    darkMode ? "bg-gray-800" : "bg-white"
+                                } rounded-2xl shadow-xl p-4 sm:p-6`}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="flex justify-between items-center mb-4 sm:mb-6">
-                                    <h2 className="text-xl sm:text-2xl font-bold dark:text-white">Edit Profile</h2>
+                                    <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
+                                        Edit Profile
+                                    </h2>
                                     <button
-                                        onClick={() => setShowEditProfileModal(false)}
-                                        className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} transition-colors`}
+                                        onClick={() =>
+                                            setShowEditProfileModal(false)
+                                        }
+                                        className={`p-2 rounded-full ${
+                                            darkMode
+                                                ? "hover:bg-gray-700"
+                                                : "hover:bg-gray-100"
+                                        } transition-colors`}
                                     >
                                         <FaTimes className="text-gray-500 dark:text-gray-400" />
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleEditProfileSubmit} className="space-y-3 sm:space-y-4">
+                                <form
+                                    onSubmit={handleEditProfileSubmit}
+                                    className="space-y-3 sm:space-y-4"
+                                >
                                     <div>
-                                        <label className={`block mb-1 sm:mb-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label
+                                            className={`block mb-1 sm:mb-2 text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Username
                                         </label>
                                         <input
@@ -611,13 +739,23 @@ const ProfilePage = () => {
                                             name="username"
                                             value={editFormData.username}
                                             onChange={handleEditFormChange}
-                                            className={`w-full p-2 sm:p-3 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            className={`w-full p-2 sm:p-3 rounded-lg ${
+                                                darkMode
+                                                    ? "bg-gray-700 text-white"
+                                                    : "bg-gray-100"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                             required
                                         />
                                     </div>
 
                                     <div>
-                                        <label className={`block mb-1 sm:mb-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label
+                                            className={`block mb-1 sm:mb-2 text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Full Name
                                         </label>
                                         <input
@@ -625,12 +763,22 @@ const ProfilePage = () => {
                                             name="realName"
                                             value={editFormData.realName}
                                             onChange={handleEditFormChange}
-                                            className={`w-full p-2 sm:p-3 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            className={`w-full p-2 sm:p-3 rounded-lg ${
+                                                darkMode
+                                                    ? "bg-gray-700 text-white"
+                                                    : "bg-gray-100"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className={`block mb-1 sm:mb-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label
+                                            className={`block mb-1 sm:mb-2 text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Email
                                         </label>
                                         <input
@@ -638,13 +786,23 @@ const ProfilePage = () => {
                                             name="email"
                                             value={editFormData.email}
                                             onChange={handleEditFormChange}
-                                            className={`w-full p-2 sm:p-3 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            className={`w-full p-2 sm:p-3 rounded-lg ${
+                                                darkMode
+                                                    ? "bg-gray-700 text-white"
+                                                    : "bg-gray-100"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                             required
                                         />
                                     </div>
 
                                     <div>
-                                        <label className={`block mb-1 sm:mb-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label
+                                            className={`block mb-1 sm:mb-2 text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             New Password
                                         </label>
                                         <input
@@ -652,13 +810,23 @@ const ProfilePage = () => {
                                             name="password"
                                             value={editFormData.password}
                                             onChange={handleEditFormChange}
-                                            className={`w-full p-2 sm:p-3 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            className={`w-full p-2 sm:p-3 rounded-lg ${
+                                                darkMode
+                                                    ? "bg-gray-700 text-white"
+                                                    : "bg-gray-100"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                             placeholder="Leave blank to keep current"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className={`block mb-1 sm:mb-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <label
+                                            className={`block mb-1 sm:mb-2 text-sm font-medium ${
+                                                darkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-700"
+                                            }`}
+                                        >
                                             Confirm Password
                                         </label>
                                         <input
@@ -666,7 +834,11 @@ const ProfilePage = () => {
                                             name="confirmPassword"
                                             value={editFormData.confirmPassword}
                                             onChange={handleEditFormChange}
-                                            className={`w-full p-2 sm:p-3 rounded-lg ${darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            className={`w-full p-2 sm:p-3 rounded-lg ${
+                                                darkMode
+                                                    ? "bg-gray-700 text-white"
+                                                    : "bg-gray-100"
+                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                                             placeholder="Leave blank to keep current"
                                         />
                                     </div>
@@ -674,8 +846,14 @@ const ProfilePage = () => {
                                     <div className="pt-3 flex justify-end gap-2 sm:gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => setShowEditProfileModal(false)}
-                                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} transition-colors text-sm sm:text-base`}
+                                            onClick={() =>
+                                                setShowEditProfileModal(false)
+                                            }
+                                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium ${
+                                                darkMode
+                                                    ? "bg-gray-700 hover:bg-gray-600 text-white"
+                                                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                                            } transition-colors text-sm sm:text-base`}
                                         >
                                             Cancel
                                         </button>
@@ -693,24 +871,36 @@ const ProfilePage = () => {
                 </AnimatePresence>
 
                 {/* Create Post Section */}
-                <div className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}>
+                <div
+                    className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
+                        darkMode
+                            ? "bg-gray-800 border-gray-700"
+                            : "bg-white border-gray-200"
+                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
+                >
                     <div className="flex items-center gap-3 mb-3 sm:mb-4">
                         <img
                             src={profilePic}
                             alt={username}
                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                         />
-                        <span className="font-semibold dark:text-white cursor-pointer text-sm sm:text-base">{username}</span>
+                        <span className="font-semibold dark:text-white cursor-pointer text-sm sm:text-base">
+                            {username}
+                        </span>
                     </div>
-                    
+
                     <textarea
                         value={postContent}
                         onChange={(e) => setPostContent(e.target.value)}
                         placeholder="What's on your mind?"
-                        className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${darkMode ? 'bg-gray-700 text-white placeholder-gray-400' : 'bg-gray-100 placeholder-gray-500'} focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
+                        className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
+                            darkMode
+                                ? "bg-gray-700 text-white placeholder-gray-400"
+                                : "bg-gray-100 placeholder-gray-500"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
                         rows="3"
                     ></textarea>
-                    
+
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
                         <div className="flex flex-wrap gap-2">
                             <div className="flex items-center gap-1 sm:gap-2">
@@ -718,34 +908,42 @@ const ProfilePage = () => {
                                 <input
                                     type="date"
                                     value={selectedDate}
-                                    onChange={(e) => setSelectedDate(e.target.value)}
-                                    className={`${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-100 border-gray-300'} p-1 rounded border cursor-pointer text-xs sm:text-sm`}
+                                    onChange={(e) =>
+                                        setSelectedDate(e.target.value)
+                                    }
+                                    className={`${
+                                        darkMode
+                                            ? "bg-gray-700 text-white border-gray-600"
+                                            : "bg-gray-100 border-gray-300"
+                                    } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
                                 />
                             </div>
                             <div className="flex items-center gap-1 sm:gap-2">
                                 <FaClock className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm" />
-                                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{currentTime}</span>
+                                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                    {currentTime}
+                                </span>
                             </div>
                         </div>
-                        
+
                         <div className="flex gap-1 sm:gap-2 self-end">
-                            <button 
+                            <button
                                 onClick={() => fileInputRef.current.click()}
                                 className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
                                 title="Attach file"
                             >
                                 <FaPaperclip className="text-xs sm:text-sm" />
                             </button>
-                            <input 
-                                type="file" 
-                                id="fileInput" 
-                                className="hidden" 
-                                accept="image/*" 
+                            <input
+                                type="file"
+                                id="fileInput"
+                                className="hidden"
+                                accept="image/*"
                                 ref={fileInputRef}
                             />
-                            
+
                             {postContent && (
-                                <button 
+                                <button
                                     onClick={() => setPostContent("")}
                                     className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
                                     title="Clear post"
@@ -753,11 +951,15 @@ const ProfilePage = () => {
                                     <FaTrash className="text-xs sm:text-sm" />
                                 </button>
                             )}
-                            
+
                             <button
                                 onClick={handleCreatePost}
                                 disabled={!postContent.trim()}
-                                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${postContent.trim() ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400'} transition-colors cursor-pointer text-sm sm:text-base`}
+                                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+                                    postContent.trim()
+                                        ? "bg-blue-500 hover:bg-blue-600 text-white"
+                                        : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                } transition-colors cursor-pointer text-sm sm:text-base`}
                             >
                                 Post
                             </button>
@@ -770,12 +972,18 @@ const ProfilePage = () => {
                     {loading ? (
                         <div className="text-center py-8">
                             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                            <p className="mt-4 text-gray-600 dark:text-gray-300">Loading posts...</p>
+                            <p className="mt-4 text-gray-600 dark:text-gray-300">
+                                Loading posts...
+                            </p>
                         </div>
                     ) : posts.length === 0 ? (
-                        <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div
+                            className={`text-center py-8 ${
+                                darkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                        >
                             <p>You haven't posted anything yet.</p>
-                            <button 
+                            <button
                                 onClick={navigateToMain}
                                 className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer text-sm sm:text-base"
                             >
@@ -787,7 +995,11 @@ const ProfilePage = () => {
                             {posts.map((post) => (
                                 <div
                                     key={post.id}
-                                    className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
+                                    className={`${
+                                        darkMode
+                                            ? "bg-gray-800 border-gray-700"
+                                            : "bg-white border-gray-200"
+                                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
                                 >
                                     {/* Post Header */}
                                     <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -800,12 +1012,22 @@ const ProfilePage = () => {
                                             {post.username}
                                         </span>
                                         <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 ml-auto">
-                                            {new Date(post.createdAt).toLocaleString()}
+                                            {new Date(
+                                                post.createdAt
+                                            ).toLocaleString()}
                                         </span>
                                     </div>
 
                                     {/* Post Content */}
-                                    <p className={`mb-3 sm:mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'} text-sm sm:text-base`}>{post.content}</p>
+                                    <p
+                                        className={`mb-3 sm:mb-4 ${
+                                            darkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-700"
+                                        } text-sm sm:text-base`}
+                                    >
+                                        {post.content}
+                                    </p>
 
                                     {/* Post Image */}
                                     {post.image && (
@@ -814,7 +1036,7 @@ const ProfilePage = () => {
                                             alt="Post"
                                             className="w-full rounded-lg sm:rounded-xl mb-3 sm:mb-4 cursor-pointer max-h-80 object-cover"
                                             onError={(e) => {
-                                                e.target.style.display = 'none';
+                                                e.target.style.display = "none";
                                             }}
                                         />
                                     )}
@@ -823,7 +1045,13 @@ const ProfilePage = () => {
                                     <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
                                         <button
                                             onClick={() => toggleLike(post.id)}
-                                            className={`flex items-center gap-1 ${post.isLiked ? 'text-red-500' : darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} transition-colors cursor-pointer text-xs sm:text-sm`}
+                                            className={`flex items-center gap-1 ${
+                                                post.isLiked
+                                                    ? "text-red-500"
+                                                    : darkMode
+                                                    ? "text-gray-400 hover:text-gray-300"
+                                                    : "text-gray-500 hover:text-gray-700"
+                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
                                         >
                                             {post.isLiked ? (
                                                 <FaHeart />
@@ -833,12 +1061,24 @@ const ProfilePage = () => {
                                             <span>{post.likes}</span>
                                         </button>
 
-                                        <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} transition-colors cursor-pointer text-xs sm:text-sm`}>
+                                        <div
+                                            className={`flex items-center gap-1 ${
+                                                darkMode
+                                                    ? "text-gray-400 hover:text-gray-300"
+                                                    : "text-gray-500 hover:text-gray-700"
+                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
+                                        >
                                             <FaComment />
                                             <span>{post.comments}</span>
                                         </div>
 
-                                        <div className={`flex items-center gap-1 ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} transition-colors cursor-pointer text-xs sm:text-sm`}>
+                                        <div
+                                            className={`flex items-center gap-1 ${
+                                                darkMode
+                                                    ? "text-gray-400 hover:text-gray-300"
+                                                    : "text-gray-500 hover:text-gray-700"
+                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
+                                        >
                                             <FaShare />
                                             <span>{post.shares}</span>
                                         </div>

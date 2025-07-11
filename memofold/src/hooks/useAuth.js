@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE = "https://memofold1.onrender.com/api";
+import config from "./config";
 
 export const useAuth = () => {
     const [token, setToken] = useState(localStorage.getItem("token"));
@@ -16,7 +15,7 @@ export const useAuth = () => {
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/auth/login`, {
+            const response = await fetch(`${config.apiUrl}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -63,7 +62,7 @@ export const useAuth = () => {
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/auth/register`, {
+            const response = await fetch(`${config.apiUrl}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ realname, username, email, password }),
@@ -106,11 +105,14 @@ export const useAuth = () => {
         setError(null);
 
         try {
-            const response = await fetch(`${API_BASE}/auth/request-reset`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email }),
-            });
+            const response = await fetch(
+                `${config.apiUrl}/auth/request-reset`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                }
+            );
 
             const data = await response.json();
 
@@ -133,7 +135,7 @@ export const useAuth = () => {
 
         try {
             const response = await fetch(
-                `${API_BASE}/auth/reset-password/${token}`,
+                `${config.apiUrl}/auth/reset-password/${token}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
