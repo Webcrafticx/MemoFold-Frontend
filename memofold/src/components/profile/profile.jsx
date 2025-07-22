@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import {
     FaPlusCircle,
@@ -58,6 +59,13 @@ const ProfilePage = () => {
     const fileInputRef = useRef(null);
     const mobileMenuRef = useRef(null);
 
+    // Function to handle profile picture URL
+    const getProfilePicUrl = (url) => {
+        if (!url) return "https://ui-avatars.com/api/?name=User&background=random";
+        if (url.startsWith('http')) return url;
+        return `http://localhost:5000${url}`;
+    };
+
     useEffect(() => {
         // Check for saved theme preference
         const savedTheme = localStorage.getItem("darkMode");
@@ -94,7 +102,7 @@ const ProfilePage = () => {
                 if (response.ok) {
                     const userData = await response.json();
                     if (userData.profilePic) {
-                        setProfilePic(userData.profilePic);
+                        setProfilePic(getProfilePicUrl(userData.profilePic));
                     }
                     if (userData.bio) {
                         setBio(userData.bio);
@@ -129,11 +137,11 @@ const ProfilePage = () => {
                         postsData.reverse().map((post) => ({
                             ...post,
                             isLiked: false,
-                            profilePic:
-                                post.profilePic ||
+                            profilePic: getProfilePicUrl(post.profilePic) || 
                                 `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                     post.username
                                 )}&background=random`,
+                            image: post.image ? `http://localhost:5000${post.image}` : null
                         }))
                     );
                 }
@@ -193,37 +201,33 @@ const ProfilePage = () => {
     }, [darkMode]);
 
     const handleProfilePicChange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    const file = e.target.files[0];
+    if (!file) return;
 
-        const formData = new FormData();
-        formData.append("profilePic", file);
+    const formData = new FormData();
+    formData.append("profilePic", file);
 
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(
-                `${config.apiUrl}/user/upload-profile-pic`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: formData,
-                }
-            );
+    try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`${config.apiUrl}/user/upload-profile-pic`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+        });
 
-            if (response.ok) {
-                const data = await response.json();
-                setProfilePic(data.profilePic);
-                alert("Profile picture updated successfully!");
-            } else {
-                alert("Failed to update profile picture");
-            }
-        } catch (error) {
-            console.error("Error uploading profile picture:", error);
-            alert("Error uploading profile picture");
+        if (response.ok) {
+            alert("Profile picture updated successfully!");
+            window.location.reload(); // ✅ Refresh the page
+        } else {
+            alert("Failed to update profile picture");
         }
-    };
+    } catch (error) {
+        console.error("Error uploading profile picture:", error);
+        alert("Error uploading profile picture");
+    }
+};
 
     const handleBioUpdate = async () => {
         try {
@@ -321,8 +325,9 @@ const ProfilePage = () => {
                     likes: 0,
                     comments: 0,
                     shares: 0,
-                    profilePic: profilePic,
+                    profilePic: getProfilePicUrl(profilePic),
                     username: username,
+                    image: result.image ? `http://localhost:5000${result.image}` : null
                 },
                 ...posts,
             ]);
@@ -564,7 +569,7 @@ const ProfilePage = () => {
                                 className="cursor-pointer"
                             >
                                 <img
-                                    src={profilePic}
+                                    src={getProfilePicUrl(profilePic)}
                                     alt="Profile"
                                     className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-blue-400 hover:scale-105 transition-transform"
                                 />
@@ -880,7 +885,7 @@ const ProfilePage = () => {
                 >
                     <div className="flex items-center gap-3 mb-3 sm:mb-4">
                         <img
-                            src={profilePic}
+                            src={getProfilePicUrl(profilePic)}
                             alt={username}
                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                         />
@@ -1004,7 +1009,7 @@ const ProfilePage = () => {
                                     {/* Post Header */}
                                     <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                                         <img
-                                            src={post.profilePic}
+                                            src={getProfilePicUrl(post.profilePic)}
                                             alt={post.username}
                                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                                         />
