@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import {
     FaPlusCircle,
@@ -59,13 +58,6 @@ const ProfilePage = () => {
     const fileInputRef = useRef(null);
     const mobileMenuRef = useRef(null);
 
-    // Function to handle profile picture URL
-    const getProfilePicUrl = (url) => {
-        if (!url) return "https://ui-avatars.com/api/?name=User&background=random";
-        if (url.startsWith('http')) return url;
-        return `http://localhost:5000${url}`;
-    };
-
     useEffect(() => {
         // Check for saved theme preference
         const savedTheme = localStorage.getItem("darkMode");
@@ -102,7 +94,7 @@ const ProfilePage = () => {
                 if (response.ok) {
                     const userData = await response.json();
                     if (userData.profilePic) {
-                        setProfilePic(getProfilePicUrl(userData.profilePic));
+                        setProfilePic(userData.profilePic);
                     }
                     if (userData.bio) {
                         setBio(userData.bio);
@@ -137,11 +129,11 @@ const ProfilePage = () => {
                         postsData.reverse().map((post) => ({
                             ...post,
                             isLiked: false,
-                            profilePic: getProfilePicUrl(post.profilePic) || 
+                            profilePic:
+                                post.profilePic ||
                                 `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                     post.username
                                 )}&background=random`,
-                            image: post.image ? `http://localhost:5000${post.image}` : null
                         }))
                     );
                 }
@@ -204,24 +196,44 @@ const ProfilePage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validate file type and size
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    
+    if (!validTypes.includes(file.type)) {
+        alert('Please upload a valid image (JPEG, PNG, GIF)');
+        return;
+    }
+    
+    if (file.size > maxSize) {
+        alert('Image size should be less than 5MB');
+        return;
+    }
+
     const formData = new FormData();
     formData.append("profilePic", file);
 
     try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`${config.apiUrl}/user/upload-profile-pic`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-        });
+        const response = await fetch(
+            `${config.apiUrl}/user/upload-profile-pic`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            }
+        );
 
+        const data = await response.json();
+        
         if (response.ok) {
+            setProfilePic(data.profilePicUrl);
             alert("Profile picture updated successfully!");
-            window.location.reload(); // ✅ Refresh the page
         } else {
-            alert("Failed to update profile picture");
+            console.error("Upload failed:", data);
+            alert(data.message || "Failed to update profile picture");
         }
     } catch (error) {
         console.error("Error uploading profile picture:", error);
@@ -325,9 +337,8 @@ const ProfilePage = () => {
                     likes: 0,
                     comments: 0,
                     shares: 0,
-                    profilePic: getProfilePicUrl(profilePic),
+                    profilePic: profilePic,
                     username: username,
-                    image: result.image ? `http://localhost:5000${result.image}` : null
                 },
                 ...posts,
             ]);
@@ -569,7 +580,7 @@ const ProfilePage = () => {
                                 className="cursor-pointer"
                             >
                                 <img
-                                    src={getProfilePicUrl(profilePic)}
+                                    src={profilePic}
                                     alt="Profile"
                                     className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-blue-400 hover:scale-105 transition-transform"
                                 />
@@ -885,7 +896,7 @@ const ProfilePage = () => {
                 >
                     <div className="flex items-center gap-3 mb-3 sm:mb-4">
                         <img
-                            src={getProfilePicUrl(profilePic)}
+                            src={profilePic}
                             alt={username}
                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                         />
@@ -1009,7 +1020,7 @@ const ProfilePage = () => {
                                     {/* Post Header */}
                                     <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                                         <img
-                                            src={getProfilePicUrl(post.profilePic)}
+                                            src={post.profilePic}
                                             alt={post.username}
                                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                                         />
