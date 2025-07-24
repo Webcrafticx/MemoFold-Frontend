@@ -7,11 +7,12 @@ import {
     FaRegHeart,
     FaTrashAlt,
     FaBars,
-    FaHome,
     FaMoon,
     FaSun,
     FaCommentDots,
     FaSignOutAlt,
+    FaPaperclip,
+    FaTimes,
 } from "react-icons/fa";
 import config from "../../hooks/config";
 
@@ -24,7 +25,8 @@ const MainDashboard = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showDropdown, setShowDropdown] = useState(false);
-    const [activeCommentPostId, setActiveCommentPostId] = useState(null); // Changed from showCommentDropdown
+    const [activeCommentPostId, setActiveCommentPostId] = useState(null);
+    const [selectedFiles, setSelectedFiles] = useState([]);
     const { token, username, realname, logout } = useAuth();
     const navigate = useNavigate();
 
@@ -96,9 +98,34 @@ const MainDashboard = () => {
         localStorage.setItem("darkMode", newMode);
     };
 
+    const handleFileSelect = (e) => {
+        const files = Array.from(e.target.files);
+        // Basic validation - you can add more checks here
+        const validFiles = files.filter(file => {
+            const validTypes = [
+                'image/jpeg', 
+                'image/png', 
+                'application/pdf',
+                'video/mp4',
+                'text/plain'
+            ];
+            return validTypes.includes(file.type);
+        });
+        
+        if (validFiles.length !== files.length) {
+            setError("Some files were not accepted. Only images, PDFs, videos and text files are allowed.");
+        }
+        
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+    };
+
+    const removeFile = (index) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handlePostSubmit = async () => {
-        if (!postContent.trim()) {
-            setError("Post content cannot be empty.");
+        if (!postContent.trim() && selectedFiles.length === 0) {
+            setError("Post content or file cannot be empty.");
             return;
         }
 
@@ -106,6 +133,10 @@ const MainDashboard = () => {
         setError(null);
 
         try {
+            // For demo purposes, we're just showing the files in console
+            console.log("Files that would be uploaded:", selectedFiles);
+            
+            // Original API call remains unchanged
             const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
@@ -114,8 +145,7 @@ const MainDashboard = () => {
                 },
                 body: JSON.stringify({
                     content: postContent,
-                    date:
-                        selectedDate || new Date().toISOString().split("T")[0],
+                    date: selectedDate || new Date().toISOString().split("T")[0],
                     time: new Date().toLocaleTimeString(),
                 }),
             });
@@ -128,6 +158,7 @@ const MainDashboard = () => {
             const result = await response.json();
             setPosts([result, ...posts]);
             setPostContent("");
+            setSelectedFiles([]);
             setError(null);
         } catch (err) {
             setError(err.message);
@@ -236,14 +267,20 @@ const MainDashboard = () => {
         }
     };
 
+    const getFileIcon = (fileType) => {
+        if (fileType.startsWith('image/')) return '🖼️';
+        if (fileType.startsWith('video/')) return '🎬';
+        if (fileType === 'application/pdf') return '📄';
+        if (fileType.includes('spreadsheet')) return '📊';
+        if (fileType.includes('document')) return '📝';
+        if (fileType.includes('presentation')) return '📑';
+        return '📁';
+    };
+
     return (
-        <div
-            className={`min-h-screen ${
-                darkMode
-                    ? "dark bg-gray-900 text-gray-100"
-                    : "bg-gradient-to-r from-gray-100 to-gray-200"
-            }`}
-        >
+        <div className={`min-h-screen ${
+            darkMode ? "dark bg-gray-900 text-gray-100" : "bg-gradient-to-r from-gray-100 to-gray-200"
+        }`}>
             {/* Error Message */}
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
@@ -259,11 +296,9 @@ const MainDashboard = () => {
 
             <div className="container mx-auto px-4 py-4">
                 {/* Topbar */}
-                <div
-                    className={`flex justify-between items-center mb-6 p-4 rounded-xl ${
-                        darkMode ? "bg-gray-800" : "bg-white"
-                    } shadow-md`}
-                >
+                <div className={`flex justify-between items-center mb-6 p-4 rounded-xl ${
+                    darkMode ? "bg-gray-800" : "bg-white"
+                } shadow-md`}>
                     {/* Settings Dropdown */}
                     <div className="relative">
                         <button
@@ -380,27 +415,68 @@ const MainDashboard = () => {
                 {/* Main Content */}
                 <div className="max-w-2xl mx-auto">
                     {/* Post Box */}
-                    <div
-                        className={`mb-6 p-4 rounded-xl ${
-                            darkMode ? "bg-gray-800" : "bg-white"
-                        } shadow-md`}
-                    >
+                    <div className={`mb-6 p-4 rounded-xl ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    } shadow-md`}>
                         <textarea
                             className={`w-full p-4 rounded-xl border ${
-                                darkMode
-                                    ? "bg-gray-700 border-gray-600"
-                                    : "bg-white border-gray-300"
+                                darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
                             } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none cursor-text`}
-                            placeholder={`What's on your mind, ${
-                                realname || username
-                            }?`}
+                            placeholder={`What's on your mind, ${realname || username}?`}
                             rows="4"
                             value={postContent}
                             onChange={(e) => setPostContent(e.target.value)}
-                            maxLength="500"
+                            maxLength="5000"
                         />
+                        
+                        {/* File upload preview area */}
+                        {selectedFiles.length > 0 && (
+                            <div className={`mt-3 p-3 rounded-lg ${
+                                darkMode ? "bg-gray-700" : "bg-gray-100"
+                            }`}>
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedFiles.map((file, index) => (
+                                        <div key={index} className="relative">
+                                            <div className={`p-2 rounded-lg flex items-center ${
+                                                darkMode ? "bg-gray-600" : "bg-white"
+                                            }`}>
+                                                <span className="mr-2">
+                                                    {getFileIcon(file.type)}
+                                                </span>
+                                                <span className="text-sm truncate max-w-xs">
+                                                    {file.name}
+                                                </span>
+                                                <button 
+                                                    onClick={() => removeFile(index)}
+                                                    className="ml-2 text-red-500 hover:text-red-700"
+                                                >
+                                                    <FaTimes />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
                         <div className="flex justify-between items-center mt-3">
                             <div className="flex space-x-3">
+                                {/* File upload button */}
+                                <label className={`p-2 rounded-xl ${
+                                    darkMode
+                                        ? "bg-gray-700 hover:bg-gray-600"
+                                        : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                                } shadow-md transition-all cursor-pointer`}>
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        multiple 
+                                        onChange={handleFileSelect}
+                                        accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                                    />
+                                    <FaPaperclip className="text-xl" />
+                                </label>
+
                                 <button
                                     className={`p-2 rounded-xl ${
                                         darkMode
@@ -466,14 +542,14 @@ const MainDashboard = () => {
                                     )}
                                 </div>
 
-                                {postContent && (
+                                {(postContent || selectedFiles.length > 0) && (
                                     <button
                                         className={`p-2 rounded-xl ${
                                             darkMode
                                                 ? "bg-gray-700 hover:bg-gray-600"
                                                 : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
                                         } shadow-md transition-all cursor-pointer`}
-                                        title="Delete"
+                                        title="Clear"
                                         onClick={() => {
                                             if (
                                                 window.confirm(
@@ -481,6 +557,7 @@ const MainDashboard = () => {
                                                 )
                                             ) {
                                                 setPostContent("");
+                                                setSelectedFiles([]);
                                             }
                                         }}
                                     >
@@ -490,23 +567,19 @@ const MainDashboard = () => {
                             </div>
 
                             <div className="flex items-center space-x-4">
-                                <span
-                                    className={`text-xs ${
-                                        darkMode
-                                            ? "text-gray-400"
-                                            : "text-gray-500"
-                                    }`}
-                                >
-                                    {postContent.length}/500 characters
+                                <span className={`text-xs ${
+                                    darkMode ? "text-gray-400" : "text-gray-500"
+                                }`}>
+                                    {postContent.length}/5000 characters
                                 </span>
                                 <button
                                     className={`px-4 py-2 rounded-lg ${
-                                        !postContent.trim() || isLoading
+                                        (!postContent.trim() && selectedFiles.length === 0) || isLoading
                                             ? "bg-blue-400 cursor-not-allowed"
                                             : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
                                     } text-white font-medium transition-all cursor-pointer`}
                                     onClick={handlePostSubmit}
-                                    disabled={!postContent.trim() || isLoading}
+                                    disabled={(!postContent.trim() && selectedFiles.length === 0) || isLoading}
                                 >
                                     {isLoading ? (
                                         <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
