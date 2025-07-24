@@ -747,7 +747,7 @@ const MainDashboard = () => {
                     )}
 
                     {/* Date/Time Display */}
-                    <div
+                    {/* <div
                         className={`mt-6 p-4 rounded-xl ${
                             darkMode ? "bg-gray-800" : "bg-gray-100"
                         } text-center cursor-pointer`}
@@ -764,7 +764,7 @@ const MainDashboard = () => {
                         >
                             Current Time: {currentTime}
                         </p>
-                    </div>
+                    </div> */}
                 </div>
             </div>
         </div>
