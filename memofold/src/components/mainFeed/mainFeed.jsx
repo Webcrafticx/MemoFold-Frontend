@@ -452,7 +452,7 @@ const MainFeed = () => {
                 )}
             </section>
 
-            <div
+            {/* <div
                 className={`mt-6 p-4 rounded-xl ${
                     darkMode ? "bg-gray-800" : "bg-gray-100"
                 } text-center mx-auto max-w-2xl cursor-default`}
@@ -467,7 +467,7 @@ const MainFeed = () => {
                 >
                     Current Time: {currentTime}
                 </p>
-            </div>
+            </div> */}
         </div>
     );
 };
