@@ -147,7 +147,8 @@ const ProfilePage = () => {
                 setPosts(postsData.reverse().map(post => ({
                     ...post,
                     isLiked: false,
-                    profilePic: post.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.username)}&background=random`,
+                    profilePic: profilePic,
+                    username: username
                 })));
             }
         } catch (error) {
@@ -248,7 +249,6 @@ const ProfilePage = () => {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    // Post creation - kept exactly as it was
     const handleCreatePost = async () => {
         if (!postContent.trim() && !selectedFile) {
             setError("Post content or image cannot be empty");
@@ -282,8 +282,8 @@ const ProfilePage = () => {
                 likes: 0,
                 comments: 0,
                 shares: 0,
-                profilePic,
-                username,
+                profilePic: profilePic,
+                username: username,
             };
 
             setPosts([newPost, ...posts]);
@@ -297,7 +297,6 @@ const ProfilePage = () => {
         }
     };
 
-    // Other handlers remain unchanged
     const handleClickOutside = (e) => {
         if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
             setShowMobileMenu(false);
@@ -411,7 +410,6 @@ const ProfilePage = () => {
         setShowMobileMenu(!showMobileMenu);
     };
 
-    // Render method
     return (
         <div className={`min-h-screen transition-colors duration-300 ${
             darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
@@ -861,23 +859,6 @@ const ProfilePage = () => {
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
                         rows="3"
                     ></textarea>
-
-                    {/* File Preview
-                    {filePreview && (
-                        <div className="relative mb-3">
-                            <img
-                                src={filePreview}
-                                alt="Preview"
-                                className="w-full rounded-lg max-h-60 object-contain"
-                            />
-                            <button
-                                onClick={removeFile}
-                                className="absolute top-2 right-2 bg-gray-800 bg-opacity-75 text-white p-1 rounded-full hover:bg-gray-700"
-                            >
-                                <FaTimes />
-                            </button>
-                        </div>
-                    )} */}
 
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
                         <div className="flex flex-wrap gap-2">

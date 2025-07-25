@@ -28,6 +28,7 @@ const MainDashboard = () => {
     const [activeCommentPostId, setActiveCommentPostId] = useState(null);
     const [selectedFiles, setSelectedFiles] = useState([]);
     const { token, username, realname, logout } = useAuth();
+    const [profilePic, setProfilePic] = useState(localStorage.getItem("profilePic") || "https://ui-avatars.com/api/?name=User&background=random");
     const navigate = useNavigate();
 
     // Update time every second
@@ -56,8 +57,28 @@ const MainDashboard = () => {
         }
     }, [darkMode]);
 
-    // Fetch posts on component mount and when token changes
+    // Fetch user profile and posts
     useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                const response = await fetch(`${config.apiUrl}/user/me`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    if (userData.profilePic) {
+                        setProfilePic(userData.profilePic);
+                        localStorage.setItem("profilePic", userData.profilePic);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching user data:", error);
+            }
+        };
+
         const fetchPosts = async () => {
             setIsLoading(true);
             setError(null);
@@ -86,6 +107,7 @@ const MainDashboard = () => {
         };
 
         if (token) {
+            fetchUserData();
             fetchPosts();
         } else {
             navigate("/login");
@@ -100,7 +122,6 @@ const MainDashboard = () => {
 
     const handleFileSelect = (e) => {
         const files = Array.from(e.target.files);
-        // Basic validation - you can add more checks here
         const validFiles = files.filter(file => {
             const validTypes = [
                 'image/jpeg', 
@@ -133,10 +154,6 @@ const MainDashboard = () => {
         setError(null);
 
         try {
-            // For demo purposes, we're just showing the files in console
-            console.log("Files that would be uploaded:", selectedFiles);
-            
-            // Original API call remains unchanged
             const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
@@ -418,6 +435,20 @@ const MainDashboard = () => {
                     <div className={`mb-6 p-4 rounded-xl ${
                         darkMode ? "bg-gray-800" : "bg-white"
                     } shadow-md`}>
+                        <div className="flex items-center gap-3 mb-3">
+                            <img
+                                src={profilePic}
+                                alt={username}
+                                className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                onError={(e) => {
+                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
+                                }}
+                            />
+                            <span className="font-semibold dark:text-white cursor-pointer">
+                                {realname || username}
+                            </span>
+                        </div>
+                        
                         <textarea
                             className={`w-full p-4 rounded-xl border ${
                                 darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
@@ -532,8 +563,12 @@ const MainDashboard = () => {
                                                                 );
                                                             }}
                                                         >
-                                                            {reaction.text}{" "}
-                                                            {reaction.emoji}
+                                                            {
+                                                                reaction.text
+                                                            }{" "}
+                                                            {
+                                                                reaction.emoji
+                                                            }
                                                         </span>
                                                     )
                                                 )}
@@ -618,47 +653,34 @@ const MainDashboard = () => {
                                 >
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="flex items-center space-x-3">
-                                            <FaUserCircle
-                                                className="text-3xl text-gray-400 cursor-pointer"
-                                                onClick={() =>
-                                                    navigate(
-                                                        `/profile/${post.userId}`
-                                                    )
-                                                }
+                                            <img
+                                                src={profilePic}
+                                                alt={username}
+                                                className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                                onError={(e) => {
+                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
+                                                }}
                                             />
                                             <div>
-                                                <h3
-                                                    className="font-semibold cursor-pointer"
-                                                    onClick={() =>
-                                                        navigate(
-                                                            `/profile/${post.userId}`
-                                                        )
-                                                    }
-                                                >
-                                                    {post.username || "Unknown"}
+                                                <h3 className="font-semibold">
+                                                    {realname || username}
                                                 </h3>
-                                                <p
-                                                    className={`text-xs ${
-                                                        darkMode
-                                                            ? "text-gray-400"
-                                                            : "text-gray-500"
-                                                    } cursor-pointer`}
-                                                >
+                                                <p className={`text-xs ${
+                                                    darkMode ? "text-gray-400" : "text-gray-500"
+                                                }`}>
                                                     {formatDate(post.createdAt)}
                                                 </p>
                                             </div>
                                         </div>
-                                        {post.userId === username && (
-                                            <button
-                                                className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-                                                onClick={() =>
-                                                    handleDeletePost(post._id)
-                                                }
-                                                title="Delete post"
-                                            >
-                                                <FaTrashAlt />
-                                            </button>
-                                        )}
+                                        <button
+                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                                            onClick={() =>
+                                                handleDeletePost(post._id)
+                                            }
+                                            title="Delete post"
+                                        >
+                                            <FaTrashAlt />
+                                        </button>
                                     </div>
 
                                     <p className="mb-4 whitespace-pre-line">
@@ -745,26 +767,6 @@ const MainDashboard = () => {
                             ))}
                         </div>
                     )}
-
-                    {/* Date/Time Display */}
-                    {/* <div
-                        className={`mt-6 p-4 rounded-xl ${
-                            darkMode ? "bg-gray-800" : "bg-gray-100"
-                        } text-center cursor-pointer`}
-                    >
-                        <p className="font-medium">
-                            {selectedDate
-                                ? `Selected Date: ${selectedDate}`
-                                : `Today: ${new Date().toLocaleDateString()}`}
-                        </p>
-                        <p
-                            className={`text-sm ${
-                                darkMode ? "text-gray-400" : "text-gray-600"
-                            }`}
-                        >
-                            Current Time: {currentTime}
-                        </p>
-                    </div> */}
                 </div>
             </div>
         </div>
