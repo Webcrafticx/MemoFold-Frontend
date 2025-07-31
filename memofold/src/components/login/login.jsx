@@ -118,7 +118,7 @@ const LoginPage = () => {
                                     name="username"
                                     value={formData.username}
                                     onChange={handleChange}
-                                    placeholder="Username or email"
+                                    placeholder="Username"
                                     className={`w-full px-3 py-2 text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
                                         formErrors.username
                                             ? "border-red-500"
