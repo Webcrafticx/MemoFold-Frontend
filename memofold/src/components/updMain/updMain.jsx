@@ -144,6 +144,34 @@ const MainDashboard = () => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
+    const formatDate = (dateString) => {
+        if (!dateString) return "Just now";
+        
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return "Invalid Date";
+            
+            // Calculate time difference for "Just now" display
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) {
+                return "Just now";
+            }
+            
+            return date.toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch (e) {
+            console.error("Error formatting date:", e);
+            return "Invalid Date";
+        }
+    };
+
     const handlePostSubmit = async () => {
         if (!postContent.trim() && selectedFiles.length === 0) {
             setError("Post content or file cannot be empty.");
@@ -154,6 +182,13 @@ const MainDashboard = () => {
         setError(null);
 
         try {
+            const postDate = selectedDate ? new Date(selectedDate) : new Date();
+            
+            // Validate the selected date
+            if (selectedDate && isNaN(postDate.getTime())) {
+                throw new Error("Invalid date selected");
+            }
+
             const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
@@ -162,8 +197,7 @@ const MainDashboard = () => {
                 },
                 body: JSON.stringify({
                     content: postContent,
-                    date: selectedDate || new Date().toISOString().split("T")[0],
-                    time: new Date().toLocaleTimeString(),
+                    createdAt: postDate.toISOString(),
                 }),
             });
 
@@ -176,6 +210,7 @@ const MainDashboard = () => {
             setPosts([result, ...posts]);
             setPostContent("");
             setSelectedFiles([]);
+            setSelectedDate("");
             setError(null);
         } catch (err) {
             setError(err.message);
@@ -234,16 +269,6 @@ const MainDashboard = () => {
             setError(err.message);
             console.error("Error deleting post:", err);
         }
-    };
-
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
     };
 
     const quickReactions = [

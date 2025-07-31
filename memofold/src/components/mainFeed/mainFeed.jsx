@@ -15,7 +15,6 @@ const MainFeed = () => {
     const [commentTexts, setCommentTexts] = useState({});
     const [openCommentPostId, setOpenCommentPostId] = useState(null);
 
-    // Fetch posts on mount and when token changes
     useEffect(() => {
         if (!token) {
             navigate("/login");
@@ -24,7 +23,6 @@ const MainFeed = () => {
         }
     }, [token, navigate]);
 
-    // Update current time every second
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date().toLocaleTimeString());
@@ -32,14 +30,12 @@ const MainFeed = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // Check for saved dark mode preference
     useEffect(() => {
         const savedMode = localStorage.getItem("darkMode") === "true";
         setDarkMode(savedMode);
         document.body.classList.toggle("dark", savedMode);
     }, []);
 
-    // Apply dark mode class to body
     useEffect(() => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
@@ -59,14 +55,21 @@ const MainFeed = () => {
             }
 
             const data = await response.json();
-            const postsWithLikes = data.map((post) => ({
+            
+            // Handle case where response is not an array
+            const postsData = Array.isArray(data) ? data : data.posts || [];
+            
+            const postsWithLikes = postsData.map((post) => ({
                 ...post,
-                isLiked: post.likes.some((like) => like.userId === user?.id),
+                isLiked: post.likes?.some((like) => like.userId === user?.id) || false,
+                createdAt: post.createdAt || new Date().toISOString() // Fallback for createdAt
             }));
+            
             setPosts(postsWithLikes);
         } catch (err) {
             console.error("Error fetching posts:", err);
             setError(err.message);
+            setPosts([]); // Ensure posts is always an array
         } finally {
             setIsLoading(false);
         }
@@ -88,17 +91,17 @@ const MainFeed = () => {
             setPosts(
                 posts.map((post) => {
                     if (post.id === postId) {
-                        const isLiked = post.likes.some(
+                        const isLiked = post.likes?.some(
                             (like) => like.userId === user.id
-                        );
+                        ) || false;
                         return {
                             ...post,
                             isLiked: !isLiked,
                             likes: isLiked
-                                ? post.likes.filter(
+                                ? post.likes?.filter(
                                       (like) => like.userId !== user.id
-                                  )
-                                : [...post.likes, { userId: user.id }],
+                                  ) || []
+                                : [...(post.likes || []), { userId: user.id }],
                         };
                     }
                     return post;
@@ -159,7 +162,7 @@ const MainFeed = () => {
                     post.id === postId
                         ? {
                               ...post,
-                              comments: updatedPost.comments,
+                              comments: updatedPost.comments || [],
                           }
                         : post
                 )
@@ -177,13 +180,21 @@ const MainFeed = () => {
     };
 
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return "Just now";
+            }
+            return date.toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch (e) {
+            return "Just now";
+        }
     };
 
     return (
@@ -285,7 +296,7 @@ const MainFeed = () => {
                                 />
                                 <div>
                                     <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
-                                        {post.username}
+                                        {post.username || "Unknown User"}
                                     </h3>
                                     <p
                                         className={`text-xs ${
@@ -314,7 +325,7 @@ const MainFeed = () => {
                             )}
 
                             <p className="text-gray-700 leading-relaxed mb-3 dark:text-gray-300">
-                                {post.content}
+                                {post.content || ""}
                             </p>
 
                             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
@@ -332,7 +343,7 @@ const MainFeed = () => {
                                         <FaRegHeart className="text-xl" />
                                     )}
                                     <span className="text-sm font-medium">
-                                        {post.likes.length} likes
+                                        {post.likes?.length || 0} likes
                                     </span>
                                 </button>
 
@@ -377,12 +388,14 @@ const MainFeed = () => {
                                                                 >
                                                                     <span className="font-semibold hover:text-blue-500">
                                                                         {
-                                                                            comment.username
+                                                                            comment.username ||
+                                                                            "Unknown"
                                                                         }
                                                                         :
                                                                     </span>{" "}
                                                                     {
-                                                                        comment.content
+                                                                        comment.content ||
+                                                                        ""
                                                                     }
                                                                 </div>
                                                             )
@@ -451,23 +464,6 @@ const MainFeed = () => {
                     ))
                 )}
             </section>
-
-            {/* <div
-                className={`mt-6 p-4 rounded-xl ${
-                    darkMode ? "bg-gray-800" : "bg-gray-100"
-                } text-center mx-auto max-w-2xl cursor-default`}
-            >
-                <p className="font-medium dark:text-white">
-                    Today: {new Date().toLocaleDateString()}
-                </p>
-                <p
-                    className={`text-sm ${
-                        darkMode ? "text-gray-400" : "text-gray-600"
-                    }`}
-                >
-                    Current Time: {currentTime}
-                </p>
-            </div> */}
         </div>
     );
 };
