@@ -277,38 +277,40 @@ const MainFeed = () => {
                                 darkMode ? "dark:bg-gray-800" : ""
                             }`}
                         >
-                            <div
-                                className="flex items-center gap-3 mb-3 cursor-pointer"
-                                onClick={() =>
-                                    navigate(`/profile/${post.userId}`)
-                                }
-                            >
-                                <img
-                                    src={
-                                        post.profilePic ||
-                                        `https://ui-avatars.com/api/?name=${post.username}&background=random`
-                                    }
-                                    alt={post.username}
-                                    className="w-10 h-10 rounded-full object-cover"
-                                    onError={(e) => {
-                                        e.target.src = `https://ui-avatars.com/api/?name=${post.username}&background=random`;
-                                    }}
-                                />
-                                <div>
-                                    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
-                                        {post.username || "Unknown User"}
-                                    </h3>
-                                    <p
-                                        className={`text-xs ${
-                                            darkMode
-                                                ? "text-gray-400"
-                                                : "text-gray-500"
-                                        }`}
-                                    >
-                                        {formatDate(post.createdAt)}
-                                    </p>
-                                </div>
-                            </div>
+<div
+  className="flex items-center gap-3 mb-3 cursor-pointer"
+  onClick={() => navigate(`/profile/${post.userId._id}`)}
+>
+  <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+    {post.userId.profilePic ? (
+      <img
+        src={post.userId.profilePic}
+        alt={post.userId.username}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          // Fallback to initials if image fails to load
+          e.target.style.display = 'none';
+          e.target.parentElement.innerHTML = 
+            `<span class="text-lg font-semibold text-gray-700">
+              ${post.userId.username?.charAt(0).toUpperCase() || 'U'}
+            </span>`;
+        }}
+      />
+    ) : (
+      <span className="text-lg font-semibold text-gray-700">
+        {post.userId.username?.charAt(0).toUpperCase() || 'U'}
+      </span>
+    )}
+  </div>
+  <div>
+    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
+      {post.userId.realname || post.userId.username || "Unknown User"}
+    </h3>
+    <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+      @{post.userId.username || "unknown"} · {formatDate(post.createdAt)}
+    </p>
+  </div>
+</div>
 
                             {post.image && (
                                 <img
