@@ -13,7 +13,7 @@ const MainFeed = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [commentTexts, setCommentTexts] = useState({});
-    const [openCommentPostId, setOpenCommentPostId] = useState(null);
+    const [activeCommentPostId, setActiveCommentPostId] = useState(null);
 
     useEffect(() => {
         if (!token) {
@@ -56,20 +56,19 @@ const MainFeed = () => {
 
             const data = await response.json();
             
-            // Handle case where response is not an array
             const postsData = Array.isArray(data) ? data : data.posts || [];
             
             const postsWithLikes = postsData.map((post) => ({
                 ...post,
                 isLiked: post.likes?.some((like) => like.userId === user?.id) || false,
-                createdAt: post.createdAt || new Date().toISOString() // Fallback for createdAt
+                createdAt: post.createdAt || new Date().toISOString()
             }));
             
             setPosts(postsWithLikes);
         } catch (err) {
             console.error("Error fetching posts:", err);
             setError(err.message);
-            setPosts([]); // Ensure posts is always an array
+            setPosts([]);
         } finally {
             setIsLoading(false);
         }
@@ -90,7 +89,7 @@ const MainFeed = () => {
         try {
             setPosts(
                 posts.map((post) => {
-                    if (post.id === postId) {
+                    if (post._id === postId) {
                         const isLiked = post.likes?.some(
                             (like) => like.userId === user.id
                         ) || false;
@@ -109,7 +108,7 @@ const MainFeed = () => {
             );
 
             const response = await fetch(
-                `${config.apiUrl}/posts/${postId}/like`,
+                `${config.apiUrl}/posts/like/${postId}`,
                 {
                     method: "POST",
                     headers: {
@@ -128,7 +127,7 @@ const MainFeed = () => {
     };
 
     const toggleCommentDropdown = (postId) => {
-        setOpenCommentPostId((prevId) => (prevId === postId ? null : postId));
+        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
         setCommentTexts((prev) => ({
             ...prev,
             [postId]: prev[postId] || "",
@@ -159,7 +158,7 @@ const MainFeed = () => {
             const updatedPost = await response.json();
             setPosts(
                 posts.map((post) =>
-                    post.id === postId
+                    post._id === postId
                         ? {
                               ...post,
                               comments: updatedPost.comments || [],
@@ -169,7 +168,7 @@ const MainFeed = () => {
             );
 
             setCommentTexts((prev) => ({ ...prev, [postId]: "" }));
-            setOpenCommentPostId(null);
+            setActiveCommentPostId(null);
         } catch (err) {
             console.error("Error posting comment:", err);
         }
@@ -272,45 +271,44 @@ const MainFeed = () => {
                 ) : (
                     posts.map((post) => (
                         <div
-                            key={post.id}
+                            key={post._id}
                             className={`w-full max-w-2xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
                                 darkMode ? "dark:bg-gray-800" : ""
                             }`}
                         >
-<div
-  className="flex items-center gap-3 mb-3 cursor-pointer"
-  onClick={() => navigate(`/profile/${post.userId._id}`)}
->
-  <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-    {post.userId.profilePic ? (
-      <img
-        src={post.userId.profilePic}
-        alt={post.userId.username}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          // Fallback to initials if image fails to load
-          e.target.style.display = 'none';
-          e.target.parentElement.innerHTML = 
-            `<span class="text-lg font-semibold text-gray-700">
-              ${post.userId.username?.charAt(0).toUpperCase() || 'U'}
-            </span>`;
-        }}
-      />
-    ) : (
-      <span className="text-lg font-semibold text-gray-700">
-        {post.userId.username?.charAt(0).toUpperCase() || 'U'}
-      </span>
-    )}
-  </div>
-  <div>
-    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
-      {post.userId.realname || post.userId.username || "Unknown User"}
-    </h3>
-    <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-      @{post.userId.username || "unknown"} · {formatDate(post.createdAt)}
-    </p>
-  </div>
-</div>
+                            <div
+                                className="flex items-center gap-3 mb-3 cursor-pointer"
+                                onClick={() => navigate(`/profile/${post.userId._id}`)}
+                            >
+                                <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                    {post.userId.profilePic ? (
+                                        <img
+                                            src={post.userId.profilePic}
+                                            alt={post.userId.username}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.parentElement.innerHTML = 
+                                                    `<span class="text-lg font-semibold text-gray-700">
+                                                        ${post.userId.username?.charAt(0).toUpperCase() || 'U'}
+                                                    </span>`;
+                                            }}
+                                        />
+                                    ) : (
+                                        <span className="text-lg font-semibold text-gray-700">
+                                            {post.userId.username?.charAt(0).toUpperCase() || 'U'}
+                                        </span>
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
+                                        {post.userId.realname || post.userId.username || "Unknown User"}
+                                    </h3>
+                                    <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                        @{post.userId.username || "unknown"} · {formatDate(post.createdAt)}
+                                    </p>
+                                </div>
+                            </div>
 
                             {post.image && (
                                 <img
@@ -332,7 +330,7 @@ const MainFeed = () => {
 
                             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                                 <button
-                                    onClick={() => handleLike(post.id)}
+                                    onClick={() => handleLike(post._id)}
                                     className={`flex items-center gap-1 ${
                                         post.isLiked
                                             ? "text-red-500"
@@ -351,19 +349,16 @@ const MainFeed = () => {
 
                                 <div className="relative">
                                     <button
-                                        className="flex items-center gap-1 text-gray-400 hover:text-blue-500 dark:text-gray-300 transition-colors cursor-pointer"
-                                        onClick={() =>
-                                            toggleCommentDropdown(post.id)
-                                        }
+                                        className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                                        onClick={() => toggleCommentDropdown(post._id)}
                                     >
-                                        <FaCommentDots className="text-xl" />
-                                        <span className="text-sm font-medium">
-                                            {post.comments?.length || 0}{" "}
-                                            comments
+                                        <FaCommentDots />
+                                        <span className="text-sm">
+                                            {post.comments?.length || 0}
                                         </span>
                                     </button>
 
-                                    {openCommentPostId === post.id && (
+                                    {activeCommentPostId === post._id && (
                                         <div
                                             className={`absolute right-0 mt-2 w-64 rounded-md shadow-lg py-1 ${
                                                 darkMode
@@ -433,12 +428,12 @@ const MainFeed = () => {
                                                     rows="3"
                                                     placeholder="Write your comment..."
                                                     value={
-                                                        commentTexts[post.id] ||
+                                                        commentTexts[post._id] ||
                                                         ""
                                                     }
                                                     onChange={(e) =>
                                                         handleCommentTextChange(
-                                                            post.id,
+                                                            post._id,
                                                             e.target.value
                                                         )
                                                     }
@@ -451,7 +446,7 @@ const MainFeed = () => {
                                                     } text-white transition-colors cursor-pointer`}
                                                     onClick={() =>
                                                         handleCommentSubmit(
-                                                            post.id
+                                                            post._id
                                                         )
                                                     }
                                                 >

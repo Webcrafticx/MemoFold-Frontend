@@ -221,56 +221,62 @@ const MainDashboard = () => {
     };
 
     const handleLikePost = async (postId) => {
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/posts/${postId}/like`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to like post");
-            }
-
-            const data = await response.json();
-            setPosts(
-                posts.map((post) =>
-                    post._id === postId ? { ...post, likes: data.likes } : post
-                )
-            );
-        } catch (err) {
-            setError(err.message);
-            console.error("Error liking post:", err);
-        }
-    };
-
-    const handleDeletePost = async (postId) => {
-        if (!window.confirm("Are you sure you want to delete this post?"))
-            return;
-
-        try {
-            const response = await fetch(`${config.apiUrl}/posts/${postId}`, {
-                method: "DELETE",
+    try {
+        const response = await fetch(
+            `${config.apiUrl}/posts/like/${postId}`,
+            {
+                method: "POST",
                 headers: {
+                    "Content-Type": "application/json", // Add this
                     Authorization: `Bearer ${token}`,
                 },
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to delete post");
+                body: JSON.stringify({ userId: username }) // Add user identifier if needed
             }
+        );
 
-            setPosts(posts.filter((post) => post._id !== postId));
-        } catch (err) {
-            setError(err.message);
-            console.error("Error deleting post:", err);
+        if (!response.ok) {
+            const errorData = await response.json(); // Get detailed error
+            throw new Error(errorData.message || "Failed to like post");
         }
-    };
 
+        const data = await response.json();
+        setPosts(
+            posts.map((post) =>
+                post._id === postId ? { ...post, likes: data.likes } : post
+            )
+        );
+    } catch (err) {
+        setError(err.message);
+        console.error("Error liking post:", err);
+    }
+};
+
+
+    const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${config.apiUrl}/posts/delete/${postId}`, { // Try simpler endpoint
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to delete post");
+        }
+
+        setPosts(posts.filter((post) => post._id !== postId));
+    } catch (err) {
+        setError(err.message);
+        console.error("Error deleting post:", err);
+    }
+};
     const quickReactions = [
         { text: "Congrats", emoji: "🎉" },
         { text: "Sorrow", emoji: "😭" },
