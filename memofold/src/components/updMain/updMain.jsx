@@ -13,6 +13,7 @@ import {
     FaSignOutAlt,
     FaPaperclip,
     FaTimes,
+    FaEllipsisV,
 } from "react-icons/fa";
 import config from "../../hooks/config";
 
@@ -27,11 +28,12 @@ const MainDashboard = () => {
     const [showDropdown, setShowDropdown] = useState(false);
     const [activeCommentPostId, setActiveCommentPostId] = useState(null);
     const [selectedFiles, setSelectedFiles] = useState([]);
+    const [commentContent, setCommentContent] = useState({});
+    const [isFetchingComments, setIsFetchingComments] = useState(false);
     const { token, username, realname, logout } = useAuth();
     const [profilePic, setProfilePic] = useState(localStorage.getItem("profilePic") || "https://ui-avatars.com/api/?name=User&background=random");
     const navigate = useNavigate();
-
-    // Update time every second
+    
     useEffect(() => {
         const timer = setInterval(() => {
             const now = new Date();
@@ -41,14 +43,12 @@ const MainDashboard = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // Check for saved dark mode preference
     useEffect(() => {
         const savedMode = localStorage.getItem("darkMode") === "true";
         setDarkMode(savedMode);
         document.body.classList.toggle("dark", savedMode);
     }, []);
 
-    // Apply dark mode class to body
     useEffect(() => {
         if (darkMode) {
             document.body.classList.add("dark");
@@ -57,7 +57,6 @@ const MainDashboard = () => {
         }
     }, [darkMode]);
 
-    // Fetch user profile and posts
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -97,7 +96,12 @@ const MainDashboard = () => {
                 }
 
                 const data = await response.json();
-                setPosts(data);
+                const postsWithComments = data.map(post => ({
+                    ...post,
+                    comments: post.comments || [],
+                    commentCount: post.comments ? post.comments.length : 0
+                }));
+                setPosts(postsWithComments);
             } catch (err) {
                 setError(err.message);
                 console.error("Error fetching posts:", err);
@@ -113,6 +117,111 @@ const MainDashboard = () => {
             navigate("/login");
         }
     }, [token, navigate, username]);
+
+    const fetchComments = async (postId) => {
+        setIsFetchingComments(true);
+        try {
+            const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch comments");
+            }
+
+            const responseData = await response.json();
+            const comments = responseData.comments || [];
+            
+            setPosts(posts.map(post => 
+                post._id === postId ? { ...post, comments, commentCount: comments.length } : post
+            ));
+        } catch (err) {
+            setError(err.message);
+            console.error("Error fetching comments:", err);
+        } finally {
+            setIsFetchingComments(false);
+        }
+    };
+
+    const handleAddComment = async (postId) => {
+        if (!commentContent[postId]?.trim()) {
+            setError("Comment cannot be empty");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    postId: postId,
+                    content: commentContent[postId],
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to add comment");
+            }
+
+            await fetchComments(postId);
+            
+            setCommentContent(prev => ({ ...prev, [postId]: "" }));
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+            console.error("Error adding comment:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleLikeComment = async (commentId, postId) => {
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/posts/comments/${commentId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ 
+                        content: "like", 
+                        parentCommentId: commentId 
+                    })
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like comment");
+            }
+
+            // Refresh comments to get updated likes
+            await fetchComments(postId);
+        } catch (err) {
+            setError(err.message);
+            console.error("Error liking comment:", err);
+        }
+    };
+
+    const toggleCommentDropdown = async (postId) => {
+        if (activeCommentPostId === postId) {
+            setActiveCommentPostId(null);
+            return;
+        }
+        
+        setActiveCommentPostId(postId);
+        await fetchComments(postId);
+    };
 
     const toggleDarkMode = () => {
         const newMode = !darkMode;
@@ -151,7 +260,6 @@ const MainDashboard = () => {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return "Invalid Date";
             
-            // Calculate time difference for "Just now" display
             const now = new Date();
             const diffInSeconds = Math.floor((now - date) / 1000);
             
@@ -184,7 +292,6 @@ const MainDashboard = () => {
         try {
             const postDate = selectedDate ? new Date(selectedDate) : new Date();
             
-            // Validate the selected date
             if (selectedDate && isNaN(postDate.getTime())) {
                 throw new Error("Invalid date selected");
             }
@@ -207,7 +314,7 @@ const MainDashboard = () => {
             }
 
             const result = await response.json();
-            setPosts([result, ...posts]);
+            setPosts([{ ...result, comments: [], commentCount: 0 }, ...posts]);
             setPostContent("");
             setSelectedFiles([]);
             setSelectedDate("");
@@ -221,62 +328,62 @@ const MainDashboard = () => {
     };
 
     const handleLikePost = async (postId) => {
-    try {
-        const response = await fetch(
-            `${config.apiUrl}/posts/like/${postId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json", // Add this
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ userId: username }) // Add user identifier if needed
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/posts/like/${postId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ userId: username })
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like post");
             }
-        );
 
-        if (!response.ok) {
-            const errorData = await response.json(); // Get detailed error
-            throw new Error(errorData.message || "Failed to like post");
+            const data = await response.json();
+            setPosts(
+                posts.map((post) =>
+                    post._id === postId ? { ...post, likes: data.likes } : post
+                )
+            );
+        } catch (err) {
+            setError(err.message);
+            console.error("Error liking post:", err);
         }
-
-        const data = await response.json();
-        setPosts(
-            posts.map((post) =>
-                post._id === postId ? { ...post, likes: data.likes } : post
-            )
-        );
-    } catch (err) {
-        setError(err.message);
-        console.error("Error liking post:", err);
-    }
-};
-
+    };
 
     const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${config.apiUrl}/posts/delete/${postId}`, { // Try simpler endpoint
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Failed to delete post");
+        if (!window.confirm("Are you sure you want to delete this post?")) {
+            return;
         }
 
-        setPosts(posts.filter((post) => post._id !== postId));
-    } catch (err) {
-        setError(err.message);
-        console.error("Error deleting post:", err);
-    }
-};
+        try {
+            const response = await fetch(`${config.apiUrl}/posts/delete/${postId}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to delete post");
+            }
+
+            setPosts(posts.filter((post) => post._id !== postId));
+        } catch (err) {
+            setError(err.message);
+            console.error("Error deleting post:", err);
+        }
+    };
+
     const quickReactions = [
         { text: "Congrats", emoji: "🎉" },
         { text: "Sorrow", emoji: "😭" },
@@ -289,10 +396,6 @@ const MainDashboard = () => {
         setPostContent((prev) =>
             `${prev} ${reaction.text} ${reaction.emoji}`.trim()
         );
-    };
-
-    const toggleCommentDropdown = (postId) => {
-        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
     };
 
     const handleProfileClick = () => {
@@ -718,7 +821,7 @@ const MainDashboard = () => {
                                         {post.content}
                                     </p>
 
-                                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200">
+                                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200 dark:border-gray-700">
                                         <button
                                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
                                             onClick={() =>
@@ -735,65 +838,133 @@ const MainDashboard = () => {
                                             </span>
                                         </button>
 
-                                        <div className="relative">
-                                            <button
-                                                className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
-                                                onClick={() =>
-                                                    toggleCommentDropdown(
-                                                        post._id
-                                                    )
-                                                }
-                                            >
-                                                <FaCommentDots />
-                                                <span className="text-sm">
-                                                    {post.comments?.length || 0}
-                                                </span>
-                                            </button>
-                                            {activeCommentPostId ===
-                                                post._id && (
-                                                <div
-                                                    className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${
-                                                        darkMode
-                                                            ? "bg-gray-800"
-                                                            : "bg-white"
-                                                    } ring-1 ring-black ring-opacity-5 z-50`}
-                                                >
-                                                    <div className="py-1">
-                                                        {quickReactions.map(
-                                                            (
-                                                                reaction,
-                                                                index
-                                                            ) => (
-                                                                <span
-                                                                    key={index}
-                                                                    className={`block px-4 py-2 text-sm ${
-                                                                        darkMode
-                                                                            ? "text-gray-200 hover:bg-gray-700"
-                                                                            : "text-gray-700 hover:bg-gray-100"
-                                                                    } cursor-pointer`}
-                                                                    onClick={() => {
-                                                                        console.log(
-                                                                            `Adding reaction: ${reaction.text} to post ${post._id}`
-                                                                        );
-                                                                        setActiveCommentPostId(
-                                                                            null
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    {
-                                                                        reaction.text
-                                                                    }{" "}
-                                                                    {
-                                                                        reaction.emoji
-                                                                    }
-                                                                </span>
-                                                            )
-                                                        )}
-                                                    </div>
+                                        <button
+                                            className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                                            onClick={() => toggleCommentDropdown(post._id)}
+                                            disabled={isFetchingComments}
+                                        >
+                                            <FaCommentDots />
+                                            <span className="text-sm">
+                                                {post.commentCount || post.comments?.length || 0}
+                                            </span>
+                                        </button>
+                                    </div>
+
+                                    {/* Comments Section */}
+                                    {activeCommentPostId === post._id && (
+                                        <div className="mt-4">
+                                           
+                                            
+                                            {/* Show loading state when fetching */}
+                                            {isFetchingComments ? (
+                                                <div className="text-center py-4">
+                                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    <p className="text-sm mt-2">Loading comments...</p>
                                                 </div>
+                                            ) : (
+                                                <>
+                                                    {/* Show comments if they exist */}
+                                                    {post.comments && post.comments.length > 0 ? (
+                                                        <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                                            darkMode ? "bg-gray-700" : "bg-gray-100"
+                                                        }`}>
+                                                            {post.comments.map((comment) => (
+                                                                <div key={comment._id} className="flex items-start space-x-2">
+                                                                    <img
+                                                                        src={comment.userId.profilePic}
+                                                                        alt={comment.userId.realname}
+                                                                        className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                                                                        onError={(e) => {
+                                                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId.realname)}&background=random`;
+                                                                        }}
+                                                                    />
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center space-x-2">
+                                                                            <span className="font-semibold text-sm">
+                                                                                {comment.userId.realname}
+                                                                            </span>
+                                                                            <span className={`text-xs ${
+                                                                                darkMode ? "text-gray-400" : "text-gray-500"
+                                                                            }`}>
+                                                                                {formatDate(comment.createdAt)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-sm whitespace-pre-line mt-1">
+                                                                            {comment.content}
+                                                                        </p>
+                                                                        <div className="mt-1 flex items-center">
+                                                                            <button
+                                                                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                                onClick={() => handleLikeComment(comment._id, post._id)}
+                                                                            >
+                                                                                {comment.likes?.includes(username) ? (
+                                                                                    <FaHeart className="text-red-500 text-xs" />
+                                                                                ) : (
+                                                                                    <FaRegHeart className="text-xs" />
+                                                                                )}
+                                                                                <span className="text-xs">
+                                                                                    {comment.likes?.length || 0}
+                                                                                </span>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                                            No comments yet. Be the first to comment!
+                                                        </div>
+                                                    )}
+
+                                                    {/* Add Comment Input */}
+                                                    <div className="flex items-center space-x-2">
+                                                        <img
+                                                            src={profilePic}
+                                                            alt={username}
+                                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                                                        />
+                                                        <div className="flex-1 flex space-x-2">
+                                                            <input
+                                                                type="text"
+                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                                    darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                placeholder="Write a comment..."
+                                                                value={commentContent[post._id] || ""}
+                                                                onChange={(e) => 
+                                                                    setCommentContent({
+                                                                        ...commentContent,
+                                                                        [post._id]: e.target.value
+                                                                    })
+                                                                }
+                                                                onKeyPress={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        handleAddComment(post._id);
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                className={`px-3 py-1 rounded-full text-sm ${
+                                                                    !commentContent[post._id]?.trim() || isLoading
+                                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                                } text-white transition-colors`}
+                                                                onClick={() => handleAddComment(post._id)}
+                                                                disabled={!commentContent[post._id]?.trim() || isLoading}
+                                                            >
+                                                                {isLoading ? (
+                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                ) : (
+                                                                    "Post"
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
