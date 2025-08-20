@@ -5,7 +5,7 @@ import { FaHeart, FaRegHeart, FaCommentDots } from "react-icons/fa";
 import config from "../../hooks/config";
 
 const MainFeed = () => {
-    const { token, logout, user } = useAuth();
+    const { token, logout, user, username } = useAuth(); // Added username
     const navigate = useNavigate();
     const [darkMode, setDarkMode] = useState(false);
     const [currentTime, setCurrentTime] = useState("--:--:--");
@@ -17,6 +17,7 @@ const MainFeed = () => {
     const [isCommenting, setIsCommenting] = useState({});
     const [loadingComments, setLoadingComments] = useState({});
     const [commentContent, setCommentContent] = useState({});
+    const [isLikingComment, setIsLikingComment] = useState({});
 
     useEffect(() => {
         if (!token) {
@@ -61,9 +62,10 @@ const MainFeed = () => {
             
             const postsData = Array.isArray(data) ? data : data.posts || [];
             
+            // Use username instead of user._id for checking likes
             const postsWithLikes = postsData.map((post) => ({
                 ...post,
-                isLiked: post.likes?.some((like) => like.userId === user?._id) || false,
+                isLiked: post.likes?.some((like) => like.userId === username) || false,
                 createdAt: post.createdAt || new Date().toISOString(),
                 comments: post.comments || []
             }));
@@ -95,14 +97,82 @@ const MainFeed = () => {
             const responseData = await response.json();
             const comments = responseData.comments || [];
             
+            // Add isLiked property to each comment
+            const commentsWithLikes = comments.map(comment => ({
+                ...comment,
+                isLiked: comment.likes?.some(like => like.userId === username) || false
+            }));
+            
             setPosts(posts.map(post => 
-                post._id === postId ? { ...post, comments, commentCount: comments.length } : post
+                post._id === postId ? { ...post, comments: commentsWithLikes, commentCount: commentsWithLikes.length } : post
             ));
         } catch (err) {
             setError(err.message);
             console.error("Error fetching comments:", err);
         } finally {
             setLoadingComments(prev => ({ ...prev, [postId]: false }));
+        }
+    };
+
+    const handleLikeComment = async (commentId, postId) => {
+        if (!username) {
+            setError("You must be logged in to like comments");
+            return;
+        }
+
+        setIsLikingComment(prev => ({ ...prev, [commentId]: true }));
+
+        try {
+            // Optimistically update the UI
+            setPosts(posts.map(post => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.map(comment => {
+                        if (comment._id === commentId) {
+                            const isLiked = comment.likes?.some(like => like.userId === username) || false;
+                            return {
+                                ...comment,
+                                isLiked: !isLiked,
+                                likes: isLiked
+                                    ? comment.likes?.filter(like => like.userId !== username) || []
+                                    : [...(comment.likes || []), { userId: username }]
+                            };
+                        }
+                        return comment;
+                    });
+                    return { ...post, comments: updatedComments };
+                }
+                return post;
+            }));
+
+            const response = await fetch(
+                `${config.apiUrl}/posts/comments/${commentId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ 
+                        content: "like", 
+                        parentCommentId: commentId 
+                    })
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like comment");
+            }
+
+            // Refresh comments to get updated data from server
+            await fetchComments(postId);
+        } catch (err) {
+            console.error("Error liking comment:", err);
+            setError(err.message);
+            // Refresh comments to revert optimistic update
+            await fetchComments(postId);
+        } finally {
+            setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
         }
     };
 
@@ -113,8 +183,9 @@ const MainFeed = () => {
     };
 
     const handleLike = async (postId) => {
-        if (!user || !user._id) {
-            console.error("User not available");
+        // Use username instead of user._id
+        if (!username) {
+            console.error("Username not available");
             setError("You must be logged in to like posts");
             return;
         }
@@ -125,25 +196,25 @@ const MainFeed = () => {
             // Optimistically update the UI
             setPosts(posts.map(post => {
                 if (post._id === postId) {
-                    const isLiked = post.likes?.some(like => like.userId === user._id) || false;
+                    const isLiked = post.likes?.some(like => like.userId === username) || false;
                     return {
                         ...post,
                         isLiked: !isLiked,
                         likes: isLiked
-                            ? post.likes?.filter(like => like.userId !== user._id) || []
-                            : [...(post.likes || []), { userId: user._id }]
+                            ? post.likes?.filter(like => like.userId !== username) || []
+                            : [...(post.likes || []), { userId: username }]
                     };
                 }
                 return post;
             }));
 
+            // Remove the userId from the request body since the server should get it from the token
             const response = await fetch(`${config.apiUrl}/posts/like/${postId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ userId: user._id })
+                }
             });
 
             if (!response.ok) {
@@ -157,13 +228,13 @@ const MainFeed = () => {
                 post._id === postId ? { 
                     ...post, 
                     ...updatedPost,
-                    isLiked: updatedPost.likes?.some(like => like.userId === user._id) || false 
+                    isLiked: updatedPost.likes?.some(like => like.userId === username) || false 
                 } : post
             ));
         } catch (err) {
             console.error("Error liking post:", err);
             setError(err.message);
-            fetchPosts();
+            fetchPosts(); // Refresh posts to get correct state
         } finally {
             setIsLiking(prev => ({ ...prev, [postId]: false }));
         }
@@ -182,34 +253,31 @@ const MainFeed = () => {
 
     const handleCommentSubmit = async (postId) => {
         const content = commentContent[postId] || "";
-        console.log("Submitting comment for post:", postId, "Content:", content);
-        console.log("User object:", user);
         
-        // Check if content is empty
         if (!content.trim()) {
-            console.log("Comment validation failed - empty content");
             setError("Comment cannot be empty");
             return;
         }
         
-        // Check if user is properly authenticated and has an ID
-        if (!user || !user._id) {
-            console.log("Comment validation failed - no user or user ID");
+        // Use username instead of user._id
+        if (!username) {
             setError("You must be logged in to comment");
             navigate("/login");
             return;
         }
 
         setIsCommenting(prev => ({ ...prev, [postId]: true }));
-        setError(null); // Clear any previous errors
+        setError(null);
 
         try {
             // Optimistically update the UI
             const newComment = {
-                userId: user._id,
-                username: user.username,
+                userId: username, // Use username instead of user._id
+                username: username,
                 content: content,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                likes: [],
+                isLiked: false
             };
 
             setPosts(posts.map(post => 
@@ -220,8 +288,6 @@ const MainFeed = () => {
                     } 
                     : post
             ));
-
-            console.log("Making API call to:", `${config.apiUrl}/posts/${postId}/comments`);
             
             const response = await fetch(
                 `${config.apiUrl}/posts/${postId}/comments`,
@@ -237,17 +303,12 @@ const MainFeed = () => {
                     }),
                 }
             );
-
-            console.log("API response status:", response.status);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error("API error response:", errorText);
                 throw new Error("Failed to post comment");
             }
 
             const updatedPost = await response.json();
-            console.log("API success response:", updatedPost);
             
             // Update with server response
             setPosts(posts.map(post =>
@@ -263,7 +324,7 @@ const MainFeed = () => {
         } catch (err) {
             console.error("Error posting comment:", err);
             setError(err.message);
-            // Revert optimistic update if there's an error
+            // Revert optimistic update
             setPosts(posts.map(post => 
                 post._id === postId 
                     ? { 
@@ -487,7 +548,7 @@ const MainFeed = () => {
                                                     ? "bg-gray-700"
                                                     : "bg-white"
                                             } ring-1 ring-black ring-opacity-5 z-10`}
-                                            onClick={(e) => e.stopPropagation()} // Prevent clicks inside dropdown from closing it
+                                            onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="px-4 py-2">
                                                 <h4 className="font-medium mb-2">Comments</h4>
@@ -516,9 +577,34 @@ const MainFeed = () => {
                                                                     <p className="text-sm mb-1">
                                                                         {comment.content || ""}
                                                                     </p>
-                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                        {formatDate(comment.createdAt)}
-                                                                    </p>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                            {formatDate(comment.createdAt)}
+                                                                        </p>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleLikeComment(comment._id, post._id);
+                                                                            }}
+                                                                            disabled={isLikingComment[comment._id]}
+                                                                            className={`flex items-center gap-1 ${
+                                                                                comment.isLiked
+                                                                                    ? "text-red-500"
+                                                                                    : "text-gray-400"
+                                                                            } ${isLikingComment[comment._id] ? "opacity-50 cursor-not-allowed" : ""} dark:text-gray-300 hover:text-red-500 transition-colors cursor-pointer`}
+                                                                        >
+                                                                            {isLikingComment[comment._id] ? (
+                                                                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                            ) : comment.isLiked ? (
+                                                                                <FaHeart className="text-xs" />
+                                                                            ) : (
+                                                                                <FaRegHeart className="text-xs" />
+                                                                            )}
+                                                                            <span className="text-xs">
+                                                                                {comment.likes?.length || 0}
+                                                                            </span>
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             )
                                                         )}
@@ -562,7 +648,7 @@ const MainFeed = () => {
                                                                 : "bg-blue-500 hover:bg-blue-600"
                                                         } text-white transition-colors cursor-pointer flex items-center justify-center w-full`}
                                                         onClick={(e) => {
-                                                            e.stopPropagation(); // Prevent dropdown from closing
+                                                            e.stopPropagation();
                                                             handleCommentSubmit(post._id);
                                                         }}
                                                         disabled={isCommenting[post._id]}
