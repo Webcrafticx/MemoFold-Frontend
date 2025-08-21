@@ -205,7 +205,6 @@ const MainDashboard = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
-            // Refresh comments to get updated likes
             await fetchComments(postId);
         } catch (err) {
             setError(err.message);
@@ -346,12 +345,19 @@ const MainDashboard = () => {
                 throw new Error(errorData.message || "Failed to like post");
             }
 
-            const data = await response.json();
-            setPosts(
-                posts.map((post) =>
-                    post._id === postId ? { ...post, likes: data.likes } : post
-                )
-            );
+            setPosts(posts.map(post => {
+                if (post._id === postId) {
+                    const isLiked = post.likes?.includes(username);
+                    
+                    return {
+                        ...post,
+                        likes: isLiked 
+                            ? post.likes.filter(user => user !== username) // Remove like
+                            : [...(post.likes || []), username] // Add like
+                    };
+                }
+                return post;
+            }));
         } catch (err) {
             setError(err.message);
             console.error("Error liking post:", err);
@@ -641,18 +647,6 @@ const MainDashboard = () => {
                                     />
                                     <FaPaperclip className="text-xl" />
                                 </label>
-
-                                <button
-                                    className={`p-2 rounded-xl ${
-                                        darkMode
-                                            ? "bg-gray-700 hover:bg-gray-600"
-                                            : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
-                                    } shadow-md transition-all cursor-pointer`}
-                                    title="Like"
-                                >
-                                    <span className="text-xl">❤️</span>
-                                </button>
-
                                 <div className="relative">
                                     <button
                                         className={`p-2 rounded-xl ${

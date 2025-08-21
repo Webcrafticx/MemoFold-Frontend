@@ -16,6 +16,7 @@ import {
   FaTimes,
   FaArrowLeft,
   FaBars,
+  FaTrashAlt,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../../assets/logo.png";
@@ -53,6 +54,12 @@ const ProfilePage = () => {
   const [filePreview, setFilePreview] = useState(null);
   const [error, setError] = useState(null);
   const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
+  
+  // Comment-related states
+  const [activeCommentPostId, setActiveCommentPostId] = useState(null);
+  const [commentContent, setCommentContent] = useState({});
+  const [isFetchingComments, setIsFetchingComments] = useState(false);
+  const [isAddingComment, setIsAddingComment] = useState(false);
 
   // Refs
   const fileInputRef = useRef(null);
@@ -257,14 +264,17 @@ const ProfilePage = () => {
 
       if (response.ok) {
         const postsData = await response.json();
-        setPosts(
-          postsData.reverse().map((post) => ({
-            ...post,
-            isLiked: post.likedByUser || false,
-            profilePic: profilePic,
-            username: username,
-          }))
-        );
+        const postsWithComments = postsData.reverse().map((post) => ({
+          ...post,
+          isLiked: post.likedByUser || false,
+          likes: post.likesCount || 0,
+          comments: post.comments || [],
+          commentCount: post.commentsCount || 0,
+          shares: post.sharesCount || 0,
+          profilePic: profilePic,
+          username: username,
+        }));
+        setPosts(postsWithComments);
       } else {
         throw new Error("Failed to fetch posts");
       }
@@ -272,6 +282,86 @@ const ProfilePage = () => {
       console.error("Error fetching posts:", error);
       throw error;
     }
+  };
+
+  // Fetch comments for a post
+  const fetchComments = async (postId) => {
+    setIsFetchingComments(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch comments");
+      }
+
+      const responseData = await response.json();
+      const comments = responseData.comments || [];
+      
+      setPosts(posts.map(post => 
+        post._id === postId ? { ...post, comments, commentCount: comments.length } : post
+      ));
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching comments:", err);
+    } finally {
+      setIsFetchingComments(false);
+    }
+  };
+
+  // Handle adding a comment
+  const handleAddComment = async (postId) => {
+    if (!commentContent[postId]?.trim()) {
+      setError("Comment cannot be empty");
+      return;
+    }
+
+    setIsAddingComment(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          postId: postId,
+          content: commentContent[postId],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to add comment");
+      }
+
+      await fetchComments(postId);
+      
+      setCommentContent(prev => ({ ...prev, [postId]: "" }));
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error adding comment:", err);
+    } finally {
+      setIsAddingComment(false);
+    }
+  };
+
+  // Toggle comment section for a post
+  const toggleCommentDropdown = async (postId) => {
+    if (activeCommentPostId === postId) {
+      setActiveCommentPostId(null);
+      return;
+    }
+    
+    setActiveCommentPostId(postId);
+    await fetchComments(postId);
   };
 
   // Handle profile picture upload
@@ -383,7 +473,8 @@ const ProfilePage = () => {
         ...result,
         isLiked: false,
         likes: 0,
-        comments: 0,
+        comments: [],
+        commentCount: 0,
         shares: 0,
         profilePic: profilePic,
         username: username,
@@ -419,10 +510,11 @@ const ProfilePage = () => {
       if (response.ok) {
         setPosts(posts.map(post => {
           if (post._id === postId) {
+            const currentLikes = parseInt(post.likes) || 0;
             return {
               ...post,
               isLiked: !post.isLiked,
-              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+              likes: post.isLiked ? currentLikes - 1 : currentLikes + 1,
             };
           }
           return post;
@@ -495,6 +587,34 @@ const ProfilePage = () => {
 
   const toggleMobileMenu = () => {
     setShowMobileMenu(!showMobileMenu);
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return "Just now";
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid Date";
+      
+      const now = new Date();
+      const diffInSeconds = Math.floor((now - date) / 1000);
+      
+      if (diffInSeconds < 60) {
+        return "Just now";
+      }
+      
+      return date.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "Invalid Date";
+    }
   };
 
   // Theme handling
@@ -754,18 +874,18 @@ const ProfilePage = () => {
               <span className="text-blue-500">📊</span>
               <span>{stats.posts} Posts</span>
             </div>
-            <div className={`flex items-center gap-1 sm:gap-2 ${
+            {/* <div className={`flex items-center gap-1 sm:gap-2 ${
               darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
             } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
               <span className="text-blue-500">👥</span>
               <span>{stats.followers} Followers</span>
-            </div>
-            <div className={`flex items-center gap-1 sm:gap-2 ${
+            </div> */}
+            {/* <div className={`flex items-center gap-1 sm:gap-2 ${
               darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
             } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
               <span className="text-blue-500">❤️</span>
               <span>{stats.following} Following</span>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -1079,7 +1199,7 @@ const ProfilePage = () => {
                       {post.username}
                     </span>
                     <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 ml-auto">
-                      {new Date(post.createdAt).toLocaleString()}
+                      {formatDate(post.createdAt)}
                     </span>
                   </div>
 
@@ -1119,7 +1239,21 @@ const ProfilePage = () => {
                       ) : (
                         <FaRegHeart />
                       )}
-                      <span>{post.likes}</span>
+                      {/* Ensure likes is always a number */}
+                      <span>{parseInt(post.likes) || 0}</span>
+                    </button>
+
+                    <button
+                      onClick={() => toggleCommentDropdown(post._id)}
+                      disabled={isFetchingComments}
+                      className={`flex items-center gap-1 ${
+                        darkMode
+                          ? "text-gray-400 hover:text-gray-300"
+                          : "text-gray-500 hover:text-gray-700"
+                      } transition-colors cursor-pointer text-xs sm:text-sm`}
+                    >
+                      <FaComment />
+                      <span>{post.commentCount || post.comments?.length || 0}</span>
                     </button>
 
                     <div className={`flex items-center gap-1 ${
@@ -1127,19 +1261,109 @@ const ProfilePage = () => {
                         ? "text-gray-400 hover:text-gray-300"
                         : "text-gray-500 hover:text-gray-700"
                     } transition-colors cursor-pointer text-xs sm:text-sm`}>
-                      <FaComment />
-                      <span>{post.comments}</span>
-                    </div>
-
-                    <div className={`flex items-center gap-1 ${
-                      darkMode
-                        ? "text-gray-400 hover:text-gray-300"
-                        : "text-gray-500 hover:text-gray-700"
-                    } transition-colors cursor-pointer text-xs sm:text-sm`}>
                       <FaShare />
-                      <span>{post.shares}</span>
+                      <span>{parseInt(post.shares) || 0}</span>
                     </div>
                   </div>
+
+                  {/* Comments Section */}
+                  {activeCommentPostId === post._id && (
+                    <div className="mt-4">
+                      {/* Show loading state when fetching */}
+                      {isFetchingComments ? (
+                        <div className="text-center py-4">
+                          <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="text-sm mt-2">Loading comments...</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Show comments if they exist */}
+                          {post.comments && post.comments.length > 0 ? (
+                            <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                              darkMode ? "bg-gray-700" : "bg-gray-100"
+                            }`}>
+                              {post.comments.map((comment) => (
+                                <div key={comment._id} className="flex items-start space-x-2">
+                                  <img
+                                    src={comment.userId?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId?.realname || 'User')}&background=random`}
+                                    alt={comment.userId?.realname}
+                                    className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                                    onError={(e) => {
+                                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId?.realname || 'User')}&background=random`;
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-semibold text-sm">
+                                        {comment.userId?.realname || comment.userId?.username || 'Unknown User'}
+                                      </span>
+                                      <span className={`text-xs ${
+                                        darkMode ? "text-gray-400" : "text-gray-500"
+                                      }`}>
+                                        {formatDate(comment.createdAt)}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm whitespace-pre-line mt-1">
+                                      {comment.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                              No comments yet. Be the first to comment!
+                            </div>
+                          )}
+
+                          {/* Add Comment Input */}
+                          <div className="flex items-center space-x-2">
+                            <img
+                              src={profilePic}
+                              alt={username}
+                              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                            />
+                            <div className="flex-1 flex space-x-2">
+                              <input
+                                type="text"
+                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                  darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                placeholder="Write a comment..."
+                                value={commentContent[post._id] || ""}
+                                onChange={(e) => 
+                                  setCommentContent({
+                                    ...commentContent,
+                                    [post._id]: e.target.value
+                                  })
+                                }
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleAddComment(post._id);
+                                  }
+                                }}
+                              />
+                              <button
+                                className={`px-3 py-1 rounded-full text-sm ${
+                                  !commentContent[post._id]?.trim() || isAddingComment
+                                    ? "bg-blue-300 cursor-not-allowed"
+                                    : "bg-blue-500 hover:bg-blue-600"
+                                } text-white transition-colors`}
+                                onClick={() => handleAddComment(post._id)}
+                                disabled={!commentContent[post._id]?.trim() || isAddingComment}
+                              >
+                                {isAddingComment ? (
+                                  <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                  "Post"
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
