@@ -22,6 +22,7 @@ import MainDashboard from "./components/updMain/updMain";
 import ApiDocumentation from "./components/ApiDocumentation";
 import TermsOfService from "./components/terms/terms";
 import { useAuth } from "./hooks/useAuth";
+import UserProfile from "./components/UserProfile";
 
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
@@ -129,6 +130,7 @@ function App() {
                             element={<MaintenancePage />}
                         />
                         <Route path="/survey" element={<Survey />} />
+                        <Route path="/user/:userId" element={<UserProfile />} />
 
                         {/* Protected Routes */}
                         <Route
