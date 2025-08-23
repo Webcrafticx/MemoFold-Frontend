@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { FaHeart, FaRegHeart, FaCommentDots } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaCommentDots, FaTrashAlt } from "react-icons/fa";
 import config from "../../hooks/config";
 
 const MainFeed = () => {
-    const { token, logout, user, username } = useAuth();
+    const { token, logout, user, username, realname } = useAuth();
     const navigate = useNavigate();
     
     const [darkMode, setDarkMode] = useState(false);
@@ -13,6 +13,7 @@ const MainFeed = () => {
     const [posts, setPosts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
     
     const [activeCommentPostId, setActiveCommentPostId] = useState(null);
     const [isLiking, setIsLiking] = useState({});
@@ -25,6 +26,7 @@ const MainFeed = () => {
         if (!token) {
             navigate("/login");
         } else {
+            fetchCurrentUserProfile();
             fetchPosts();
         }
     }, [token, navigate]);
@@ -46,6 +48,23 @@ const MainFeed = () => {
     useEffect(() => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
+
+    const fetchCurrentUserProfile = async () => {
+        try {
+            const response = await fetch(`${config.apiUrl}/user/me`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const userData = await response.json();
+                setCurrentUserProfile(userData);
+            }
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        }
+    };
 
     const fetchPosts = async () => {
         setIsLoading(true);
@@ -129,6 +148,7 @@ const MainFeed = () => {
         setIsLikingComment(prev => ({ ...prev, [commentId]: true }));
 
         try {
+            // Optimistic UI update
             setPosts(posts.map(post => {
                 if (post._id === postId) {
                     const updatedComments = post.comments?.map(comment => {
@@ -157,9 +177,8 @@ const MainFeed = () => {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({
-                        content: "like",
-                        parentCommentId: commentId
+                    body: JSON.stringify({ 
+                        userId: username // Send userId instead of content and parentCommentId
                     })
                 }
             );
@@ -169,26 +188,13 @@ const MainFeed = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
-            const updatedComment = await response.json();
-            setPosts(posts.map(post => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.map(comment => 
-                        comment._id === commentId 
-                            ? { 
-                                ...comment, 
-                                ...updatedComment,
-                                isLiked: updatedComment.likes?.some(like => like.userId === username) || false
-                            } 
-                            : comment
-                    );
-                    return { ...post, comments: updatedComments };
-                }
-                return post;
-            }));
+            // Refresh comments to get updated like count from server
+            await fetchComments(postId);
         } catch (err) {
             console.error("Error liking comment:", err);
             setError(err.message);
-            fetchComments(postId);
+            // Revert optimistic update on error
+            await fetchComments(postId);
         } finally {
             setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
         }
@@ -295,25 +301,6 @@ const MainFeed = () => {
         setError(null);
 
         try {
-            // Optimistic update
-            const newComment = {
-                userId: username,
-                username: username,
-                content: content,
-                createdAt: new Date().toISOString(),
-                likes: [],
-                isLiked: false
-            };
-
-            setPosts(posts.map(post =>
-                post._id === postId
-                    ? {
-                        ...post,
-                        comments: [...(post.comments || []), newComment]
-                    }
-                    : post
-            ));
-
             const response = await fetch(
                 `${config.apiUrl}/posts/${postId}/comments`,
                 {
@@ -335,15 +322,22 @@ const MainFeed = () => {
 
             const responseData = await response.json();
             const createdComment = responseData.comment || responseData;
+            
+            // Update the post with the new comment from the server response
             setPosts(posts.map(post =>
                 post._id === postId
                     ? {
                         ...post,
-                        comments: post.comments?.map(comment => 
-                            comment.createdAt === newComment.createdAt && comment.content === newComment.content
-                                ? { ...createdComment, isLiked: false }
-                                : comment
-                        ) || [createdComment]
+                        comments: [...(post.comments || []), {
+                            ...createdComment,
+                            isLiked: false,
+                            userId: {
+                                _id: currentUserProfile?._id || user?._id || username,
+                                username: username,
+                                realname: currentUserProfile?.realname || realname || username,
+                                profilePic: currentUserProfile?.profilePic || user?.profilePic
+                            }
+                        }]
                     }
                     : post
             ));
@@ -352,16 +346,6 @@ const MainFeed = () => {
         } catch (err) {
             console.error("Error posting comment:", err);
             setError(err.message);
-            setPosts(posts.map(post =>
-                post._id === postId
-                    ? {
-                        ...post,
-                        comments: post.comments?.filter(comment => 
-                            !(comment.createdAt === new Date().toISOString() && comment.content === content)
-                        ) || []
-                    }
-                    : post
-            ));
         } finally {
             setIsCommenting(prev => ({ ...prev, [postId]: false }));
         }
@@ -374,20 +358,36 @@ const MainFeed = () => {
                 return "Just now";
             }
             
-            return date.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-            });
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffInSeconds < 60) {
+                return "Just now";
+            } else if (diffInSeconds < 3600) {
+                return `${Math.floor(diffInSeconds / 60)}m ago`;
+            } else if (diffInSeconds < 86400) {
+                return `${Math.floor(diffInSeconds / 3600)}h ago`;
+            } else {
+                return date.toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                });
+            }
         } catch (e) {
             return "Just now";
         }
     };
 
     const navigateToUserProfile = (userId) => {
-        navigate(`/user/${userId}`);
+        if (userId) {
+            // Check if this is the current user's profile
+            if (currentUserProfile && userId === currentUserProfile._id) {
+                navigate("/profile");
+            } else {
+                navigate(`/user/${userId}`);
+            }
+        }
     };
 
     return (
@@ -477,10 +477,7 @@ const MainFeed = () => {
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
                                                 e.target.style.display = 'none';
-                                                e.target.parentElement.innerHTML =
-                                                    `<span class="text-lg font-semibold text-gray-700">
-                                                        ${post.userId.username?.charAt(0).toUpperCase() || 'U'}
-                                                    </span>`;
+                                                e.target.parentElement.innerHTML = `<span class="text-lg font-semibold text-gray-700">${post.userId.username?.charAt(0).toUpperCase() || 'U'}</span>`;
                                             }}
                                         />
                                     ) : (
@@ -537,70 +534,88 @@ const MainFeed = () => {
                                     </span>
                                 </button>
 
-                                <div className="relative">
-                                    <button
-                                        className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
-                                        onClick={() => toggleCommentDropdown(post._id)}
-                                        disabled={loadingComments[post._id]}
-                                    >
-                                        <FaCommentDots />
-                                        <span className="text-sm">
-                                            {post.comments?.length || 0}
-                                        </span>
-                                        {loadingComments[post._id] && (
-                                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
-                                        )}
-                                    </button>
+                                <button
+                                    className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                                    onClick={() => toggleCommentDropdown(post._id)}
+                                    disabled={loadingComments[post._id]}
+                                >
+                                    <FaCommentDots />
+                                    <span className="text-sm">
+                                        {post.comments?.length || 0}
+                                    </span>
+                                    {loadingComments[post._id] && (
+                                        <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+                                    )}
+                                </button>
+                            </div>
 
-                                    {activeCommentPostId === post._id && (
-                                        <div
-                                            className={`absolute right-0 mt-2 w-80 rounded-md shadow-lg py-1 ${darkMode ? "bg-gray-700" : "bg-white"} ring-1 ring-black ring-opacity-5 z-10`}
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="px-4 py-2">
-                                                <h4 className="font-medium mb-2">Comments</h4>
-                                                
-                                                {loadingComments[post._id] ? (
-                                                    <div className="flex justify-center py-4">
-                                                        <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                    </div>
-                                                ) : post.comments?.length > 0 ? (
-                                                    <div className="mb-3 max-h-40 overflow-y-auto">
-                                                        {post.comments.map((comment, index) => (
-                                                            <div
-                                                                key={comment._id || index}
-                                                                className="mb-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-600"
+                            {/* Comments Section - Updated to match dashboard */}
+                            {activeCommentPostId === post._id && (
+                                <div className="mt-4">
+                                    {/* Show loading state when fetching */}
+                                    {loadingComments[post._id] ? (
+                                        <div className="text-center py-4">
+                                            <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <p className="text-sm mt-2">Loading comments...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Show comments if they exist */}
+                                            {post.comments && post.comments.length > 0 ? (
+                                                <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
+                                                    {post.comments.map((comment) => (
+                                                        <div key={comment._id} className="flex items-start space-x-2">
+                                                            <div 
+                                                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigateToUserProfile(comment.userId?._id);
+                                                                }}
                                                             >
-                                                                <div 
-                                                                    className="flex items-center gap-2 mb-1 cursor-pointer"
-                                                                    onClick={() => navigateToUserProfile(comment.userId)}
-                                                                >
-                                                                    <span className="font-semibold text-sm hover:text-blue-500">
-                                                                        {comment.userId.username || "Unknown"}
+                                                                {comment.userId?.profilePic ? (
+                                                                    <img
+                                                                        src={comment.userId.profilePic}
+                                                                        alt={comment.userId.username}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            e.target.style.display = 'none';
+                                                                            e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${comment.userId.username?.charAt(0).toUpperCase() || 'U'}</span>`;
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-xs font-semibold text-gray-700">
+                                                                        {comment.userId?.username?.charAt(0).toUpperCase() || 'U'}
                                                                     </span>
-                                                                </div>
-                                                                
-                                                                <p className="text-sm mb-1">
-                                                                    {comment.content || ""}
-                                                                </p>
-                                                                
-                                                                <div className="flex items-center justify-between">
-                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                        {formatDate(comment.createdAt)}
-                                                                    </p>
-                                                                    
-                                                                    <button
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span 
+                                                                        className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            handleLikeComment(comment._id, post._id);
+                                                                            navigateToUserProfile(comment.userId?._id);
                                                                         }}
+                                                                    >
+                                                                        {comment.userId?.username || "Unknown"}
+                                                                    </span>
+                                                                    <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                                                        {formatDate(comment.createdAt)}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm whitespace-pre-line mt-1">
+                                                                    {comment.content}
+                                                                </p>
+                                                                <div className="mt-1 flex items-center">
+                                                                    <button
+                                                                        className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                        onClick={() => handleLikeComment(comment._id, post._id)}
                                                                         disabled={isLikingComment[comment._id]}
-                                                                        className={`flex items-center gap-1 ${comment.isLiked ? "text-red-500" : "text-gray-400"} ${isLikingComment[comment._id] ? "opacity-50 cursor-not-allowed" : ""} dark:text-gray-300 hover:text-red-500 transition-colors cursor-pointer`}
                                                                     >
                                                                         {isLikingComment[comment._id] ? (
                                                                             <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                                                                         ) : comment.isLiked ? (
-                                                                            <FaHeart className="text-xs" />
+                                                                            <FaHeart className="text-xs text-red-500" />
                                                                         ) : (
                                                                             <FaRegHeart className="text-xs" />
                                                                         )}
@@ -610,47 +625,69 @@ const MainFeed = () => {
                                                                     </button>
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className={`text-sm mb-3 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                                                        No comments yet
-                                                    </p>
-                                                )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                                    No comments yet. Be the first to comment!
+                                                </div>
+                                            )}
 
-                                                <div className="mt-3">
-                                                    <textarea
-                                                        className={`w-full p-2 border rounded ${darkMode ? "bg-gray-600 border-gray-500 text-white" : "border-gray-300"} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                                                        rows="2"
-                                                        placeholder="Write your comment..."
+                                            {/* Add Comment Input */}
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                    {currentUserProfile?.profilePic || user?.profilePic ? (
+                                                        <img
+                                                            src={currentUserProfile?.profilePic || user?.profilePic}
+                                                            alt={username}
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${username?.charAt(0).toUpperCase() || 'U'}</span>`;
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="text-xs font-semibold text-gray-700">
+                                                            {username?.charAt(0).toUpperCase() || 'U'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 flex space-x-2">
+                                                    <input
+                                                        type="text"
+                                                        className={`flex-1 px-3 py-2 rounded-full text-sm border ${darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                        placeholder="Write a comment..."
                                                         value={commentContent[post._id] || ""}
-                                                        onChange={(e) =>
+                                                        onChange={(e) => 
                                                             setCommentContent({
                                                                 ...commentContent,
                                                                 [post._id]: e.target.value
                                                             })
                                                         }
-                                                    />
-                                                    
-                                                    <button
-                                                        className={`mt-2 px-3 py-1 text-sm rounded ${darkMode ? "bg-blue-600 hover:bg-blue-700" : "bg-blue-500 hover:bg-blue-600"} text-white transition-colors cursor-pointer flex items-center justify-center w-full`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleCommentSubmit(post._id);
+                                                        onKeyPress={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                handleCommentSubmit(post._id);
+                                                            }
                                                         }}
-                                                        disabled={isCommenting[post._id]}
+                                                    />
+                                                    <button
+                                                        className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id] ? "bg-blue-300 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} text-white transition-colors`}
+                                                        onClick={() => handleCommentSubmit(post._id)}
+                                                        disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
                                                     >
                                                         {isCommenting[post._id] ? (
-                                                            <div className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                        ) : null}
-                                                        Post Comment
+                                                            <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                        ) : (
+                                                            "Post"
+                                                        )}
                                                     </button>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </>
                                     )}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     ))
                 )}
