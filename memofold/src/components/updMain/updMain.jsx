@@ -14,6 +14,9 @@ import {
     FaPaperclip,
     FaTimes,
     FaEllipsisV,
+    FaEdit,
+    FaSave,
+    FaTimesCircle
 } from "react-icons/fa";
 import config from "../../hooks/config";
 
@@ -21,7 +24,6 @@ const MainDashboard = () => {
     const [darkMode, setDarkMode] = useState(false);
     const [postContent, setPostContent] = useState("");
     const [selectedDate, setSelectedDate] = useState("");
-    const [currentTime, setCurrentTime] = useState("--:--:--");
     const [posts, setPosts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -30,19 +32,13 @@ const MainDashboard = () => {
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [commentContent, setCommentContent] = useState({});
     const [isFetchingComments, setIsFetchingComments] = useState(false);
-    const { token, username, realname, logout } = useAuth();
+    const { token, username, realname, logout, user } = useAuth();
     const [profilePic, setProfilePic] = useState(localStorage.getItem("profilePic") || "https://ui-avatars.com/api/?name=User&background=random");
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState("");
     const navigate = useNavigate();
     
-    useEffect(() => {
-        const timer = setInterval(() => {
-            const now = new Date();
-            setCurrentTime(now.toLocaleTimeString());
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, []);
-
     useEffect(() => {
         const savedMode = localStorage.getItem("darkMode") === "true";
         setDarkMode(savedMode);
@@ -68,6 +64,7 @@ const MainDashboard = () => {
 
                 if (response.ok) {
                     const userData = await response.json();
+                    setCurrentUserProfile(userData);
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
                         localStorage.setItem("profilePic", userData.profilePic);
@@ -194,8 +191,7 @@ const MainDashboard = () => {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({ 
-                        content: "like", 
-                        parentCommentId: commentId 
+                        userId: username // Send userId instead of content and parentCommentId
                     })
                 }
             );
@@ -205,7 +201,30 @@ const MainDashboard = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
-            await fetchComments(postId);
+            // Update the UI immediately without waiting for a refetch
+            setPosts(posts.map(post => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments.map(comment => {
+                        if (comment._id === commentId) {
+                            const isLiked = comment.likes?.includes(username);
+                            
+                            return {
+                                ...comment,
+                                likes: isLiked 
+                                    ? comment.likes.filter(user => user !== username) 
+                                    : [...(comment.likes || []), username] 
+                            };
+                        }
+                        return comment;
+                    });
+                    
+                    return {
+                        ...post,
+                        comments: updatedComments
+                    };
+                }
+                return post;
+            }));
         } catch (err) {
             setError(err.message);
             console.error("Error liking comment:", err);
@@ -253,25 +272,31 @@ const MainDashboard = () => {
     };
 
     const formatDate = (dateString) => {
-        if (!dateString) return "Just now";
+        if (!dateString) return "Today";
         
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return "Invalid Date";
             
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             
-            if (diffInSeconds < 60) {
-                return "Just now";
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const inputDate = new Date(date);
+            inputDate.setHours(0, 0, 0, 0);
+            
+            if (inputDate.getTime() === today.getTime()) {
+                return "Today";
+            } else if (inputDate.getTime() === yesterday.getTime()) {
+                return "Yesterday";
             }
             
             return date.toLocaleDateString(undefined, {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
             });
         } catch (e) {
             console.error("Error formatting date:", e);
@@ -279,52 +304,86 @@ const MainDashboard = () => {
         }
     };
 
-    const handlePostSubmit = async () => {
-        if (!postContent.trim() && selectedFiles.length === 0) {
-            setError("Post content or file cannot be empty.");
-            return;
-        }
-
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            const postDate = selectedDate ? new Date(selectedDate) : new Date();
-            
-            if (selectedDate && isNaN(postDate.getTime())) {
-                throw new Error("Invalid date selected");
-            }
-
-            const response = await fetch(`${config.apiUrl}/posts`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    content: postContent,
-                    createdAt: postDate.toISOString(),
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Failed to create post");
-            }
-
-            const result = await response.json();
-            setPosts([{ ...result, comments: [], commentCount: 0 }, ...posts]);
-            setPostContent("");
-            setSelectedFiles([]);
-            setSelectedDate("");
-            setError(null);
-        } catch (err) {
-            setError(err.message);
-            console.error("Post error:", err);
-        } finally {
-            setIsLoading(false);
-        }
+    // Helper function to convert file to base64
+    const convertToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
     };
+
+   const handlePostSubmit = async () => {
+    if (!postContent.trim() && selectedFiles.length === 0) {
+        setError("Post content or file cannot be empty.");
+        return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+        const postDate = selectedDate ? new Date(selectedDate) : new Date();
+        
+        if (selectedDate && isNaN(postDate.getTime())) {
+            throw new Error("Invalid date selected");
+        }
+
+        // Get image URL if file is selected
+        let imageUrl = "";
+        if (selectedFiles.length > 0) {
+            // यहाँ आपको image का actual URL set करना होगा
+            // Example: imageUrl = "https://example.com/images/photo.jpg";
+            // या आपके system के according image URL generate करना होगा
+            imageUrl = URL.createObjectURL(selectedFiles[0]); // Temporary URL
+        }
+
+        // Create normal JSON payload with image URL
+        const payload = {
+            content: postContent,
+            createdAt: postDate.toISOString(),
+            image: imageUrl // Image URL भेजें
+        };
+
+        console.log("Sending payload:", payload); // Debug के लिए
+
+        const response = await fetch(`${config.apiUrl}/posts`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to create post");
+        }
+
+        const result = await response.json();
+        
+        const newPost = result.post || result;
+        
+        setPosts(prevPosts => [{
+            ...newPost,
+            comments: [],
+            commentCount: 0,
+            likes: []
+        }, ...prevPosts]);
+        
+        setPostContent("");
+        setSelectedFiles([]);
+        setSelectedDate("");
+        setError(null);
+    } catch (err) {
+        setError(err.message);
+        console.error("Post error:", err);
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleLikePost = async (postId) => {
         try {
@@ -352,8 +411,8 @@ const MainDashboard = () => {
                     return {
                         ...post,
                         likes: isLiked 
-                            ? post.likes.filter(user => user !== username) // Remove like
-                            : [...(post.likes || []), username] // Add like
+                            ? post.likes.filter(user => user !== username) 
+                            : [...(post.likes || []), username] 
                     };
                 }
                 return post;
@@ -387,6 +446,73 @@ const MainDashboard = () => {
         } catch (err) {
             setError(err.message);
             console.error("Error deleting post:", err);
+        }
+    };
+
+    const startEditPost = (postId) => {
+        const postToEdit = posts.find(post => post._id === postId);
+        if (postToEdit) {
+            setEditContent(postToEdit.content);
+            setEditingPostId(postId);
+            setError(null);
+        } else {
+            setError("Post not found for editing");
+        }
+    };
+
+    const cancelEditPost = () => {
+        setEditingPostId(null);
+        setEditContent("");
+    };
+
+    const handleUpdatePost = async (postId) => {
+        if (!editContent.trim()) {
+            setError("Post content cannot be empty");
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`${config.apiUrl}/posts/update/${postId}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    content: editContent,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to update post");
+            }
+
+            setPosts(posts.map(post => 
+                post._id === postId ? { ...post, content: editContent } : post
+            ));
+            
+            setEditingPostId(null);
+            setEditContent("");
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+            console.error("Error updating post:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const navigateToUserProfile = (userId) => {
+        if (userId) {
+            if (currentUserProfile && userId === currentUserProfile._id) {
+                navigate("/profile");
+            } else {
+                navigate(`/user/${userId}`);
+            }
         }
     };
 
@@ -434,11 +560,48 @@ const MainDashboard = () => {
         return '📁';
     };
 
+    const renderImagePreview = (file) => {
+        if (file.type.startsWith('image/')) {
+            return (
+                <div className="relative">
+                    <img 
+                        src={URL.createObjectURL(file)} 
+                        alt="Preview" 
+                        className="w-16 h-16 object-cover rounded-lg"
+                    />
+                    <button 
+                        onClick={() => removeFile(selectedFiles.indexOf(file))}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"
+                    >
+                        <FaTimes />
+                    </button>
+                </div>
+            );
+        }
+        return (
+            <div className={`p-2 rounded-lg flex items-center ${
+                darkMode ? "bg-gray-600" : "bg-white"
+            }`}>
+                <span className="mr-2">
+                    {getFileIcon(file.type)}
+                </span>
+                <span className="text-sm truncate max-w-xs">
+                    {file.name}
+                </span>
+                <button 
+                    onClick={() => removeFile(selectedFiles.indexOf(file))}
+                    className="ml-2 text-red-500 hover:text-red-700"
+                >
+                    <FaTimes />
+                </button>
+            </div>
+        );
+    };
+
     return (
         <div className={`min-h-screen ${
             darkMode ? "dark bg-gray-900 text-gray-100" : "bg-gradient-to-r from-gray-100 to-gray-200"
         }`}>
-            {/* Error Message */}
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
                     {error}
@@ -452,11 +615,9 @@ const MainDashboard = () => {
             )}
 
             <div className="container mx-auto px-4 py-4">
-                {/* Topbar */}
                 <div className={`flex justify-between items-center mb-6 p-4 rounded-xl ${
                     darkMode ? "bg-gray-800" : "bg-white"
                 } shadow-md`}>
-                    {/* Settings Dropdown */}
                     <div className="relative">
                         <button
                             className={`p-2 rounded-full ${
@@ -494,88 +655,277 @@ const MainDashboard = () => {
                                         } cursor-pointer`}
                                     >
                                         <div
-                                            className="flex items-center"
-                                            onClick={toggleDarkMode}
+                            className="flex items-center"
+                            onClick={toggleDarkMode}
+                        >
+                            <FaMoon className="inline mr-2" />{" "}
+                            Dark Mode
+                        </div>
+                        <label
+                            className="relative inline-flex items-center cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={darkMode}
+                                onChange={toggleDarkMode}
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    <span
+                        className={`block px-4 py-2 text-sm ${
+                            darkMode
+                                ? "text-gray-200 hover:bg-gray-700"
+                                : "text-gray-700 hover:bg-gray-100"
+                        } cursor-pointer`}
+                        onClick={handleFeedbackClick}
+                    >
+                        <FaCommentDots className="inline mr-2" />{" "}
+                        Feedback
+                    </span>
+                </div>
+            </div>
+        )}
+    </div>
+
+    <div className="flex items-center space-x-4">
+        <button
+            className={`p-2 rounded-full ${
+                darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
+                    : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+            } shadow-md transition-all hover:scale-110 cursor-pointer`}
+            title="Home"
+            onClick={handleLogout}
+        >
+            <FaSignOutAlt className="text-xl" />
+        </button>
+
+        <input
+            type="date"
+            className={`px-3 py-1 rounded-lg text-sm border ${
+                darkMode
+                    ? "bg-gray-700 border-gray-600"
+                    : "bg-white border-gray-300"
+            } cursor-pointer`}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            min="1950-01-01"
+            max="2025-12-31"
+        />
+
+        <button
+            className={`p-2 rounded-full ${
+                darkMode
+                    ? "bg-gray-700 hover:bg-gray-600"
+                    : "bg-white hover:bg-gray-100"
+            } shadow-md cursor-pointer`}
+            title="Main Feed"
+            onClick={() => navigate("/feed")}
+        >
+            <span className="text-xl">📰</span>
+        </button>
+    </div>
+</div>
+
+<div className="max-w-2xl mx-auto">
+    <div className={`mb-6 p-4 rounded-xl ${
+        darkMode ? "bg-gray-800" : "bg-white"
+    } shadow-md`}>
+        <div className="flex items-center gap-3 mb-3">
+            <img
+                src={profilePic}
+                alt={username}
+                className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                onError={(e) => {
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
+                }}
+                onClick={() => navigateToUserProfile(currentUserProfile?._id)}
+            />
+            <span 
+                className="font-semibold dark:text-white cursor-pointer"
+                onClick={() => navigateToUserProfile(currentUserProfile?._id)}
+            >
+                {realname || username}
+            </span>
+        </div>
+        
+        <textarea
+            className={`w-full p-4 rounded-xl border ${
+                darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+            } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none cursor-text`}
+            placeholder={`What's on your mind, ${realname || username}?`}
+            rows="4"
+            value={postContent}
+            onChange={(e) => setPostContent(e.target.value)}
+            maxLength="5000"
+        />
+        
+        {selectedFiles.length > 0 && (
+            <div className={`mt-3 p-3 rounded-lg ${
+                darkMode ? "bg-gray-700" : "bg-gray-100"
+            }`}>
+                <div className="flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                        <div key={index}>
+                            {renderImagePreview(file)}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+        
+        <div className="flex justify-between items-center mt-3">
+            <div className="flex space-x-3">
+                <label className={`p-2 rounded-xl ${
+                    darkMode
+                        ? "bg-gray-700 hover:bg-gray-600"
+                        : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                } shadow-md transition-all cursor-pointer`}>
+                    <input 
+                        type="file" 
+                        className="hidden" 
+                        multiple 
+                        onChange={handleFileSelect}
+                        accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    />
+                    <FaPaperclip className="text-xl" />
+                </label>
+                <div className="relative">
+                    <button
+                        className={`p-2 rounded-xl ${
+                            darkMode
+                                ? "bg-gray-700 hover:bg-gray-600"
+                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                        } shadow-md transition-all cursor-pointer`}
+                        onClick={() =>
+                            setActiveCommentPostId(
+                                activeCommentPostId === "new"
+                                    ? null
+                                    : "new"
+                            )
+                        }
+                    >
+                        <span className="text-xl">💬</span>
+                    </button>
+                    {activeCommentPostId === "new" && (
+                        <div
+                            className={`absolute left-0 mt-2 w-48 rounded-md shadow-lg ${
+                                darkMode
+                                    ? "bg-gray-800"
+                                    : "bg-white"
+                            } ring-1 ring-black ring-opacity-5 z-50`}
+                        >
+                            <div className="py-1">
+                                {quickReactions.map(
+                                    (reaction, index) => (
+                                        <span
+                                            key={index}
+                                            className={`block px-4 py-2 text-sm ${
+                                                darkMode
+                                                    ? "text-gray-200 hover:bg-gray-700"
+                                                    : "text-gray-700 hover:bg-gray-100"
+                                            } cursor-pointer`}
+                                            onClick={() => {
+                                                addReaction(
+                                                    reaction
+                                                );
+                                                setActiveCommentPostId(
+                                                    null
+                                                );
+                                            }}
                                         >
-                                            <FaMoon className="inline mr-2" />{" "}
-                                            Dark Mode
-                                        </div>
-                                        <label
-                                            className="relative inline-flex items-center cursor-pointer"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={darkMode}
-                                                onChange={toggleDarkMode}
-                                            />
-                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                        </label>
-                                    </div>
-                                    <span
-                                        className={`block px-4 py-2 text-sm ${
-                                            darkMode
-                                                ? "text-gray-200 hover:bg-gray-700"
-                                                : "text-gray-700 hover:bg-gray-100"
-                                        } cursor-pointer`}
-                                        onClick={handleFeedbackClick}
-                                    >
-                                        <FaCommentDots className="inline mr-2" />{" "}
-                                        Feedback
-                                    </span>
-                                </div>
+                                            {
+                                                reaction.text
+                                            }{" "}
+                                            {
+                                                reaction.emoji
+                                            }
+                                        </span>
+                                    )
+                                )}
                             </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center space-x-4">
-                        <button
-                            className={`p-2 rounded-full ${
-                                darkMode
-                                    ? "bg-gray-700 hover:bg-gray-600"
-                                    : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
-                            } shadow-md transition-all hover:scale-110 cursor-pointer`}
-                            title="Home"
-                            onClick={handleLogout}
-                        >
-                            <FaSignOutAlt className="text-xl" />
-                        </button>
-
-                        <input
-                            type="date"
-                            className={`px-3 py-1 rounded-lg text-sm border ${
-                                darkMode
-                                    ? "bg-gray-700 border-gray-600"
-                                    : "bg-white border-gray-300"
-                            } cursor-pointer`}
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            min="1950-01-01"
-                            max="2025-12-31"
-                        />
-
-                        <button
-                            className={`p-2 rounded-full ${
-                                darkMode
-                                    ? "bg-gray-700 hover:bg-gray-600"
-                                    : "bg-white hover:bg-gray-100"
-                            } shadow-md cursor-pointer`}
-                            title="Main Feed"
-                            onClick={() => navigate("/feed")}
-                        >
-                            <span className="text-xl">📰</span>
-                        </button>
-                    </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Main Content */}
-                <div className="max-w-2xl mx-auto">
-                    {/* Post Box */}
-                    <div className={`mb-6 p-4 rounded-xl ${
+                {(postContent || selectedFiles.length > 0) && (
+                    <button
+                        className={`p-2 rounded-xl ${
+                            darkMode
+                                ? "bg-gray-700 hover:bg-gray-600"
+                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                        } shadow-md transition-all cursor-pointer`}
+                        title="Clear"
+                        onClick={() => {
+                            if (
+                                window.confirm(
+                                    "Delete this draft?"
+                                )
+                            ) {
+                                setPostContent("");
+                                setSelectedFiles([]);
+                            }
+                        }}
+                    >
+                        <span className="text-xl">🗑</span>
+                    </button>
+                )}
+            </div>
+
+            <div className="flex items-center space-x-4">
+                <span className={`text-xs ${
+                    darkMode ? "text-gray-400" : "text-gray-500"
+                }`}>
+                    {postContent.length}/5000 characters
+                </span>
+                <button
+                    className={`px-4 py-2 rounded-lg ${
+                        (!postContent.trim() && selectedFiles.length === 0) || isLoading
+                            ? "bg-blue-400 cursor-not-allowed"
+                            : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                    } text-white font-medium transition-all cursor-pointer`}
+                    onClick={handlePostSubmit}
+                    disabled={(!postContent.trim() && selectedFiles.length === 0) || isLoading}
+                >
+                    {isLoading ? (
+                        <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                        "Post"
+                    )}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {isLoading && posts.length === 0 ? (
+        <div className="text-center py-10">
+            <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-2">Loading posts...</p>
+        </div>
+    ) : posts.length === 0 ? (
+        <div
+            className={`p-4 rounded-xl ${
+                darkMode ? "bg-gray-800" : "bg-white"
+            } shadow-md text-center`}
+        >
+            <p>
+                No posts yet. Be the first to share something!
+            </p>
+        </div>
+    ) : (
+        <div className="space-y-4">
+            {posts.map((post) => (
+                <div
+                    key={post._id}
+                    className={`p-4 rounded-xl ${
                         darkMode ? "bg-gray-800" : "bg-white"
-                    } shadow-md`}>
-                        <div className="flex items-center gap-3 mb-3">
+                    } shadow-md`}
+                >
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center space-x-3">
                             <img
                                 src={profilePic}
                                 alt={username}
@@ -583,390 +933,257 @@ const MainDashboard = () => {
                                 onError={(e) => {
                                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
                                 }}
+                                onClick={() => navigateToUserProfile(currentUserProfile?._id)}
                             />
-                            <span className="font-semibold dark:text-white cursor-pointer">
-                                {realname || username}
-                            </span>
-                        </div>
-                        
-                        <textarea
-                            className={`w-full p-4 rounded-xl border ${
-                                darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
-                            } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none cursor-text`}
-                            placeholder={`What's on your mind, ${realname || username}?`}
-                            rows="4"
-                            value={postContent}
-                            onChange={(e) => setPostContent(e.target.value)}
-                            maxLength="5000"
-                        />
-                        
-                        {/* File upload preview area */}
-                        {selectedFiles.length > 0 && (
-                            <div className={`mt-3 p-3 rounded-lg ${
-                                darkMode ? "bg-gray-700" : "bg-gray-100"
-                            }`}>
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedFiles.map((file, index) => (
-                                        <div key={index} className="relative">
-                                            <div className={`p-2 rounded-lg flex items-center ${
-                                                darkMode ? "bg-gray-600" : "bg-white"
-                                            }`}>
-                                                <span className="mr-2">
-                                                    {getFileIcon(file.type)}
-                                                </span>
-                                                <span className="text-sm truncate max-w-xs">
-                                                    {file.name}
-                                                </span>
-                                                <button 
-                                                    onClick={() => removeFile(index)}
-                                                    className="ml-2 text-red-500 hover:text-red-700"
-                                                >
-                                                    <FaTimes />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        
-                        <div className="flex justify-between items-center mt-3">
-                            <div className="flex space-x-3">
-                                {/* File upload button */}
-                                <label className={`p-2 rounded-xl ${
-                                    darkMode
-                                        ? "bg-gray-700 hover:bg-gray-600"
-                                        : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
-                                } shadow-md transition-all cursor-pointer`}>
-                                    <input 
-                                        type="file" 
-                                        className="hidden" 
-                                        multiple 
-                                        onChange={handleFileSelect}
-                                        accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                                    />
-                                    <FaPaperclip className="text-xl" />
-                                </label>
-                                <div className="relative">
-                                    <button
-                                        className={`p-2 rounded-xl ${
-                                            darkMode
-                                                ? "bg-gray-700 hover:bg-gray-600"
-                                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
-                                        } shadow-md transition-all cursor-pointer`}
-                                        onClick={() =>
-                                            setActiveCommentPostId(
-                                                activeCommentPostId === "new"
-                                                    ? null
-                                                    : "new"
-                                            )
-                                        }
-                                    >
-                                        <span className="text-xl">💬</span>
-                                    </button>
-                                    {activeCommentPostId === "new" && (
-                                        <div
-                                            className={`absolute left-0 mt-2 w-48 rounded-md shadow-lg ${
-                                                darkMode
-                                                    ? "bg-gray-800"
-                                                    : "bg-white"
-                                            } ring-1 ring-black ring-opacity-5 z-50`}
-                                        >
-                                            <div className="py-1">
-                                                {quickReactions.map(
-                                                    (reaction, index) => (
-                                                        <span
-                                                            key={index}
-                                                            className={`block px-4 py-2 text-sm ${
-                                                                darkMode
-                                                                    ? "text-gray-200 hover:bg-gray-700"
-                                                                    : "text-gray-700 hover:bg-gray-100"
-                                                            } cursor-pointer`}
-                                                            onClick={() => {
-                                                                addReaction(
-                                                                    reaction
-                                                                );
-                                                                setActiveCommentPostId(
-                                                                    null
-                                                                );
-                                                            }}
-                                                        >
-                                                            {
-                                                                reaction.text
-                                                            }{" "}
-                                                            {
-                                                                reaction.emoji
-                                                            }
-                                                        </span>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {(postContent || selectedFiles.length > 0) && (
-                                    <button
-                                        className={`p-2 rounded-xl ${
-                                            darkMode
-                                                ? "bg-gray-700 hover:bg-gray-600"
-                                                : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
-                                        } shadow-md transition-all cursor-pointer`}
-                                        title="Clear"
-                                        onClick={() => {
-                                            if (
-                                                window.confirm(
-                                                    "Delete this draft?"
-                                                )
-                                            ) {
-                                                setPostContent("");
-                                                setSelectedFiles([]);
-                                            }
-                                        }}
-                                    >
-                                        <span className="text-xl">🗑</span>
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex items-center space-x-4">
-                                <span className={`text-xs ${
+                            <div>
+                                <h3 
+                                    className="font-semibold cursor-pointer hover:text-blue-500 transition-colors"
+                                    onClick={() => navigateToUserProfile(currentUserProfile?._id)}
+                                >
+                                    {realname || username}
+                                </h3>
+                                <p className={`text-xs ${
                                     darkMode ? "text-gray-400" : "text-gray-500"
                                 }`}>
-                                    {postContent.length}/5000 characters
-                                </span>
+                                    {formatDate(post.createdAt)}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer"
+                                onClick={() => startEditPost(post._id)}
+                                title="Edit post"
+                            >
+                                <FaEdit />
+                            </button>
+                            <button
+                                className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                                onClick={() => handleDeletePost(post._id)}
+                                title="Delete post"
+                            >
+                                <FaTrashAlt />
+                            </button>
+                        </div>
+                    </div>
+
+                    {editingPostId === post._id ? (
+                        <div className="mb-4">
+                            <textarea
+                                className={`w-full p-3 rounded-lg border ${
+                                    darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+                                } focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none cursor-text`}
+                                rows="3"
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                maxLength="5000"
+                            />
+                            <div className="flex justify-end space-x-2 mt-2">
                                 <button
-                                    className={`px-4 py-2 rounded-lg ${
-                                        (!postContent.trim() && selectedFiles.length === 0) || isLoading
-                                            ? "bg-blue-400 cursor-not-allowed"
-                                            : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-                                    } text-white font-medium transition-all cursor-pointer`}
-                                    onClick={handlePostSubmit}
-                                    disabled={(!postContent.trim() && selectedFiles.length === 0) || isLoading}
+                                    className={`px-3 py-1 rounded-lg text-sm ${
+                                        darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
+                                    } transition-colors cursor-pointer`}
+                                    onClick={cancelEditPost}
+                                >
+                                    <FaTimesCircle className="inline mr-1" /> Cancel
+                                </button>
+                                <button
+                                    className={`px-3 py-1 rounded-lg text-sm ${
+                                        !editContent.trim() || isLoading
+                                            ? "bg-blue-300 cursor-not-allowed"
+                                            : "bg-blue-500 hover:bg-blue-600"
+                                    } text-white transition-colors cursor-pointer`}
+                                    onClick={() => handleUpdatePost(post._id)}
+                                    disabled={!editContent.trim() || isLoading}
                                 >
                                     {isLoading ? (
-                                        <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                        <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                                     ) : (
-                                        "Post"
+                                        <>
+                                            <FaSave className="inline mr-1" /> Save
+                                        </>
                                     )}
                                 </button>
                             </div>
                         </div>
+                    ) : (
+                        <>
+                            <p className="mb-4 whitespace-pre-line">
+                                {post.content}
+                            </p>
+                            
+                            {post.image && post.image !== "" && (
+                                <div className="mb-4">
+                                    <img 
+                                        src={post.image} 
+                                        alt="Post image"
+                                        className="w-full h-64 object-cover rounded-lg"
+                                        onError={(e) => {
+                                            if (post.image && post.image.startsWith('blob:')) {
+                                                e.target.style.display = 'none';
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200 dark:border-gray-700">
+                        <button
+                            className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                            onClick={() => handleLikePost(post._id)}
+                        >
+                            {post.likes?.includes(username) ? (
+                                <FaHeart className="text-red-500" />
+                            ) : (
+                                <FaRegHeart />
+                            )}
+                            <span className="text-sm">
+                                {post.likes?.length || 0}
+                            </span>
+                        </button>
+
+                        <button
+                            className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                            onClick={() => toggleCommentDropdown(post._id)}
+                            disabled={isFetchingComments}
+                        >
+                            <FaCommentDots />
+                            <span className="text-sm">
+                                {post.commentCount || post.comments?.length || 0}
+                            </span>
+                        </button>
                     </div>
 
-                    {/* Posts Feed */}
-                    {isLoading && posts.length === 0 ? (
-                        <div className="text-center py-10">
-                            <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="mt-2">Loading posts...</p>
-                        </div>
-                    ) : posts.length === 0 ? (
-                        <div
-                            className={`p-4 rounded-xl ${
-                                darkMode ? "bg-gray-800" : "bg-white"
-                            } shadow-md text-center`}
-                        >
-                            <p>
-                                No posts yet. Be the first to share something!
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {posts.map((post) => (
-                                <div
-                                    key={post._id}
-                                    className={`p-4 rounded-xl ${
-                                        darkMode ? "bg-gray-800" : "bg-white"
-                                    } shadow-md`}
-                                >
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="flex items-center space-x-3">
-                                            <img
-                                                src={profilePic}
-                                                alt={username}
-                                                className="w-10 h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                                                onError={(e) => {
-                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
-                                                }}
-                                            />
-                                            <div>
-                                                <h3 className="font-semibold">
-                                                    {realname || username}
-                                                </h3>
-                                                <p className={`text-xs ${
-                                                    darkMode ? "text-gray-400" : "text-gray-500"
-                                                }`}>
-                                                    {formatDate(post.createdAt)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-                                            onClick={() =>
-                                                handleDeletePost(post._id)
-                                            }
-                                            title="Delete post"
-                                        >
-                                            <FaTrashAlt />
-                                        </button>
-                                    </div>
-
-                                    <p className="mb-4 whitespace-pre-line">
-                                        {post.content}
-                                    </p>
-
-                                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200 dark:border-gray-700">
-                                        <button
-                                            className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                            onClick={() =>
-                                                handleLikePost(post._id)
-                                            }
-                                        >
-                                            {post.likes?.includes(username) ? (
-                                                <FaHeart className="text-red-500" />
-                                            ) : (
-                                                <FaRegHeart />
-                                            )}
-                                            <span className="text-sm">
-                                                {post.likes?.length || 0}
-                                            </span>
-                                        </button>
-
-                                        <button
-                                            className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
-                                            onClick={() => toggleCommentDropdown(post._id)}
-                                            disabled={isFetchingComments}
-                                        >
-                                            <FaCommentDots />
-                                            <span className="text-sm">
-                                                {post.commentCount || post.comments?.length || 0}
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    {/* Comments Section */}
-                                    {activeCommentPostId === post._id && (
-                                        <div className="mt-4">
-                                           
-                                            
-                                            {/* Show loading state when fetching */}
-                                            {isFetchingComments ? (
-                                                <div className="text-center py-4">
-                                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                    <p className="text-sm mt-2">Loading comments...</p>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {/* Show comments if they exist */}
-                                                    {post.comments && post.comments.length > 0 ? (
-                                                        <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                            darkMode ? "bg-gray-700" : "bg-gray-100"
-                                                        }`}>
-                                                            {post.comments.map((comment) => (
-                                                                <div key={comment._id} className="flex items-start space-x-2">
-                                                                    <img
-                                                                        src={comment.userId.profilePic}
-                                                                        alt={comment.userId.realname}
-                                                                        className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
-                                                                        onError={(e) => {
-                                                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId.realname)}&background=random`;
-                                                                        }}
-                                                                    />
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center space-x-2">
-                                                                            <span className="font-semibold text-sm">
-                                                                                {comment.userId.realname}
-                                                                            </span>
-                                                                            <span className={`text-xs ${
-                                                                                darkMode ? "text-gray-400" : "text-gray-500"
-                                                                            }`}>
-                                                                                {formatDate(comment.createdAt)}
-                                                                            </span>
-                                                                        </div>
-                                                                        <p className="text-sm whitespace-pre-line mt-1">
-                                                                            {comment.content}
-                                                                        </p>
-                                                                        <div className="mt-1 flex items-center">
-                                                                            <button
-                                                                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                                                                onClick={() => handleLikeComment(comment._id, post._id)}
-                                                                            >
-                                                                                {comment.likes?.includes(username) ? (
-                                                                                    <FaHeart className="text-red-500 text-xs" />
-                                                                                ) : (
-                                                                                    <FaRegHeart className="text-xs" />
-                                                                                )}
-                                                                                <span className="text-xs">
-                                                                                    {comment.likes?.length || 0}
-                                                                                </span>
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                                                            No comments yet. Be the first to comment!
-                                                        </div>
-                                                    )}
-
-                                                    {/* Add Comment Input */}
-                                                    <div className="flex items-center space-x-2">
-                                                        <img
-                                                            src={profilePic}
-                                                            alt={username}
-                                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
-                                                        />
-                                                        <div className="flex-1 flex space-x-2">
-                                                            <input
-                                                                type="text"
-                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                                                    darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
-                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                placeholder="Write a comment..."
-                                                                value={commentContent[post._id] || ""}
-                                                                onChange={(e) => 
-                                                                    setCommentContent({
-                                                                        ...commentContent,
-                                                                        [post._id]: e.target.value
-                                                                    })
-                                                                }
-                                                                onKeyPress={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        handleAddComment(post._id);
-                                                                    }
+                    {activeCommentPostId === post._id && (
+                        <div className="mt-4">
+                            {isFetchingComments ? (
+                                <div className="text-center py-4">
+                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="text-sm mt-2">Loading comments...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {post.comments && post.comments.length > 0 ? (
+                                        <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                            darkMode ? "bg-gray-700" : "bg-gray-100"
+                                        }`}>
+                                            {post.comments.map((comment) => (
+                                                <div key={comment._id} className="flex items-start space-x-2">
+                                                    <img
+                                                        src={comment.userId.profilePic}
+                                                        alt={comment.userId.realname}
+                                                        className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                                        onError={(e) => {
+                                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId.realname)}&background=random`;
+                                                        }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigateToUserProfile(comment.userId?._id);
+                                                        }}
+                                                    />
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center space-x-2">
+                                                            <span 
+                                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigateToUserProfile(comment.userId?._id);
                                                                 }}
-                                                            />
-                                                            <button
-                                                                className={`px-3 py-1 rounded-full text-sm ${
-                                                                    !commentContent[post._id]?.trim() || isLoading
-                                                                        ? "bg-blue-300 cursor-not-allowed"
-                                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                                } text-white transition-colors`}
-                                                                onClick={() => handleAddComment(post._id)}
-                                                                disabled={!commentContent[post._id]?.trim() || isLoading}
                                                             >
-                                                                {isLoading ? (
-                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                {comment.userId.realname}
+                                                            </span>
+                                                            <span className={`text-xs ${
+                                                                darkMode ? "text-gray-400" : "text-gray-500"
+                                                            }`}>
+                                                                {formatDate(comment.createdAt)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm whitespace-pre-line mt-1">
+                                                            {comment.content}
+                                                        </p>
+                                                        <div className="mt-1 flex items-center">
+                                                            <button
+                                                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                onClick={() => handleLikeComment(comment._id, post._id)}
+                                                            >
+                                                                {comment.likes?.includes(username) ? (
+                                                                    <FaHeart className="text-red-500 text-xs" />
                                                                 ) : (
-                                                                    "Post"
+                                                                    <FaRegHeart className="text-xs" />
                                                                 )}
+                                                                <span className="text-xs">
+                                                                    {comment.likes?.length || 0}
+                                                                </span>
                                                             </button>
                                                         </div>
                                                     </div>
-                                                </>
-                                            )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                            No comments yet. Be the first to comment!
                                         </div>
                                     )}
-                                </div>
-                            ))}
+
+                                    <div className="flex items-center space-x-2">
+                                        <img
+                                            src={profilePic}
+                                            alt={username}
+                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                            onClick={() => navigateToUserProfile(currentUserProfile?._id)}
+                                        />
+                                        <div className="flex-1 flex space-x-2">
+                                            <input
+                                                type="text"
+                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                    darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                placeholder="Write a comment..."
+                                                value={commentContent[post._id] || ""}
+                                                onChange={(e) => 
+                                                    setCommentContent({
+                                                        ...commentContent,
+                                                        [post._id]: e.target.value
+                                                    })
+                                                }
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        handleAddComment(post._id);
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                className={`px-3 py-1 rounded-full text-sm ${
+                                                    !commentContent[post._id]?.trim() || isLoading
+                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                } text-white transition-colors`}
+                                                onClick={() => handleAddComment(post._id)}
+                                                disabled={!commentContent[post._id]?.trim() || isLoading}
+                                            >
+                                                {isLoading ? (
+                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    "Post"
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
-            </div>
+            ))}
         </div>
-    );
+    )}
+</div>
+</div>
+</div>
+);
 };
 
 export default MainDashboard;

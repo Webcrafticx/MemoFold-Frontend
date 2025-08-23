@@ -4,15 +4,10 @@ import {
   FaHeart,
   FaRegHeart,
   FaComment,
-  FaShare,
   FaUserCircle,
-  FaCalendarAlt,
-  FaClock,
   FaPaperclip,
   FaMoon,
   FaSun,
-  FaEdit,
-  FaCog,
   FaTimes,
   FaArrowLeft,
   FaBars,
@@ -21,6 +16,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../../assets/logo.png";
 import config from "../../hooks/config";
+import { useNavigate } from "react-router-dom";
 
 const ProfilePage = () => {
   // State management
@@ -35,21 +31,12 @@ const ProfilePage = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [postContent, setPostContent] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [currentTime, setCurrentTime] = useState("");
   const [stats, setStats] = useState({ posts: 0, followers: 0, following: 0 });
   const [loading, setLoading] = useState(true);
   const [editingBio, setEditingBio] = useState(false);
   const [newBio, setNewBio] = useState("");
   const [updatingBio, setUpdatingBio] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    username: "",
-    realName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [error, setError] = useState(null);
@@ -65,6 +52,9 @@ const ProfilePage = () => {
   const fileInputRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const profilePicInputRef = useRef(null);
+
+  // Navigation
+  const navigate = useNavigate();
 
   // Initialize component
   useEffect(() => {
@@ -83,13 +73,6 @@ const ProfilePage = () => {
 
     setUsername(storedUsername || "");
     setRealName(storedRealname || "");
-    setEditFormData({
-      username: storedUsername || "",
-      realName: storedRealname || "",
-      email: localStorage.getItem("email") || "",
-      password: "",
-      confirmPassword: "",
-    });
 
     // Fetch data
     const fetchData = async () => {
@@ -100,7 +83,7 @@ const ProfilePage = () => {
           fetchUserPosts(token, storedUsername)
         ]);
         
-        // Fetch bio separately with proper error handling
+        // Fetch bio
         const bioText = await fetchBio(token);
         setBio(bioText === null ? "" : bioText);
         setNewBio(bioText === null ? "" : bioText);
@@ -113,34 +96,16 @@ const ProfilePage = () => {
     };
 
     fetchData();
-
-    // Clock setup
-    setupClock();
     setSelectedDate(new Date().toISOString().split("T")[0]);
 
     // Event listeners
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      clearInterval(clockInterval);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   };
 
-  let clockInterval;
-  const setupClock = () => {
-    const updateClock = () => {
-      setCurrentTime(
-        new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      );
-    };
-    updateClock();
-    clockInterval = setInterval(updateClock, 1000);
-  };
-
-  // Fetch bio from API with proper error handling
+  // Fetch bio from API
   const fetchBio = async (token) => {
     try {
       const response = await fetch(`${config.apiUrl}/profile/description`, {
@@ -179,8 +144,6 @@ const ProfilePage = () => {
       }
 
       const payload = { description };
-
-      console.log("Sending bio update payload:", payload);
 
       const response = await fetch(`${config.apiUrl}/profile/description`, {
         method: "PUT",
@@ -270,7 +233,6 @@ const ProfilePage = () => {
           likes: post.likesCount || 0,
           comments: post.comments || [],
           commentCount: post.commentsCount || 0,
-          shares: post.sharesCount || 0,
           profilePic: profilePic,
           username: username,
         }));
@@ -369,7 +331,7 @@ const ProfilePage = () => {
     if (!file) return;
 
     const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
+    if (!validTypes.includes(file.type) && !file.type.startsWith('image/')) {
       setError('Please upload a valid image (JPEG, PNG, GIF)');
       return;
     }
@@ -417,7 +379,7 @@ const ProfilePage = () => {
     if (!file) return;
 
     const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
+    if (!validTypes.includes(file.type) && !file.type.startsWith('image/')) {
       setError('Please upload a valid image (JPEG, PNG, GIF)');
       return;
     }
@@ -449,8 +411,24 @@ const ProfilePage = () => {
       return;
     }
 
+    // Validate date is not in the future
+    const selectedDateObj = new Date(selectedDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
+    
+    if (selectedDateObj > today) {
+      setError("Cannot create posts with future dates");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
+      
+      // Format the date properly for the API - use the selected date
+      const formattedDate = selectedDate 
+        ? new Date(selectedDate + 'T12:00:00').toISOString() 
+        : new Date().toISOString();
+      
       const response = await fetch(`${config.apiUrl}/posts`, {
         method: "POST",
         headers: {
@@ -459,32 +437,49 @@ const ProfilePage = () => {
         },
         body: JSON.stringify({
           content: postContent,
-          date: selectedDate,
-          time: currentTime,
+          createdAt: formattedDate,
+          date: formattedDate,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create post");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create post");
       }
 
       const result = await response.json();
+      
+      // Create a new post object with the selected date, not current date
       const newPost = {
-        ...result,
+        _id: result._id || Date.now().toString(),
+        content: postContent,
+        createdAt: formattedDate,
         isLiked: false,
         likes: 0,
         comments: [],
         commentCount: 0,
-        shares: 0,
         profilePic: profilePic,
         username: username,
+        image: filePreview || null,
+        userId: {
+          _id: localStorage.getItem("userId"),
+          username: username,
+          profilePic: profilePic
+        }
       };
 
+      // Update the posts state immediately
       setPosts([newPost, ...posts]);
       setStats(prev => ({ ...prev, posts: prev.posts + 1 }));
       setPostContent("");
       removeFile();
       setError(null);
+      
+      // Reset the date to today after posting
+      setSelectedDate(new Date().toISOString().split("T")[0]);
+      
+      // Refetch posts to ensure we have the latest data from server
+      fetchUserPosts(token, username);
     } catch (error) {
       console.error("Post error:", error);
       setError(error.message || "Failed to create post");
@@ -528,61 +523,19 @@ const ProfilePage = () => {
     }
   };
 
-  // Handle edit profile submission
-  const handleEditProfileSubmit = async (e) => {
-    e.preventDefault();
-    if (editFormData.password !== editFormData.confirmPassword) {
-      setError("Passwords don't match!");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${config.apiUrl}/user/update-profile`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          username: editFormData.username,
-          realName: editFormData.realName,
-          email: editFormData.email,
-          password: editFormData.password || undefined,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUsername(data.username || username);
-        setRealName(data.realName || realName);
-        localStorage.setItem("username", data.username || username);
-        localStorage.setItem("realname", data.realName || realName);
-        if (data.email) localStorage.setItem("email", data.email);
-        setShowEditProfileModal(false);
-        setError(null);
-      } else {
-        throw new Error("Failed to update profile");
-      }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      setError(error.message);
-    }
-  };
-
   // Handle logout
   const handleLogout = () => {
     localStorage.clear();
-    window.location.href = "/login.html";
+    navigate("/login");
   };
 
   // Navigation functions
   const navigateToMain = () => {
-    window.location.href = "/dashboard";
+    navigate("/dashboard");
   };
 
   const goBack = () => {
-    window.history.back();
+    navigate(-1);
   };
 
   const toggleMobileMenu = () => {
@@ -608,8 +561,6 @@ const ProfilePage = () => {
         year: "numeric",
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
       });
     } catch (e) {
       console.error("Error formatting date:", e);
@@ -683,6 +634,7 @@ const ProfilePage = () => {
           <button
             onClick={toggleMobileMenu}
             className="md:hidden p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            aria-label="Toggle menu"
           >
             <FaBars className="text-xl" />
           </button>
@@ -807,8 +759,9 @@ const ProfilePage = () => {
                 <button
                   onClick={() => setEditingBio(!editingBio)}
                   className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                  aria-label="Edit bio"
                 >
-                  <FaEdit />
+                  <FaUserCircle />
                 </button>
               </div>
 
@@ -852,206 +805,16 @@ const ProfilePage = () => {
               )}
 
               <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
-                <button
-                  onClick={() => setShowEditProfileModal(true)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1 sm:gap-2 text-sm sm:text-base"
-                >
-                  <FaEdit className="text-xs sm:text-sm" />
-                  <span>Edit Profile</span>
-                </button>
-                <button className="bg-blue-100 hover:bg-blue-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-gray-800 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium transition-colors cursor-pointer flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
-                  <FaCog className="text-xs sm:text-sm" />
-                  <span>Settings</span>
-                </button>
+                <div className={`flex items-center gap-1 sm:gap-2 ${
+                  darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
+                } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
+                  <span className="text-blue-500">📊</span>
+                  <span>{posts.length} Posts</span>
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 justify-start">
-            <div className={`flex items-center gap-1 sm:gap-2 ${
-              darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
-            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
-              <span className="text-blue-500">📊</span>
-              <span>{stats.posts} Posts</span>
-            </div>
-            {/* <div className={`flex items-center gap-1 sm:gap-2 ${
-              darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
-            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
-              <span className="text-blue-500">👥</span>
-              <span>{stats.followers} Followers</span>
-            </div> */}
-            {/* <div className={`flex items-center gap-1 sm:gap-2 ${
-              darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
-            } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
-              <span className="text-blue-500">❤️</span>
-              <span>{stats.following} Following</span>
-            </div> */}
-          </div>
         </div>
-
-        {/* Edit Profile Modal */}
-        <AnimatePresence>
-          {showEditProfileModal && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm"
-              onClick={() => setShowEditProfileModal(false)}
-            >
-              <motion.div
-                initial={{ y: 50, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 50, opacity: 0 }}
-                transition={{ type: "spring", damping: 25 }}
-                className={`relative w-full max-w-md max-h-[90vh] overflow-y-auto ${
-                  darkMode ? "bg-gray-800" : "bg-white"
-                } rounded-2xl shadow-xl p-4 sm:p-6`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex justify-between items-center mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold dark:text-white">
-                    Edit Profile
-                  </h2>
-                  <button
-                    onClick={() => setShowEditProfileModal(false)}
-                    className={`p-2 rounded-full ${
-                      darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
-                    } transition-colors`}
-                  >
-                    <FaTimes className="text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleEditProfileSubmit} className="space-y-3 sm:space-y-4">
-                  <div>
-                    <label className={`block mb-1 sm:mb-2 text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-700"
-                    }`}>
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      name="username"
-                      value={editFormData.username}
-                      onChange={(e) => setEditFormData({
-                        ...editFormData,
-                        username: e.target.value
-                      })}
-                      className={`w-full p-2 sm:p-3 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block mb-1 sm:mb-2 text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-700"
-                    }`}>
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      name="realName"
-                      value={editFormData.realName}
-                      onChange={(e) => setEditFormData({
-                        ...editFormData,
-                        realName: e.target.value
-                      })}
-                      className={`w-full p-2 sm:p-3 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block mb-1 sm:mb-2 text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-700"
-                    }`}>
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={editFormData.email}
-                      onChange={(e) => setEditFormData({
-                        ...editFormData,
-                        email: e.target.value
-                      })}
-                      className={`w-full p-2 sm:p-3 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block mb-1 sm:mb-2 text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-700"
-                    }`}>
-                      New Password
-                    </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={editFormData.password}
-                      onChange={(e) => setEditFormData({
-                        ...editFormData,
-                        password: e.target.value
-                      })}
-                      className={`w-full p-2 sm:p-3 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                      placeholder="Leave blank to keep current"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`block mb-1 sm:mb-2 text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-700"
-                    }`}>
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={editFormData.confirmPassword}
-                      onChange={(e) => setEditFormData({
-                        ...editFormData,
-                        confirmPassword: e.target.value
-                      })}
-                      className={`w-full p-2 sm:p-3 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                      placeholder="Leave blank to keep current"
-                    />
-                  </div>
-
-                  <div className="pt-3 flex justify-end gap-2 sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowEditProfileModal(false)}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium ${
-                        darkMode
-                          ? "bg-gray-700 hover:bg-gray-600 text-white"
-                          : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                      } transition-colors text-sm sm:text-base`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors text-sm sm:text-base"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Create Post Section */}
         <div className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
@@ -1102,7 +865,6 @@ const ProfilePage = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
             <div className="flex flex-wrap gap-2">
               <div className="flex items-center gap-1 sm:gap-2">
-                <FaCalendarAlt className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm" />
                 <input
                   type="date"
                   value={selectedDate}
@@ -1113,12 +875,11 @@ const ProfilePage = () => {
                       : "bg-gray-100 border-gray-300"
                   } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
                 />
-              </div>
-              <div className="flex items-center gap-1 sm:gap-2">
-                <FaClock className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm" />
-                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                  {currentTime}
-                </span>
+                {selectedDate && selectedDate !== new Date().toISOString().split('T')[0] && (
+                  <span className="text-xs text-blue-500">
+                    Posting for: {new Date(selectedDate).toLocaleDateString()}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1158,9 +919,6 @@ const ProfilePage = () => {
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-300">
-                Loading posts...
-              </p>
             </div>
           ) : posts.length === 0 ? (
             <div className={`text-center py-8 ${
@@ -1239,7 +997,6 @@ const ProfilePage = () => {
                       ) : (
                         <FaRegHeart />
                       )}
-                      {/* Ensure likes is always a number */}
                       <span>{parseInt(post.likes) || 0}</span>
                     </button>
 
@@ -1255,21 +1012,11 @@ const ProfilePage = () => {
                       <FaComment />
                       <span>{post.commentCount || post.comments?.length || 0}</span>
                     </button>
-
-                    <div className={`flex items-center gap-1 ${
-                      darkMode
-                        ? "text-gray-400 hover:text-gray-300"
-                        : "text-gray-500 hover:text-gray-700"
-                    } transition-colors cursor-pointer text-xs sm:text-sm`}>
-                      <FaShare />
-                      <span>{parseInt(post.shares) || 0}</span>
-                    </div>
                   </div>
 
                   {/* Comments Section */}
                   {activeCommentPostId === post._id && (
                     <div className="mt-4">
-                      {/* Show loading state when fetching */}
                       {isFetchingComments ? (
                         <div className="text-center py-4">
                           <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1277,7 +1024,6 @@ const ProfilePage = () => {
                         </div>
                       ) : (
                         <>
-                          {/* Show comments if they exist */}
                           {post.comments && post.comments.length > 0 ? (
                             <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
                               darkMode ? "bg-gray-700" : "bg-gray-100"
