@@ -15,6 +15,8 @@ import {
   FaEdit
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import logo from "../../assets/logo.png";
 import config from "../../hooks/config";
 import { useNavigate } from "react-router-dom";
@@ -93,6 +95,7 @@ const ProfilePage = () => {
       } catch (error) {
         console.error("Initialization error:", error);
         setError("Failed to load profile data");
+        toast.error("Failed to load profile data");
       } finally {
         setLoading(false);
       }
@@ -202,6 +205,7 @@ const ProfilePage = () => {
   const handleBioUpdate = async () => {
     if (!newBio.trim()) {
       setError("Bio cannot be empty");
+      toast.error("Bio cannot be empty");
       return;
     }
 
@@ -213,9 +217,11 @@ const ProfilePage = () => {
       setNewBio(updatedBio || "");
       setEditingBio(false);
       setError(null);
+      toast.success("Bio updated successfully!");
     } catch (error) {
       console.error("Bio update failed:", error);
       setError(error.message || "Failed to update bio");
+      toast.error(error.message || "Failed to update bio");
     } finally {
       setUpdatingBio(false);
     }
@@ -300,6 +306,7 @@ const ProfilePage = () => {
       ));
     } catch (err) {
       setError(err.message);
+      toast.error(err.message);
       console.error("Error fetching comments:", err);
     } finally {
       setIsFetchingComments(false);
@@ -310,6 +317,7 @@ const ProfilePage = () => {
   const handleAddComment = async (postId) => {
     if (!commentContent[postId]?.trim()) {
       setError("Comment cannot be empty");
+      toast.error("Comment cannot be empty");
       return;
     }
 
@@ -337,8 +345,10 @@ const ProfilePage = () => {
       
       setCommentContent(prev => ({ ...prev, [postId]: "" }));
       setError(null);
+      toast.success("Comment added successfully!");
     } catch (err) {
       setError(err.message);
+      toast.error(err.message);
       console.error("Error adding comment:", err);
     } finally {
       setIsAddingComment(false);
@@ -363,11 +373,13 @@ const ProfilePage = () => {
     const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
     if (!validTypes.includes(file.type) && !file.type.startsWith('image/')) {
       setError('Please upload a valid image (JPEG, PNG, GIF)');
+      toast.error('Please upload a valid image (JPEG, PNG, GIF)');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       setError('Image size should be less than 5MB');
+      toast.error('Image size should be less than 5MB');
       return;
     }
 
@@ -392,12 +404,14 @@ const ProfilePage = () => {
         const imageUrl = data.profilePicUrl || data.imagePath;
         setProfilePic(imageUrl);
         localStorage.setItem("profilePic", imageUrl);
+        toast.success("Profile picture updated successfully!");
       } else {
         throw new Error("Failed to upload profile picture");
       }
     } catch (error) {
       console.error("Upload error:", error);
       setError(error.message);
+      toast.error(error.message);
     } finally {
       setUploadingProfilePic(false);
     }
@@ -411,11 +425,13 @@ const ProfilePage = () => {
     const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
     if (!validTypes.includes(file.type) && !file.type.startsWith('image/')) {
       setError('Please upload a valid image (JPEG, PNG, GIF)');
+      toast.error('Please upload a valid image (JPEG, PNG, GIF)');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       setError('Image size should be less than 5MB');
+      toast.error('Image size should be less than 5MB');
       return;
     }
 
@@ -438,16 +454,18 @@ const ProfilePage = () => {
   const handleCreatePost = async () => {
     if (!postContent.trim() && !selectedFile) {
       setError("Post content or image cannot be empty");
+      toast.error("Post content or image cannot be empty");
       return;
     }
 
     // Validate date is not in the future
     const selectedDateObj = new Date(selectedDate);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
+    today.setHours(23, 59, 59, 999); // End of today for comparison
     
     if (selectedDateObj > today) {
       setError("Cannot create posts with future dates");
+      toast.error("Cannot create posts with future dates");
       return;
     }
 
@@ -508,11 +526,15 @@ const ProfilePage = () => {
       // Reset the date to today after posting
       setSelectedDate(new Date().toISOString().split("T")[0]);
       
+      // Show success message
+      toast.success("Post created successfully!");
+      
       // Refetch posts to ensure we have the latest data from server
       fetchUserPosts(token, username);
     } catch (error) {
       console.error("Post error:", error);
       setError(error.message || "Failed to create post");
+      toast.error(error.message || "Failed to create post");
     }
   };
 
@@ -536,9 +558,18 @@ const ProfilePage = () => {
         setPosts(posts.map(post => {
           if (post._id === postId) {
             const currentLikes = parseInt(post.likes) || 0;
+            const newLikedState = !post.isLiked;
+            
+            // Show toast notification
+            if (newLikedState) {
+              toast.success("Post liked!");
+            } else {
+              toast.info("Post unliked");
+            }
+            
             return {
               ...post,
-              isLiked: !post.isLiked,
+              isLiked: newLikedState,
               likes: post.isLiked ? currentLikes - 1 : currentLikes + 1,
             };
           }
@@ -550,6 +581,7 @@ const ProfilePage = () => {
     } catch (error) {
       console.error("Error toggling like:", error);
       setError(error.message);
+      toast.error(error.message);
     }
   };
 
@@ -557,6 +589,7 @@ const ProfilePage = () => {
   const handleLogout = () => {
     localStorage.clear();
     navigate("/login");
+    toast.info("Logged out successfully");
   };
 
   // Navigation functions
@@ -608,6 +641,20 @@ const ProfilePage = () => {
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
     }`}>
+      {/* Toast Container */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme={darkMode ? "dark" : "light"}
+      />
+      
       {/* Navigation Bar */}
       <nav className={`${
         darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
