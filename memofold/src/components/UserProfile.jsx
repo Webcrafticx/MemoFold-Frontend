@@ -225,7 +225,6 @@ const UserProfile = () => {
         userId: username,
         username: username,
         content: content,
-        createdAt: new Date().toISOString(),
         likes: [],
         isLiked: false
       };
@@ -266,7 +265,7 @@ const UserProfile = () => {
           ? {
             ...post,
             comments: post.comments?.map(comment => 
-              comment.createdAt === newComment.createdAt && comment.content === newComment.content
+              comment.content === newComment.content
                 ? { ...createdComment, isLiked: false }
                 : comment
             ) || [createdComment]
@@ -283,7 +282,7 @@ const UserProfile = () => {
           ? {
             ...post,
             comments: post.comments?.filter(comment => 
-              !(comment.createdAt === new Date().toISOString() && comment.content === content)
+              comment.content !== content
             ) || []
           }
           : post
@@ -297,18 +296,16 @@ const UserProfile = () => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) {
-        return "Just now";
+        return "";
       }
       
       return date.toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
       });
     } catch (e) {
-      return "Just now";
+      return "";
     }
   };
 
@@ -475,7 +472,7 @@ const UserProfile = () => {
                       {userData.realname || userData.username}
                     </h3>
                     <p className="text-xs text-gray-500">
-                      @{userData.username} · {formatDate(post.createdAt)}
+                      @{userData.username} {post.createdAt && `· ${formatDate(post.createdAt)}`}
                     </p>
                   </div>
                 </div>
@@ -556,10 +553,6 @@ const UserProfile = () => {
                             
                             <p className="text-sm mb-1">
                               {comment.content || ""}
-                            </p>
-                            
-                            <p className="text-xs text-gray-500">
-                              {formatDate(comment.createdAt)}
                             </p>
                           </div>
                         ))}
