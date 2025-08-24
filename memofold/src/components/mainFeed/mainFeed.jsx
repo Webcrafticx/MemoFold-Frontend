@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { FaHeart, FaRegHeart, FaCommentDots, FaTrashAlt } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaComment, FaTrashAlt } from "react-icons/fa";
 import config from "../../hooks/config";
 
 const MainFeed = () => {
@@ -539,7 +539,7 @@ const MainFeed = () => {
                                     onClick={() => toggleCommentDropdown(post._id)}
                                     disabled={loadingComments[post._id]}
                                 >
-                                    <FaCommentDots />
+                                    <FaComment />
                                     <span className="text-sm">
                                         {post.comments?.length || 0}
                                     </span>

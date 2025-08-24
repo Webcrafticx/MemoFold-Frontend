@@ -12,6 +12,7 @@ import {
   FaArrowLeft,
   FaBars,
   FaTrashAlt,
+  FaEdit
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../../assets/logo.png";
@@ -41,6 +42,7 @@ const ProfilePage = () => {
   const [filePreview, setFilePreview] = useState(null);
   const [error, setError] = useState(null);
   const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
   
   // Comment-related states
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -80,7 +82,8 @@ const ProfilePage = () => {
         setLoading(true);
         await Promise.all([
           fetchUserData(token),
-          fetchUserPosts(token, storedUsername)
+          fetchUserPosts(token, storedUsername),
+          fetchCurrentUserData(token)
         ]);
         
         // Fetch bio
@@ -103,6 +106,33 @@ const ProfilePage = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
+  };
+
+  // Fetch current user data
+  const fetchCurrentUserData = async (token) => {
+    try {
+      const response = await fetch(`${config.apiUrl}/user/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setCurrentUserProfile(userData);
+      }
+    } catch (error) {
+      console.error("Error fetching current user data:", error);
+    }
+  };
+
+  // Navigate to user profile
+  const navigateToUserProfile = (userId) => {
+    if (userId) {
+      if (currentUserProfile && userId === currentUserProfile._id) {
+        navigate("/profile");
+      } else {
+        navigate(`/user/${userId}`);
+      }
+    }
   };
 
   // Fetch bio from API
@@ -747,62 +777,64 @@ const ProfilePage = () => {
             </div>
 
             <div className="flex-1 w-full">
-              <div className="flex items-start justify-between">
-                <div className="text-center sm:text-left w-full">
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold dark:text-white break-all">
-                    {username}
-                  </h2>
-                  <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-600 dark:text-gray-300 mt-1">
-                    {realName}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setEditingBio(!editingBio)}
-                  className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                  aria-label="Edit bio"
-                >
-                  <FaUserCircle />
-                </button>
+              <div className="text-center sm:text-left w-full">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold dark:text-white break-all">
+                  {username}
+                </h2>
+                <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-600 dark:text-gray-300 mt-1">
+                  {realName}
+                </p>
               </div>
 
-              {editingBio ? (
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <textarea
-                    value={newBio}
-                    onChange={(e) => setNewBio(e.target.value)}
-                    className={`w-full p-2 rounded-lg ${
-                      darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                    rows="2"
-                    maxLength="200"
-                    placeholder="Tell us about yourself..."
-                  />
-                  <div className="flex gap-2 justify-end sm:justify-start">
-                    <button
-                      onClick={handleBioUpdate}
-                      disabled={updatingBio}
-                      className={`px-3 py-1 rounded-lg font-medium ${
-                        updatingBio ? "bg-blue-400" : "bg-blue-500 hover:bg-blue-600"
-                      } text-white transition-colors`}
-                    >
-                      {updatingBio ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingBio(false);
-                        setNewBio(bio);
-                      }}
-                      className="px-3 py-1 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      Cancel
-                    </button>
+              <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {editingBio ? (
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                    <textarea
+                      value={newBio}
+                      onChange={(e) => setNewBio(e.target.value)}
+                      className={`w-full p-2 rounded-lg ${
+                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      rows="2"
+                      maxLength="200"
+                      placeholder="Tell us about yourself..."
+                    />
+                    <div className="flex gap-2 justify-center sm:justify-start">
+                      <button
+                        onClick={handleBioUpdate}
+                        disabled={updatingBio}
+                        className={`px-3 py-1 rounded-lg font-medium ${
+                          updatingBio ? "bg-blue-400" : "bg-blue-500 hover:bg-blue-600"
+                        } text-white transition-colors`}
+                      >
+                        {updatingBio ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingBio(false);
+                          setNewBio(bio);
+                        }}
+                        className="px-3 py-1 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-gray-600 dark:text-gray-300 mt-3 text-center sm:text-left">
-                  {bio || "No bio yet. Click the edit button to add one."}
-                </p>
-              )}
+                ) : (
+                  <>
+                    <p className="text-gray-600 dark:text-gray-300 text-center sm:text-left flex-1">
+                      {bio || "No bio yet. Click the edit button to add one."}
+                    </p>
+                    <button
+                      onClick={() => setEditingBio(!editingBio)}
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                      aria-label="Edit bio"
+                    >
+                      <FaEdit className="text-lg" />
+                    </button>
+                  </>
+                )}
+              </div>
 
               <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
                 <div className={`flex items-center gap-1 sm:gap-2 ${
@@ -828,8 +860,12 @@ const ProfilePage = () => {
               onError={(e) => {
                 e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
               }}
+              onClick={() => navigateToUserProfile(currentUserProfile?._id)}
             />
-            <span className="font-semibold dark:text-white cursor-pointer text-sm sm:text-base">
+            <span 
+              className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+              onClick={() => navigateToUserProfile(currentUserProfile?._id)}
+            >
               {username}
             </span>
           </div>
@@ -952,8 +988,12 @@ const ProfilePage = () => {
                       onError={(e) => {
                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(post.username)}&background=random`;
                       }}
+                      onClick={() => navigateToUserProfile(post.userId?._id)}
                     />
-                    <span className="font-semibold dark:text-white cursor-pointer text-sm sm:text-base">
+                    <span 
+                      className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+                      onClick={() => navigateToUserProfile(post.userId?._id)}
+                    >
                       {post.username}
                     </span>
                     <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 ml-auto">
@@ -1033,14 +1073,24 @@ const ProfilePage = () => {
                                   <img
                                     src={comment.userId?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId?.realname || 'User')}&background=random`}
                                     alt={comment.userId?.realname}
-                                    className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                                    className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                                     onError={(e) => {
                                       e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.userId?.realname || 'User')}&background=random`;
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigateToUserProfile(comment.userId?._id);
                                     }}
                                   />
                                   <div className="flex-1">
                                     <div className="flex items-center space-x-2">
-                                      <span className="font-semibold text-sm">
+                                      <span 
+                                        className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigateToUserProfile(comment.userId?._id);
+                                        }}
+                                      >
                                         {comment.userId?.realname || comment.userId?.username || 'Unknown User'}
                                       </span>
                                       <span className={`text-xs ${
@@ -1067,7 +1117,8 @@ const ProfilePage = () => {
                             <img
                               src={profilePic}
                               alt={username}
-                              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600"
+                              className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                              onClick={() => navigateToUserProfile(currentUserProfile?._id)}
                             />
                             <div className="flex-1 flex space-x-2">
                               <input

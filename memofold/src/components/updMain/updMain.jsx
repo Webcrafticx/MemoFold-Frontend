@@ -9,7 +9,7 @@ import {
     FaBars,
     FaMoon,
     FaSun,
-    FaCommentDots,
+    FaComment,
     FaSignOutAlt,
     FaPaperclip,
     FaTimes,
@@ -19,6 +19,7 @@ import {
     FaTimesCircle
 } from "react-icons/fa";
 import config from "../../hooks/config";
+import imageCompression from 'browser-image-compression';
 
 const MainDashboard = () => {
     const [darkMode, setDarkMode] = useState(false);
@@ -191,7 +192,7 @@ const MainDashboard = () => {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({ 
-                        userId: username // Send userId instead of content and parentCommentId
+                        userId: username 
                     })
                 }
             );
@@ -201,7 +202,6 @@ const MainDashboard = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
-            // Update the UI immediately without waiting for a refetch
             setPosts(posts.map(post => {
                 if (post._id === postId) {
                     const updatedComments = post.comments.map(comment => {
@@ -304,17 +304,9 @@ const MainDashboard = () => {
         }
     };
 
-    // Helper function to convert file to base64
-    const convertToBase64 = (file) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-    };
+   
 
-   const handlePostSubmit = async () => {
+const handlePostSubmit = async () => {
     if (!postContent.trim() && selectedFiles.length === 0) {
         setError("Post content or file cannot be empty.");
         return;
@@ -330,23 +322,49 @@ const MainDashboard = () => {
             throw new Error("Invalid date selected");
         }
 
-        // Get image URL if file is selected
-        let imageUrl = "";
+        // Convert only the first file to complete data URL format with compression
+        let imageData = null;
         if (selectedFiles.length > 0) {
-            // यहाँ आपको image का actual URL set करना होगा
-            // Example: imageUrl = "https://example.com/images/photo.jpg";
-            // या आपके system के according image URL generate करना होगा
-            imageUrl = URL.createObjectURL(selectedFiles[0]); // Temporary URL
+            const file = selectedFiles[0];
+            
+            // Compress image before converting to base64
+            const options = {
+                maxSizeMB: 1, // Maximum file size in MB
+                maxWidthOrHeight: 1024, // Maximum width or height
+                useWebWorker: true, // Use web worker for faster compression
+            };
+            
+            try {
+                const compressedFile = await imageCompression(file, options);
+                imageData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const dataURL = reader.result;
+                        resolve(dataURL);
+                    };
+                    reader.onerror = error => reject(error);
+                    reader.readAsDataURL(compressedFile);
+                });
+            } catch (compressionError) {
+                console.warn("Image compression failed, using original:", compressionError);
+                // Fallback to original file if compression fails
+                imageData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const dataURL = reader.result;
+                        resolve(dataURL);
+                    };
+                    reader.onerror = error => reject(error);
+                    reader.readAsDataURL(file);
+                });
+            }
         }
 
-        // Create normal JSON payload with image URL
-        const payload = {
+        const postData = {
             content: postContent,
             createdAt: postDate.toISOString(),
-            image: imageUrl // Image URL भेजें
+            image: imageData
         };
-
-        console.log("Sending payload:", payload); // Debug के लिए
 
         const response = await fetch(`${config.apiUrl}/posts`, {
             method: "POST",
@@ -354,7 +372,7 @@ const MainDashboard = () => {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(postData),
         });
 
         if (!response.ok) {
@@ -384,8 +402,7 @@ const MainDashboard = () => {
         setIsLoading(false);
     }
 };
-
-    const handleLikePost = async (postId) => {
+   const handleLikePost = async (postId) => {
         try {
             const response = await fetch(
                 `${config.apiUrl}/posts/like/${postId}`,
@@ -682,7 +699,7 @@ const MainDashboard = () => {
                         } cursor-pointer`}
                         onClick={handleFeedbackClick}
                     >
-                        <FaCommentDots className="inline mr-2" />{" "}
+                           < FaComment className="inline mr-2" />{" "}
                         Feedback
                     </span>
                 </div>
@@ -1049,7 +1066,7 @@ const MainDashboard = () => {
                             onClick={() => toggleCommentDropdown(post._id)}
                             disabled={isFetchingComments}
                         >
-                            <FaCommentDots />
+                               < FaComment />
                             <span className="text-sm">
                                 {post.commentCount || post.comments?.length || 0}
                             </span>
