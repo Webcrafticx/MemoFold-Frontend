@@ -497,6 +497,12 @@ const MainFeed = () => {
                                 </div>
                             </div>
 
+                            {/* Text content appears first */}
+                            <p className="text-gray-700 leading-relaxed mb-3 dark:text-gray-300">
+                                {post.content || ""}
+                            </p>
+
+                            {/* Image appears after text */}
                             {post.image && (
                                 <img
                                     src={post.image}
@@ -508,10 +514,6 @@ const MainFeed = () => {
                                     }}
                                 />
                             )}
-
-                            <p className="text-gray-700 leading-relaxed mb-3 dark:text-gray-300">
-                                {post.content || ""}
-                            </p>
 
                             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                                 <button
@@ -549,7 +551,7 @@ const MainFeed = () => {
                                 </button>
                             </div>
 
-                            {/* Comments Section - Updated to match dashboard */}
+                            {/* Comments Section */}
                             {activeCommentPostId === post._id && (
                                 <div className="mt-4">
                                     {/* Show loading state when fetching */}

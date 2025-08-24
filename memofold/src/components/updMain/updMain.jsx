@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,6 +18,8 @@ import {
     FaSave,
     FaTimesCircle
 } from "react-icons/fa";
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import config from "../../hooks/config";
 import imageCompression from 'browser-image-compression';
 
@@ -38,8 +40,46 @@ const MainDashboard = () => {
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [editingPostId, setEditingPostId] = useState(null);
     const [editContent, setEditContent] = useState("");
+    const [editFiles, setEditFiles] = useState([]);
+    const [showImagePreview, setShowImagePreview] = useState(false);
+    const [previewImage, setPreviewImage] = useState("");
     const navigate = useNavigate();
     
+    // Create refs for dropdowns
+    const dropdownRef = useRef(null);
+    const commentDropdownRefs = useRef({});
+    const quickReactionRef = useRef(null);
+
+    // Add useEffect to handle outside clicks for all dropdowns
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            // Handle main dropdown
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setShowDropdown(false);
+            }
+            
+            // Handle comment dropdowns
+            if (activeCommentPostId) {
+                const commentDropdown = commentDropdownRefs.current[activeCommentPostId];
+                if (commentDropdown && !commentDropdown.contains(event.target)) {
+                    setActiveCommentPostId(null);
+                }
+            }
+            
+            // Handle quick reaction dropdown
+            if (quickReactionRef.current && !quickReactionRef.current.contains(event.target) && 
+                activeCommentPostId === "new") {
+                setActiveCommentPostId(null);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [activeCommentPostId]);
+
     useEffect(() => {
         const savedMode = localStorage.getItem("darkMode") === "true";
         setDarkMode(savedMode);
@@ -231,6 +271,63 @@ const MainDashboard = () => {
         }
     };
 
+    const handleDeleteComment = async (commentId, postId) => {
+        if (!window.confirm("Are you sure you want to delete this comment?")) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${config.apiUrl}/posts/comments/${commentId}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to delete comment");
+            }
+
+            // Show success notification
+            toast.success("Comment deleted successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+
+            // Update the UI by removing the deleted comment
+            setPosts(posts.map(post => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments.filter(comment => comment._id !== commentId);
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                        commentCount: updatedComments.length
+                    };
+                }
+                return post;
+            }));
+        } catch (err) {
+            setError(err.message);
+            console.error("Error deleting comment:", err);
+            
+            // Show error notification
+            toast.error("Failed to delete comment. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        }
+    };
+
     const toggleCommentDropdown = async (postId) => {
         if (activeCommentPostId === postId) {
             setActiveCommentPostId(null);
@@ -267,8 +364,32 @@ const MainDashboard = () => {
         setSelectedFiles(prev => [...prev, ...validFiles]);
     };
 
+    const handleEditFileSelect = (e) => {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter(file => {
+            const validTypes = [
+                'image/jpeg', 
+                'image/png', 
+                'application/pdf',
+                'video/mp4',
+                'text/plain'
+            ];
+            return validTypes.includes(file.type);
+        });
+        
+        if (validFiles.length !== files.length) {
+            setError("Some files were not accepted. Only images, PDFs, videos and text files are allowed.");
+        }
+        
+        setEditFiles(prev => [...prev, ...validFiles]);
+    };
+
     const removeFile = (index) => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const removeEditFile = (index) => {
+        setEditFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     const formatDate = (dateString) => {
@@ -304,105 +425,124 @@ const MainDashboard = () => {
         }
     };
 
-   
-
-const handlePostSubmit = async () => {
-    if (!postContent.trim() && selectedFiles.length === 0) {
-        setError("Post content or file cannot be empty.");
-        return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-        const postDate = selectedDate ? new Date(selectedDate) : new Date();
-        
-        if (selectedDate && isNaN(postDate.getTime())) {
-            throw new Error("Invalid date selected");
+    const handlePostSubmit = async () => {
+        if (!postContent.trim() && selectedFiles.length === 0) {
+            setError("Post content or file cannot be empty.");
+            return;
         }
 
-        // Convert only the first file to complete data URL format with compression
-        let imageData = null;
-        if (selectedFiles.length > 0) {
-            const file = selectedFiles[0];
-            
-            // Compress image before converting to base64
-            const options = {
-                maxSizeMB: 1, // Maximum file size in MB
-                maxWidthOrHeight: 1024, // Maximum width or height
-                useWebWorker: true, // Use web worker for faster compression
-            };
-            
-            try {
-                const compressedFile = await imageCompression(file, options);
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const dataURL = reader.result;
-                        resolve(dataURL);
-                    };
-                    reader.onerror = error => reject(error);
-                    reader.readAsDataURL(compressedFile);
-                });
-            } catch (compressionError) {
-                console.warn("Image compression failed, using original:", compressionError);
-                // Fallback to original file if compression fails
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const dataURL = reader.result;
-                        resolve(dataURL);
-                    };
-                    reader.onerror = error => reject(error);
-                    reader.readAsDataURL(file);
-                });
-            }
-        }
-
-        const postData = {
-            content: postContent,
-            createdAt: postDate.toISOString(),
-            image: imageData
-        };
-
-        const response = await fetch(`${config.apiUrl}/posts`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(postData),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to create post");
-        }
-
-        const result = await response.json();
-        
-        const newPost = result.post || result;
-        
-        setPosts(prevPosts => [{
-            ...newPost,
-            comments: [],
-            commentCount: 0,
-            likes: []
-        }, ...prevPosts]);
-        
-        setPostContent("");
-        setSelectedFiles([]);
-        setSelectedDate("");
+        setIsLoading(true);
         setError(null);
-    } catch (err) {
-        setError(err.message);
-        console.error("Post error:", err);
-    } finally {
-        setIsLoading(false);
-    }
-};
-   const handleLikePost = async (postId) => {
+
+        try {
+            const postDate = selectedDate ? new Date(selectedDate) : new Date();
+            
+            if (selectedDate && isNaN(postDate.getTime())) {
+                throw new Error("Invalid date selected");
+            }
+
+            // Convert only the first file to complete data URL format with compression
+            let imageData = null;
+            if (selectedFiles.length > 0) {
+                const file = selectedFiles[0];
+                
+                // Compress image before converting to base64
+                const options = {
+                    maxSizeMB: 1, // Maximum file size in MB
+                    maxWidthOrHeight: 1024, // Maximum width or height
+                    useWebWorker: true, // Use web worker for faster compression
+                };
+                
+                try {
+                    const compressedFile = await imageCompression(file, options);
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = error => reject(error);
+                        reader.readAsDataURL(compressedFile);
+                    });
+                } catch (compressionError) {
+                    console.warn("Image compression failed, using original:", compressionError);
+                    // Fallback to original file if compression fails
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = error => reject(error);
+                        reader.readAsDataURL(file);
+                    });
+                }
+            }
+
+            const postData = {
+                content: postContent,
+                createdAt: postDate.toISOString(),
+                image: imageData
+            };
+
+            const response = await fetch(`${config.apiUrl}/posts`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(postData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to create post");
+            }
+
+            const result = await response.json();
+            
+            const newPost = result.post || result;
+            
+            setPosts(prevPosts => [{
+                ...newPost,
+                comments: [],
+                commentCount: 0,
+                likes: []
+            }, ...prevPosts]);
+            
+            setPostContent("");
+            setSelectedFiles([]);
+            setSelectedDate("");
+            setError(null);
+            
+            // Show success notification
+            toast.success("Post created successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } catch (err) {
+            setError(err.message);
+            console.error("Post error:", err);
+            
+            // Show error notification
+            toast.error("Failed to create post. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleLikePost = async (postId) => {
         try {
             const response = await fetch(
                 `${config.apiUrl}/posts/like/${postId}`,
@@ -460,9 +600,29 @@ const handlePostSubmit = async () => {
             }
 
             setPosts(posts.filter((post) => post._id !== postId));
+            
+            // Show success notification
+            toast.success("Post deleted successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
         } catch (err) {
             setError(err.message);
             console.error("Error deleting post:", err);
+            
+            // Show error notification
+            toast.error("Failed to delete post. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
         }
     };
 
@@ -471,6 +631,7 @@ const handlePostSubmit = async () => {
         if (postToEdit) {
             setEditContent(postToEdit.content);
             setEditingPostId(postId);
+            setEditFiles([]);
             setError(null);
         } else {
             setError("Post not found for editing");
@@ -480,11 +641,12 @@ const handlePostSubmit = async () => {
     const cancelEditPost = () => {
         setEditingPostId(null);
         setEditContent("");
+        setEditFiles([]);
     };
 
     const handleUpdatePost = async (postId) => {
-        if (!editContent.trim()) {
-            setError("Post content cannot be empty");
+        if (!editContent.trim() && editFiles.length === 0) {
+            setError("Post content or file cannot be empty");
             return;
         }
 
@@ -492,15 +654,56 @@ const handlePostSubmit = async () => {
         setError(null);
 
         try {
+            // Convert only the first file to complete data URL format with compression
+            let imageData = null;
+            if (editFiles.length > 0) {
+                const file = editFiles[0];
+                
+                // Compress image before converting to base64
+                const options = {
+                    maxSizeMB: 1, // Maximum file size in MB
+                    maxWidthOrHeight: 1024, // Maximum width or height
+                    useWebWorker: true, // Use web worker for faster compression
+                };
+                
+                try {
+                    const compressedFile = await imageCompression(file, options);
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = error => reject(error);
+                        reader.readAsDataURL(compressedFile);
+                    });
+                } catch (compressionError) {
+                    console.warn("Image compression failed, using original:", compressionError);
+                    // Fallback to original file if compression fails
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = error => reject(error);
+                        reader.readAsDataURL(file);
+                    });
+                }
+            }
+
+            const postData = {
+                content: editContent,
+                ...(imageData && { image: imageData })
+            };
+
             const response = await fetch(`${config.apiUrl}/posts/update/${postId}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    content: editContent,
-                }),
+                body: JSON.stringify(postData),
             });
 
             if (!response.ok) {
@@ -509,15 +712,40 @@ const handlePostSubmit = async () => {
             }
 
             setPosts(posts.map(post => 
-                post._id === postId ? { ...post, content: editContent } : post
+                post._id === postId ? { 
+                    ...post, 
+                    content: editContent,
+                    ...(imageData && { image: imageData })
+                } : post
             ));
             
             setEditingPostId(null);
             setEditContent("");
+            setEditFiles([]);
             setError(null);
+            
+            // Show success notification
+            toast.success("Post updated successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
         } catch (err) {
             setError(err.message);
             console.error("Error updating post:", err);
+            
+            // Show error notification
+            toast.error("Failed to update post. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
         } finally {
             setIsLoading(false);
         }
@@ -545,6 +773,7 @@ const handlePostSubmit = async () => {
         setPostContent((prev) =>
             `${prev} ${reaction.text} ${reaction.emoji}`.trim()
         );
+        setActiveCommentPostId(null);
     };
 
     const handleProfileClick = () => {
@@ -577,17 +806,21 @@ const handlePostSubmit = async () => {
         return '📁';
     };
 
-    const renderImagePreview = (file) => {
+    const renderImagePreview = (file, isEdit = false) => {
         if (file.type.startsWith('image/')) {
             return (
                 <div className="relative">
                     <img 
                         src={URL.createObjectURL(file)} 
                         alt="Preview" 
-                        className="w-16 h-16 object-cover rounded-lg"
+                        className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                        onClick={() => {
+                            setPreviewImage(URL.createObjectURL(file));
+                            setShowImagePreview(true);
+                        }}
                     />
                     <button 
-                        onClick={() => removeFile(selectedFiles.indexOf(file))}
+                        onClick={() => isEdit ? removeEditFile(editFiles.indexOf(file)) : removeFile(selectedFiles.indexOf(file))}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs"
                     >
                         <FaTimes />
@@ -606,8 +839,37 @@ const handlePostSubmit = async () => {
                     {file.name}
                 </span>
                 <button 
-                    onClick={() => removeFile(selectedFiles.indexOf(file))}
+                    onClick={() => isEdit ? removeEditFile(editFiles.indexOf(file)) : removeFile(selectedFiles.indexOf(file))}
                     className="ml-2 text-red-500 hover:text-red-700"
+                >
+                    <FaTimes />
+                </button>
+            </div>
+        );
+    };
+
+    const renderExistingImagePreview = (imageUrl) => {
+        return (
+            <div className="relative mb-4">
+                <img 
+                    src={imageUrl} 
+                    alt="Post image"
+                    className="w-full h-64 object-cover rounded-lg cursor-pointer"
+                    onClick={() => {
+                        setPreviewImage(imageUrl);
+                        setShowImagePreview(true);
+                    }}
+                />
+                <button 
+                    onClick={() => {
+                        if (window.confirm("Are you sure you want to remove this image?")) {
+                            setPosts(posts.map(post => 
+                                post._id === editingPostId ? { ...post, image: null } : post
+                            ));
+                        }
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2"
+                    title="Remove image"
                 >
                     <FaTimes />
                 </button>
@@ -619,6 +881,19 @@ const handlePostSubmit = async () => {
         <div className={`min-h-screen ${
             darkMode ? "dark bg-gray-900 text-gray-100" : "bg-gradient-to-r from-gray-100 to-gray-200"
         }`}>
+            <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme={darkMode ? "dark" : "light"}
+            />
+
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
                     {error}
@@ -631,11 +906,29 @@ const handlePostSubmit = async () => {
                 </div>
             )}
 
+            {showImagePreview && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setShowImagePreview(false)}>
+                    <div className="max-w-4xl max-h-full p-4">
+                        <img 
+                            src={previewImage} 
+                            alt="Preview" 
+                            className="max-w-full max-h-full object-contain"
+                        />
+                        <button 
+                            className="absolute top-4 right-4 bg-red-500 text-white rounded-full p-2"
+                            onClick={() => setShowImagePreview(false)}
+                        >
+                            <FaTimes />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="container mx-auto px-4 py-4">
                 <div className={`flex justify-between items-center mb-6 p-4 rounded-xl ${
                     darkMode ? "bg-gray-800" : "bg-white"
                 } shadow-md`}>
-                    <div className="relative">
+                    <div className="relative" ref={dropdownRef}>
                         <button
                             className={`p-2 rounded-full ${
                                 darkMode
@@ -722,7 +1015,7 @@ const handlePostSubmit = async () => {
 
         <input
             type="date"
-            className={`px-3 py-1 rounded-lg text-sm border ${
+            className={`px-3 py-1 rounded-lg text-sm border cursor-pointer ${
                 darkMode
                     ? "bg-gray-700 border-gray-600"
                     : "bg-white border-gray-300"
@@ -810,7 +1103,7 @@ const handlePostSubmit = async () => {
                     />
                     <FaPaperclip className="text-xl" />
                 </label>
-                <div className="relative">
+                <div className="relative" ref={quickReactionRef}>
                     <button
                         className={`p-2 rounded-xl ${
                             darkMode
@@ -845,14 +1138,7 @@ const handlePostSubmit = async () => {
                                                     ? "text-gray-200 hover:bg-gray-700"
                                                     : "text-gray-700 hover:bg-gray-100"
                                             } cursor-pointer`}
-                                            onClick={() => {
-                                                addReaction(
-                                                    reaction
-                                                );
-                                                setActiveCommentPostId(
-                                                    null
-                                                );
-                                            }}
+                                            onClick={() => addReaction(reaction)}
                                         >
                                             {
                                                 reaction.text
@@ -995,32 +1281,67 @@ const handlePostSubmit = async () => {
                                 onChange={(e) => setEditContent(e.target.value)}
                                 maxLength="5000"
                             />
-                            <div className="flex justify-end space-x-2 mt-2">
-                                <button
-                                    className={`px-3 py-1 rounded-lg text-sm ${
-                                        darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
-                                    } transition-colors cursor-pointer`}
-                                    onClick={cancelEditPost}
-                                >
-                                    <FaTimesCircle className="inline mr-1" /> Cancel
-                                </button>
-                                <button
-                                    className={`px-3 py-1 rounded-lg text-sm ${
-                                        !editContent.trim() || isLoading
-                                            ? "bg-blue-300 cursor-not-allowed"
-                                            : "bg-blue-500 hover:bg-blue-600"
-                                    } text-white transition-colors cursor-pointer`}
-                                    onClick={() => handleUpdatePost(post._id)}
-                                    disabled={!editContent.trim() || isLoading}
-                                >
-                                    {isLoading ? (
-                                        <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                    ) : (
-                                        <>
-                                            <FaSave className="inline mr-1" /> Save
-                                        </>
-                                    )}
-                                </button>
+                            
+                            {post.image && (
+                                renderExistingImagePreview(post.image)
+                            )}
+                            
+                            {editFiles.length > 0 && (
+                                <div className={`mt-3 p-3 rounded-lg ${
+                                    darkMode ? "bg-gray-700" : "bg-gray-100"
+                                }`}>
+                                    <div className="flex flex-wrap gap-2">
+                                        {editFiles.map((file, index) => (
+                                            <div key={index}>
+                                                {renderImagePreview(file, true)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div className="flex items-center mt-3">
+                                <label className={`p-2 rounded-xl ${
+                                    darkMode
+                                        ? "bg-gray-700 hover:bg-gray-600"
+                                        : "bg-gradient-to-br from-white to-gray-100 hover:from-gray-100 hover:to-gray-200"
+                                } shadow-md transition-all cursor-pointer mr-2`}>
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        onChange={handleEditFileSelect}
+                                        accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                                    />
+                                    <FaPaperclip className="text-xl" />
+                                </label>
+                                
+                                <div className="flex justify-end space-x-2 flex-1">
+                                    <button
+                                        className={`px-3 py-1 rounded-lg text-sm ${
+                                            darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
+                                        } transition-colors cursor-pointer`}
+                                        onClick={cancelEditPost}
+                                    >
+                                        <FaTimesCircle className="inline mr-1" /> Cancel
+                                    </button>
+                                    <button
+                                        className={`px-3 py-1 rounded-lg text-sm ${
+                                            (!editContent.trim() && editFiles.length === 0) || isLoading
+                                                ? "bg-blue-300 cursor-not-allowed"
+                                                : "bg-blue-500 hover:bg-blue-600"
+                                        } text-white transition-colors cursor-pointer`}
+                                        onClick={() => handleUpdatePost(post._id)}
+                                        disabled={(!editContent.trim() && editFiles.length === 0) || isLoading}
+                                    >
+                                        {isLoading ? (
+                                            <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                        ) : (
+                                            <>
+                                                <FaSave className="inline mr-1" /> Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -1034,7 +1355,11 @@ const handlePostSubmit = async () => {
                                     <img 
                                         src={post.image} 
                                         alt="Post image"
-                                        className="w-full h-64 object-cover rounded-lg"
+                                        className="w-full h-64 object-cover rounded-lg cursor-pointer"
+                                        onClick={() => {
+                                            setPreviewImage(post.image);
+                                            setShowImagePreview(true);
+                                        }}
                                         onError={(e) => {
                                             if (post.image && post.image.startsWith('blob:')) {
                                                 e.target.style.display = 'none';
@@ -1074,7 +1399,10 @@ const handlePostSubmit = async () => {
                     </div>
 
                     {activeCommentPostId === post._id && (
-                        <div className="mt-4">
+                        <div 
+                            className="mt-4"
+                            ref={el => commentDropdownRefs.current[post._id] = el}
+                        >
                             {isFetchingComments ? (
                                 <div className="text-center py-4">
                                     <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1120,7 +1448,7 @@ const handlePostSubmit = async () => {
                                                         <p className="text-sm whitespace-pre-line mt-1">
                                                             {comment.content}
                                                         </p>
-                                                        <div className="mt-1 flex items-center">
+                                                        <div className="mt-1 flex items-center justify-between">
                                                             <button
                                                                 className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
                                                                 onClick={() => handleLikeComment(comment._id, post._id)}
@@ -1134,6 +1462,15 @@ const handlePostSubmit = async () => {
                                                                     {comment.likes?.length || 0}
                                                                 </span>
                                                             </button>
+                                                            {comment.userId.username === username && (
+                                                                <button
+                                                                    className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                                                    onClick={() => handleDeleteComment(comment._id, post._id)}
+                                                                    title="Delete comment"
+                                                                >
+                                                                    <FaTrashAlt />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
