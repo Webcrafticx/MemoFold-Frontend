@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import config from "../../hooks/config";
 
 const FeedbackForm = () => {
     const [formData, setFormData] = useState({
@@ -9,6 +10,7 @@ const FeedbackForm = () => {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState("");
+    const [error, setError] = useState("");
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -18,22 +20,41 @@ const FeedbackForm = () => {
         }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setError("");
+        setSubmitMessage("");
 
-        // Simulate form submission
-        setTimeout(() => {
-            console.log("Form submitted:", formData);
+        try {
+            const response = await fetch(`${config.apiUrl}/feedback`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("Feedback submitted successfully:", data);
+            
             setSubmitMessage("Thank you for your feedback!");
-            setIsSubmitting(false);
             setFormData({
                 name: "",
                 email: "",
                 type: "",
                 message: "",
             });
-        }, 1500);
+        } catch (error) {
+            console.error("Error submitting feedback:", error);
+            setError("Failed to submit feedback. Please try again later.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -139,6 +160,12 @@ const FeedbackForm = () => {
                         {isSubmitting ? "Sending..." : "Send Feedback"}
                     </button>
                 </form>
+
+                {error && (
+                    <div className="mt-4 text-red-600 text-sm">
+                        {error}
+                    </div>
+                )}
 
                 {submitMessage && (
                     <div className="mt-4 text-green-600 text-sm">

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { FaHeart, FaRegHeart, FaComment, FaTrashAlt } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaComment, FaTrashAlt, FaTimes } from "react-icons/fa";
 import config from "../../hooks/config";
 
 const MainFeed = () => {
@@ -9,10 +9,10 @@ const MainFeed = () => {
     const navigate = useNavigate();
     
     const [darkMode, setDarkMode] = useState(false);
-    const [currentTime, setCurrentTime] = useState("--:--:--");
     const [posts, setPosts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     
     const [activeCommentPostId, setActiveCommentPostId] = useState(null);
@@ -21,6 +21,13 @@ const MainFeed = () => {
     const [loadingComments, setLoadingComments] = useState({});
     const [commentContent, setCommentContent] = useState({});
     const [isLikingComment, setIsLikingComment] = useState({});
+    const [isDeletingComment, setIsDeletingComment] = useState({});
+    
+    // Image preview states
+    const [showImagePreview, setShowImagePreview] = useState(false);
+    const [previewImage, setPreviewImage] = useState("");
+    const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+    const imagePreviewRef = useRef(null);
 
     useEffect(() => {
         if (!token) {
@@ -30,14 +37,6 @@ const MainFeed = () => {
             fetchPosts();
         }
     }, [token, navigate]);
-
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentTime(new Date().toLocaleTimeString());
-        }, 1000);
-        
-        return () => clearInterval(timer);
-    }, []);
 
     useEffect(() => {
         const savedMode = localStorage.getItem("darkMode") === "true";
@@ -139,7 +138,12 @@ const MainFeed = () => {
         }
     };
 
-    const handleLikeComment = async (commentId, postId) => {
+    const handleLikeComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         if (!username) {
             setError("You must be logged in to like comments");
             return;
@@ -178,7 +182,7 @@ const MainFeed = () => {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({ 
-                        userId: username // Send userId instead of content and parentCommentId
+                        userId: username
                     })
                 }
             );
@@ -188,15 +192,83 @@ const MainFeed = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
-            // Refresh comments to get updated like count from server
             await fetchComments(postId);
         } catch (err) {
             console.error("Error liking comment:", err);
             setError(err.message);
-            // Revert optimistic update on error
             await fetchComments(postId);
         } finally {
             setIsLikingComment(prev => ({ ...prev, [commentId]: false }));
+        }
+    };
+
+    const handleDeleteComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        const post = posts.find(p => p._id === postId);
+        const comment = post?.comments?.find(c => c._id === commentId);
+        
+        if (!post || !comment) {
+            setError("Comment not found");
+            return;
+        }
+        
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+        
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to delete this comment?")) {
+            return;
+        }
+
+        setIsDeletingComment(prev => ({ ...prev, [commentId]: true }));
+
+        const originalPosts = [...posts];
+
+        try {
+            setPosts(posts.map(post => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.filter(comment => comment._id !== commentId) || [];
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                        commentCount: updatedComments.length
+                    };
+                }
+                return post;
+            }));
+
+            const response = await fetch(`${config.apiUrl}/posts/comments/${commentId}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ postId }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to delete comment");
+            }
+
+            setSuccessMessage("Comment deleted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+            
+        } catch (err) {
+            console.error("Error deleting comment:", err);
+            setError(err.message);
+            
+            setPosts(originalPosts);
+        } finally {
+            setIsDeletingComment(prev => ({ ...prev, [commentId]: false }));
         }
     };
 
@@ -206,7 +278,12 @@ const MainFeed = () => {
         localStorage.setItem("darkMode", newMode);
     };
 
-    const handleLike = async (postId) => {
+    const handleLike = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         if (!username) {
             console.error("Username not available");
             setError("You must be logged in to like posts");
@@ -271,7 +348,12 @@ const MainFeed = () => {
         }
     };
 
-    const toggleCommentDropdown = async (postId) => {
+    const toggleCommentDropdown = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         if (activeCommentPostId !== postId) {
             await fetchComments(postId);
         }
@@ -283,7 +365,9 @@ const MainFeed = () => {
         }));
     };
 
-    const handleCommentSubmit = async (postId) => {
+    const handleCommentSubmit = async (postId, e) => {
+        if (e) e.preventDefault();
+        
         const content = commentContent[postId] || "";
 
         if (!content.trim()) {
@@ -323,7 +407,6 @@ const MainFeed = () => {
             const responseData = await response.json();
             const createdComment = responseData.comment || responseData;
             
-            // Update the post with the new comment from the server response
             setPosts(posts.map(post =>
                 post._id === postId
                     ? {
@@ -366,7 +449,7 @@ const MainFeed = () => {
             } else if (diffInSeconds < 3600) {
                 return `${Math.floor(diffInSeconds / 60)}m ago`;
             } else if (diffInSeconds < 86400) {
-                return `${Math.floor(diffInSeconds / 3600)}h ago`;
+                return `${Math.floor(diffInSeconds/ 3600)}h ago`;
             } else {
                 return date.toLocaleDateString(undefined, {
                     year: "numeric",
@@ -379,15 +462,50 @@ const MainFeed = () => {
         }
     };
 
-    const navigateToUserProfile = (userId) => {
+    const navigateToUserProfile = (userId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         if (userId) {
-            // Check if this is the current user's profile
             if (currentUserProfile && userId === currentUserProfile._id) {
                 navigate("/profile");
             } else {
                 navigate(`/user/${userId}`);
             }
         }
+    };
+
+    // Function to handle image load and get dimensions
+    const handleImageLoad = (e) => {
+        const img = e.target;
+        setImageDimensions({
+            width: img.naturalWidth,
+            height: img.naturalHeight
+        });
+    };
+
+    // Calculate the appropriate size for the image preview
+    const getImagePreviewStyle = () => {
+        const maxWidth = window.innerWidth * 0.9;
+        const maxHeight = window.innerHeight * 0.9;
+        
+        if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
+            const widthRatio = maxWidth / imageDimensions.width;
+            const heightRatio = maxHeight / imageDimensions.height;
+            const ratio = Math.min(widthRatio, heightRatio);
+            
+            return {
+                width: imageDimensions.width * ratio,
+                height: imageDimensions.height * ratio
+            };
+        }
+        
+        return {
+            width: imageDimensions.width,
+            height: imageDimensions.height
+        };
     };
 
     return (
@@ -405,6 +523,50 @@ const MainFeed = () => {
                 </div>
             )}
 
+            {/* Success Message */}
+            {successMessage && (
+                <div className="fixed top-4 right-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
+                    {successMessage}
+                    <button
+                        onClick={() => setSuccessMessage(null)}
+                        className="ml-2 text-green-700 font-bold cursor-pointer"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+
+            {/* Image Preview Modal */}
+            {showImagePreview && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowImagePreview(false)}
+                >
+                    <div 
+                        className="relative max-w-full max-h-full flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img 
+                            ref={imagePreviewRef}
+                            src={previewImage} 
+                            alt="Preview" 
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onLoad={handleImageLoad}
+                            style={getImagePreviewStyle()}
+                        />
+                        <button 
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                            onClick={() => setShowImagePreview(false)}
+                        >
+                            <FaTimes />
+                        </button>
+                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+                            {imageDimensions.width} × {imageDimensions.height}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <header className={`bg-white shadow-sm px-6 py-4 flex justify-between items-center ${darkMode ? "dark:bg-gray-800" : ""}`}>
                 <h1
                     className="text-xl font-semibold text-gray-900 tracking-wide dark:text-white cursor-pointer hover:text-blue-500 transition-colors"
@@ -415,19 +577,28 @@ const MainFeed = () => {
 
                 <nav className="flex gap-5">
                     <button
-                        onClick={() => navigate("/dashboard")}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            navigate("/dashboard");
+                        }}
                         className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         Home
                     </button>
                     <button
-                        onClick={() => navigate("/profile")}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            navigate("/profile");
+                        }}
                         className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         My Profile
                     </button>
                     <button
-                        onClick={logout}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            logout();
+                        }}
                         className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                         Logout
@@ -467,7 +638,7 @@ const MainFeed = () => {
                         >
                             <div
                                 className="flex items-center gap-3 mb-3 cursor-pointer"
-                                onClick={() => navigateToUserProfile(post.userId._id)}
+                                onClick={(e) => navigateToUserProfile(post.userId._id, e)}
                             >
                                 <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
                                     {post.userId.profilePic ? (
@@ -502,25 +673,27 @@ const MainFeed = () => {
                                 {post.content || ""}
                             </p>
 
-                            {/* Image appears after text */}
+                            {/* Image appears after text - Fixed container */}
                             {post.image && (
-                                <img
-                                    src={post.image}
-                                    alt="Post"
-                                    className="w-full rounded-xl mb-3 cursor-pointer"
-                                    onClick={() => window.open(post.image, "_blank")}
-                                    onError={(e) => {
-                                        e.target.style.display = "none";
-                                    }}
-                                />
+                                <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                                    <img
+                                        src={post.image}
+                                        alt="Post"
+                                        className="max-h-96 max-w-full object-contain cursor-pointer"
+                                        onClick={() => {
+                                            setPreviewImage(post.image);
+                                            setShowImagePreview(true);
+                                        }}
+                                        onError={(e) => {
+                                            e.target.style.display = "none";
+                                        }}
+                                    />
+                                </div>
                             )}
 
                             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleLike(post._id);
-                                    }}
+                                    onClick={(e) => handleLike(post._id, e)}
                                     disabled={isLiking[post._id]}
                                     className={`flex items-center gap-1 ${isLiking[post._id] ? "opacity-50 cursor-not-allowed" : ""} hover:text-red-500 transition-colors cursor-pointer`}
                                 >
@@ -538,7 +711,7 @@ const MainFeed = () => {
 
                                 <button
                                     className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
-                                    onClick={() => toggleCommentDropdown(post._id)}
+                                    onClick={(e) => toggleCommentDropdown(post._id, e)}
                                     disabled={loadingComments[post._id]}
                                 >
                                     <FaComment />
@@ -569,14 +742,12 @@ const MainFeed = () => {
                                                         <div key={comment._id} className="flex items-start space-x-2">
                                                             <div 
                                                                 className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    navigateToUserProfile(comment.userId?._id);
-                                                                }}
+                                                                onClick={(e) => navigateToUserProfile(comment.userId?._id, e)}
                                                             >
                                                                 {comment.userId?.profilePic ? (
                                                                     <img
-                                                                        src={comment.userId.profilePic}
+                                                                        src={comment.userId.profilePic
+                                                                        }
                                                                         alt={comment.userId.username}
                                                                         className="w-full h-full object-cover"
                                                                         onError={(e) => {
@@ -594,10 +765,7 @@ const MainFeed = () => {
                                                                 <div className="flex items-center space-x-2">
                                                                     <span 
                                                                         className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            navigateToUserProfile(comment.userId?._id);
-                                                                        }}
+                                                                        onClick={(e) => navigateToUserProfile(comment.userId?._id, e)}
                                                                     >
                                                                         {comment.userId?.username || "Unknown"}
                                                                     </span>
@@ -608,10 +776,10 @@ const MainFeed = () => {
                                                                 <p className="text-sm whitespace-pre-line mt-1">
                                                                     {comment.content}
                                                                 </p>
-                                                                <div className="mt-1 flex items-center">
+                                                                <div className="mt-1 flex items-center justify-between">
                                                                     <button
                                                                         className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                                                        onClick={() => handleLikeComment(comment._id, post._id)}
+                                                                        onClick={(e) => handleLikeComment(comment._id, post._id, e)}
                                                                         disabled={isLikingComment[comment._id]}
                                                                     >
                                                                         {isLikingComment[comment._id] ? (
@@ -625,6 +793,22 @@ const MainFeed = () => {
                                                                             {comment.likes?.length || 0}
                                                                         </span>
                                                                     </button>
+                                                                    
+                                                                    {/* Updated delete button condition for both comment owner AND post owner */}
+                                                                    {(comment.userId?.username === username || post.userId?.username === username) && (
+                                                                        <button
+                                                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                                                            onClick={(e) => handleDeleteComment(comment._id, post._id, e)}
+                                                                            disabled={isDeletingComment[comment._id]}
+                                                                            title="Delete comment"
+                                                                        >
+                                                                            {isDeletingComment[comment._id] ? (
+                                                                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                            ) : (
+                                                                                <FaTrashAlt />
+                                                                            )}
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -637,7 +821,13 @@ const MainFeed = () => {
                                             )}
 
                                             {/* Add Comment Input */}
-                                            <div className="flex items-center space-x-2">
+                                            <form 
+                                                onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    handleCommentSubmit(post._id, e);
+                                                }}
+                                                className="flex items-center space-x-2"
+                                            >
                                                 <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
                                                     {currentUserProfile?.profilePic || user?.profilePic ? (
                                                         <img
@@ -667,15 +857,10 @@ const MainFeed = () => {
                                                                 [post._id]: e.target.value
                                                             })
                                                         }
-                                                        onKeyPress={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                handleCommentSubmit(post._id);
-                                                            }
-                                                        }}
                                                     />
                                                     <button
+                                                        type="submit"
                                                         className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id] ? "bg-blue-300 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} text-white transition-colors`}
-                                                        onClick={() => handleCommentSubmit(post._id)}
                                                         disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
                                                     >
                                                         {isCommenting[post._id] ? (
@@ -685,7 +870,7 @@ const MainFeed = () => {
                                                         )}
                                                     </button>
                                                 </div>
-                                            </div>
+                                            </form>
                                         </>
                                     )}
                                 </div>

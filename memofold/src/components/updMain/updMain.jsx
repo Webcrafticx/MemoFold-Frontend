@@ -43,12 +43,14 @@ const MainDashboard = () => {
     const [editFiles, setEditFiles] = useState([]);
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
+    const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
     const navigate = useNavigate();
     
     // Create refs for dropdowns
     const dropdownRef = useRef(null);
     const commentDropdownRefs = useRef({});
     const quickReactionRef = useRef(null);
+    const imagePreviewRef = useRef(null);
 
     // Add useEffect to handle outside clicks for all dropdowns
     useEffect(() => {
@@ -272,6 +274,38 @@ const MainDashboard = () => {
     };
 
     const handleDeleteComment = async (commentId, postId) => {
+        // Find the post to check ownership
+        const post = posts.find(p => p._id === postId);
+        
+        if (!post) {
+            setError("Post not found");
+            return;
+        }
+        
+        // Find the comment
+        const comment = post.comments.find(c => c._id === commentId);
+        if (!comment) {
+            setError("Comment not found");
+            return;
+        }
+        
+        // Debug: log the ownership information
+        console.log("Comment owner:", comment.userId.username);
+        console.log("Post owner:", post.userId || post.username);
+        console.log("Current user:", username);
+        
+        // Check if current user is either the comment author OR the post owner
+        const isCommentOwner = comment.userId.username === username;
+        const isPostOwner = post.userId === username || post.username === username;
+        
+        console.log("Is comment owner:", isCommentOwner);
+        console.log("Is post owner:", isPostOwner);
+        
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
         if (!window.confirm("Are you sure you want to delete this comment?")) {
             return;
         }
@@ -283,11 +317,25 @@ const MainDashboard = () => {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
+                // Add the postId to the request body to help the backend verify ownership
+                body: JSON.stringify({ postId }),
             });
 
+            // Log the response for debugging
+            console.log("Delete comment response status:", response.status);
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to delete comment");
+                const errorText = await response.text();
+                console.error("Delete comment error response:", errorText);
+                
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch (e) {
+                    throw new Error(`Failed to delete comment: ${response.status} ${response.statusText}`);
+                }
+                
+                throw new Error(errorData.error || errorData.message || "Failed to delete comment");
             }
 
             // Show success notification
@@ -317,7 +365,7 @@ const MainDashboard = () => {
             console.error("Error deleting comment:", err);
             
             // Show error notification
-            toast.error("Failed to delete comment. Please try again.", {
+            toast.error(err.message || "Failed to delete comment. Please try again.", {
                 position: "top-right",
                 autoClose: 3000,
                 hideProgressBar: false,
@@ -877,6 +925,37 @@ const MainDashboard = () => {
         );
     };
 
+    // Function to handle image load and get dimensions
+    const handleImageLoad = (e) => {
+        const img = e.target;
+        setImageDimensions({
+            width: img.naturalWidth,
+            height: img.naturalHeight
+        });
+    };
+
+    // Calculate the appropriate size for the image preview
+    const getImagePreviewStyle = () => {
+        const maxWidth = window.innerWidth * 0.9;
+        const maxHeight = window.innerHeight * 0.9;
+        
+        if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
+            const widthRatio = maxWidth / imageDimensions.width;
+            const heightRatio = maxHeight / imageDimensions.height;
+            const ratio = Math.min(widthRatio, heightRatio);
+            
+            return {
+                width: imageDimensions.width * ratio,
+                height: imageDimensions.height * ratio
+            };
+        }
+        
+        return {
+            width: imageDimensions.width,
+            height: imageDimensions.height
+        };
+    };
+
     return (
         <div className={`min-h-screen ${
             darkMode ? "dark bg-gray-900 text-gray-100" : "bg-gradient-to-r from-gray-100 to-gray-200"
@@ -907,19 +986,31 @@ const MainDashboard = () => {
             )}
 
             {showImagePreview && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={() => setShowImagePreview(false)}>
-                    <div className="max-w-4xl max-h-full p-4">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowImagePreview(false)}
+                >
+                    <div 
+                        className="relative max-w-full max-h-full flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <img 
+                            ref={imagePreviewRef}
                             src={previewImage} 
                             alt="Preview" 
-                            className="max-w-full max-h-full object-contain"
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onLoad={handleImageLoad}
+                            style={getImagePreviewStyle()}
                         />
                         <button 
-                            className="absolute top-4 right-4 bg-red-500 text-white rounded-full p-2"
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
                             onClick={() => setShowImagePreview(false)}
                         >
                             <FaTimes />
                         </button>
+                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+                            {imageDimensions.width} × {imageDimensions.height}
+                        </div>
                     </div>
                 </div>
             )}
@@ -1371,7 +1462,7 @@ const MainDashboard = () => {
                         </>
                     )}
 
-                    <div className="flex justify-between items-center border-t border-b py-2 my-2 border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-center border-t  py-2 my-2 border-gray-200 dark:border-gray-700">
                         <button
                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
                             onClick={() => handleLikePost(post._id)}
@@ -1462,7 +1553,8 @@ const MainDashboard = () => {
                                                                     {comment.likes?.length || 0}
                                                                 </span>
                                                             </button>
-                                                            {comment.userId.username === username && (
+                                                            {/* Allow post owner OR comment owner to delete */}
+                                                            {(comment.userId.username === username || post.userId === username || post.username === username) && (
                                                                 <button
                                                                     className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
                                                                     onClick={() => handleDeleteComment(comment._id, post._id)}
