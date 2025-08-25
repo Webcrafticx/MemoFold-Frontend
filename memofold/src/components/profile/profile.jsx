@@ -51,11 +51,18 @@ const ProfilePage = () => {
   const [commentContent, setCommentContent] = useState({});
   const [isFetchingComments, setIsFetchingComments] = useState(false);
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
+
+  // Image preview states
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState("");
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
   // Refs
   const fileInputRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const profilePicInputRef = useRef(null);
+  const imagePreviewRef = useRef(null);
 
   // Navigation
   const navigate = useNavigate();
@@ -108,6 +115,37 @@ const ProfilePage = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  };
+
+  // Function to handle image load and get dimensions
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    setImageDimensions({
+      width: img.naturalWidth,
+      height: img.naturalHeight
+    });
+  };
+
+  // Calculate the appropriate size for the image preview
+  const getImagePreviewStyle = () => {
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.9;
+    
+    if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
+      const widthRatio = maxWidth / imageDimensions.width;
+      const heightRatio = maxHeight / imageDimensions.height;
+      const ratio = Math.min(widthRatio, heightRatio);
+      
+      return {
+        width: imageDimensions.width * ratio,
+        height: imageDimensions.height * ratio
+      };
+    }
+    
+    return {
+      width: imageDimensions.width,
+      height: imageDimensions.height
     };
   };
 
@@ -352,6 +390,84 @@ const ProfilePage = () => {
       console.error("Error adding comment:", err);
     } finally {
       setIsAddingComment(false);
+    }
+  };
+
+  // Handle deleting a comment
+  const handleDeleteComment = async (commentId, postId) => {
+    // Find the post to check ownership
+    const post = posts.find(p => p._id === postId);
+    
+    if (!post) {
+      setError("Post not found");
+      toast.error("Post not found");
+      return;
+    }
+    
+    // Find the comment
+    const comment = post.comments.find(c => c._id === commentId);
+    if (!comment) {
+      setError("Comment not found");
+      toast.error("Comment not found");
+      return;
+    }
+    
+    // Check if current user is either the comment author OR the post owner
+    const isCommentOwner = comment.userId?.username === username || 
+                           comment.userId?._id === currentUserProfile?._id;
+    const isPostOwner = post.userId?.username === username || 
+                        post.username === username ||
+                        post.userId?._id === currentUserProfile?._id;
+    
+    if (!isCommentOwner && !isPostOwner) {
+      setError("You don't have permission to delete this comment");
+      toast.error("You don't have permission to delete this comment");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this comment?")) {
+      return;
+    }
+
+    setIsDeletingComment(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${config.apiUrl}/posts/comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        // Add postId to the request body for backend verification
+        body: JSON.stringify({ postId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to delete comment");
+      }
+
+      // Update the UI by removing the deleted comment
+      setPosts(posts.map(post => {
+        if (post._id === postId) {
+          const updatedComments = post.comments.filter(comment => comment._id !== commentId);
+          return {
+            ...post,
+            comments: updatedComments,
+            commentCount: updatedComments.length
+          };
+        }
+        return post;
+      }));
+
+      setError(null);
+      toast.success("Comment deleted successfully!");
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+      console.error("Error deleting comment:", err);
+    } finally {
+      setIsDeletingComment(false);
     }
   };
 
@@ -655,6 +771,37 @@ const ProfilePage = () => {
         theme={darkMode ? "dark" : "light"}
       />
       
+      {/* Image Preview Modal */}
+      {showImagePreview && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <div 
+            className="relative max-w-full max-h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              ref={imagePreviewRef}
+              src={previewImage} 
+              alt="Preview" 
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onLoad={handleImageLoad}
+              style={getImagePreviewStyle()}
+            />
+            <button 
+              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+              onClick={() => setShowImagePreview(false)}
+            >
+              <FaTimes />
+            </button>
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+              {imageDimensions.width} × {imageDimensions.height}
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Navigation Bar */}
       <nav className={`${
         darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
@@ -862,7 +1009,7 @@ const ProfilePage = () => {
                           setNewBio(bio);
                         }}
                         className="px-3 py-1 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                      >
+                        >
                         Cancel
                       </button>
                     </div>
@@ -934,7 +1081,11 @@ const ProfilePage = () => {
               <img
                 src={filePreview}
                 alt="Preview"
-                className="w-full h-48 object-cover rounded-lg"
+                className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                onClick={() => {
+                  setPreviewImage(filePreview);
+                  setShowImagePreview(true);
+                }}
               />
               <button
                 onClick={removeFile}
@@ -1061,6 +1212,10 @@ const ProfilePage = () => {
                       src={post.image}
                       alt="Post"
                       className="w-full rounded-lg sm:rounded-xl mb-3 sm:mb-4 cursor-pointer max-h-80 object-cover"
+                      onClick={() => {
+                        setPreviewImage(post.image);
+                        setShowImagePreview(true);
+                      }}
                       onError={(e) => {
                         e.target.style.display = "none";
                       }}
@@ -1149,6 +1304,27 @@ const ProfilePage = () => {
                                     <p className="text-sm whitespace-pre-line mt-1">
                                       {comment.content}
                                     </p>
+                                    {/* Delete button for user's own comments OR post owner */}
+                                    {(comment.userId?._id === currentUserProfile?._id || 
+                                      comment.userId?.username === username ||
+                                      post.userId?._id === currentUserProfile?._id ||
+                                      post.username === username) && (
+                                      <div className="mt-1 flex justify-end">
+                                        <button
+                                          onClick={() => handleDeleteComment(comment._id, post._id)}
+                                          disabled={isDeletingComment}
+                                          className="text-red-500 hover:text-red-700 text-xs flex items-center"
+                                          title="Delete comment"
+                                        >
+                                          {isDeletingComment ? (
+                                            <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
+                                          ) : (
+                                            <FaTrashAlt className="mr-1" />
+                                          )}
+                                          Delete
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               ))}

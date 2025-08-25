@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { FaArrowLeft, FaUser, FaCalendar, FaMapMarker, FaLink, FaHeart, FaRegHeart, FaCommentDots } from "react-icons/fa";
+import { FaArrowLeft, FaUser, FaCalendar, FaMapMarker, FaLink, FaHeart, FaRegHeart, FaCommentDots, FaTimes } from "react-icons/fa";
 import config from "../hooks/config";
 
 const UserProfile = () => {
@@ -19,6 +19,12 @@ const UserProfile = () => {
   const [isCommenting, setIsCommenting] = useState({});
   const [commentContent, setCommentContent] = useState({});
   const [loadingComments, setLoadingComments] = useState({});
+  
+  // Image preview states
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewImage, setPreviewImage] = useState("");
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const imagePreviewRef = useRef(null);
 
   useEffect(() => {
     if (token) {
@@ -292,6 +298,37 @@ const UserProfile = () => {
     }
   };
 
+  // Function to handle image load and get dimensions
+  const handleImageLoad = (e) => {
+    const img = e.target;
+    setImageDimensions({
+      width: img.naturalWidth,
+      height: img.naturalHeight
+    });
+  };
+
+  // Calculate the appropriate size for the image preview
+  const getImagePreviewStyle = () => {
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.9;
+    
+    if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
+      const widthRatio = maxWidth / imageDimensions.width;
+      const heightRatio = maxHeight / imageDimensions.height;
+      const ratio = Math.min(widthRatio, heightRatio);
+      
+      return {
+        width: imageDimensions.width * ratio,
+        height: imageDimensions.height * ratio
+      };
+    }
+    
+    return {
+      width: imageDimensions.width,
+      height: imageDimensions.height
+    };
+  };
+
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString);
@@ -354,6 +391,37 @@ const UserProfile = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Image Preview Modal */}
+      {showImagePreview && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <div 
+            className="relative max-w-full max-h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              ref={imagePreviewRef}
+              src={previewImage} 
+              alt="Preview" 
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onLoad={handleImageLoad}
+              style={getImagePreviewStyle()}
+            />
+            <button 
+              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+              onClick={() => setShowImagePreview(false)}
+            >
+              <FaTimes />
+            </button>
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+              {imageDimensions.width} × {imageDimensions.height}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white shadow-sm px-6 py-4 flex items-center">
         <button
@@ -481,16 +549,22 @@ const UserProfile = () => {
                   {post.content}
                 </p>
 
+                {/* Fixed Image Container */}
                 {post.image && (
-                  <img
-                    src={post.image}
-                    alt="Post"
-                    className="w-full rounded-xl mb-3 cursor-pointer"
-                    onClick={() => window.open(post.image, "_blank")}
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
+                  <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                    <img
+                      src={post.image}
+                      alt="Post"
+                      className="max-h-96 max-w-full object-contain cursor-pointer"
+                      onClick={() => {
+                        setPreviewImage(post.image);
+                        setShowImagePreview(true);
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                      }}
+                    />
+                  </div>
                 )}
 
                 <div className="flex items-center justify-between border-t border-gray-200 pt-3">
