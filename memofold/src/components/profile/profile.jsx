@@ -22,9 +22,8 @@ import config from "../../hooks/config";
 import { useNavigate } from "react-router-dom";
 
 const ProfilePage = () => {
-  // State management
   const [profilePic, setProfilePic] = useState(
-    localStorage.getItem("profilePic") || 
+    localStorage.getItem("profilePic") ||
     "https://ui-avatars.com/api/?name=User&background=random"
   );
   const [username, setUsername] = useState("");
@@ -45,39 +44,32 @@ const ProfilePage = () => {
   const [error, setError] = useState(null);
   const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
-  
-  // Comment-related states
+
   const [activeCommentPostId, setActiveCommentPostId] = useState(null);
   const [commentContent, setCommentContent] = useState({});
   const [isFetchingComments, setIsFetchingComments] = useState(false);
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
 
-  // Image preview states
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState("");
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
-  // Refs
   const fileInputRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const profilePicInputRef = useRef(null);
   const imagePreviewRef = useRef(null);
 
-  // Navigation
   const navigate = useNavigate();
 
-  // Initialize component
   useEffect(() => {
     initializeApp();
   }, []);
 
   const initializeApp = () => {
-    // Theme setup
     const savedTheme = localStorage.getItem("darkMode");
     if (savedTheme) setDarkMode(savedTheme === "true");
-    
-    // User data
+
     const token = localStorage.getItem("token");
     const storedUsername = localStorage.getItem("username");
     const storedRealname = localStorage.getItem("realname");
@@ -85,7 +77,6 @@ const ProfilePage = () => {
     setUsername(storedUsername || "");
     setRealName(storedRealname || "");
 
-    // Fetch data
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -94,8 +85,7 @@ const ProfilePage = () => {
           fetchUserPosts(token, storedUsername),
           fetchCurrentUserData(token)
         ]);
-        
-        // Fetch bio
+
         const bioText = await fetchBio(token);
         setBio(bioText === null ? "" : bioText);
         setNewBio(bioText === null ? "" : bioText);
@@ -111,14 +101,12 @@ const ProfilePage = () => {
     fetchData();
     setSelectedDate(new Date().toISOString().split("T")[0]);
 
-    // Event listeners
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   };
 
-  // Function to handle image load and get dimensions
   const handleImageLoad = (e) => {
     const img = e.target;
     setImageDimensions({
@@ -127,29 +115,27 @@ const ProfilePage = () => {
     });
   };
 
-  // Calculate the appropriate size for the image preview
   const getImagePreviewStyle = () => {
     const maxWidth = window.innerWidth * 0.9;
     const maxHeight = window.innerHeight * 0.9;
-    
+
     if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
       const widthRatio = maxWidth / imageDimensions.width;
       const heightRatio = maxHeight / imageDimensions.height;
       const ratio = Math.min(widthRatio, heightRatio);
-      
+
       return {
         width: imageDimensions.width * ratio,
         height: imageDimensions.height * ratio
       };
     }
-    
+
     return {
       width: imageDimensions.width,
       height: imageDimensions.height
     };
   };
 
-  // Fetch current user data
   const fetchCurrentUserData = async (token) => {
     try {
       const response = await fetch(`${config.apiUrl}/user/me`, {
@@ -165,7 +151,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Navigate to user profile
   const navigateToUserProfile = (userId) => {
     if (userId) {
       if (currentUserProfile && userId === currentUserProfile._id) {
@@ -176,7 +161,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Fetch bio from API
   const fetchBio = async (token) => {
     try {
       const response = await fetch(`${config.apiUrl}/profile/description`, {
@@ -205,7 +189,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Update bio on server
   const updateBio = async (description) => {
     try {
       const token = localStorage.getItem("token");
@@ -239,7 +222,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Handle bio update
   const handleBioUpdate = async () => {
     if (!newBio.trim()) {
       setError("Bio cannot be empty");
@@ -265,7 +247,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Fetch user data
   const fetchUserData = async (token) => {
     try {
       const response = await fetch(`${config.apiUrl}/user/me`, {
@@ -292,7 +273,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Fetch user posts
   const fetchUserPosts = async (token, username) => {
     try {
       const response = await fetch(`${config.apiUrl}/posts/user/${username}`, {
@@ -301,7 +281,7 @@ const ProfilePage = () => {
 
       if (response.ok) {
         const postsData = await response.json();
-        const postsWithComments = postsData.reverse().map((post) => ({
+        const postsWithComments = postsData.map((post) => ({
           ...post,
           isLiked: post.likedByUser || false,
           likes: post.likesCount || 0,
@@ -320,7 +300,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Fetch comments for a post
   const fetchComments = async (postId) => {
     setIsFetchingComments(true);
     try {
@@ -338,8 +317,8 @@ const ProfilePage = () => {
 
       const responseData = await response.json();
       const comments = responseData.comments || [];
-      
-      setPosts(posts.map(post => 
+
+      setPosts(posts.map(post =>
         post._id === postId ? { ...post, comments, commentCount: comments.length } : post
       ));
     } catch (err) {
@@ -380,7 +359,7 @@ const ProfilePage = () => {
       }
 
       await fetchComments(postId);
-      
+
       setCommentContent(prev => ({ ...prev, [postId]: "" }));
       setError(null);
       toast.success("Comment added successfully!");
@@ -395,30 +374,27 @@ const ProfilePage = () => {
 
   // Handle deleting a comment
   const handleDeleteComment = async (commentId, postId) => {
-    // Find the post to check ownership
     const post = posts.find(p => p._id === postId);
-    
+
     if (!post) {
       setError("Post not found");
       toast.error("Post not found");
       return;
     }
-    
-    // Find the comment
+
     const comment = post.comments.find(c => c._id === commentId);
     if (!comment) {
       setError("Comment not found");
       toast.error("Comment not found");
       return;
     }
-    
-    // Check if current user is either the comment author OR the post owner
-    const isCommentOwner = comment.userId?.username === username || 
-                           comment.userId?._id === currentUserProfile?._id;
-    const isPostOwner = post.userId?.username === username || 
-                        post.username === username ||
-                        post.userId?._id === currentUserProfile?._id;
-    
+
+    const isCommentOwner = comment.userId?.username === username ||
+      comment.userId?._id === currentUserProfile?._id;
+    const isPostOwner = post.userId?.username === username ||
+      post.username === username ||
+      post.userId?._id === currentUserProfile?._id;
+
     if (!isCommentOwner && !isPostOwner) {
       setError("You don't have permission to delete this comment");
       toast.error("You don't have permission to delete this comment");
@@ -438,7 +414,6 @@ const ProfilePage = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // Add postId to the request body for backend verification
         body: JSON.stringify({ postId }),
       });
 
@@ -447,7 +422,6 @@ const ProfilePage = () => {
         throw new Error(errorData.message || "Failed to delete comment");
       }
 
-      // Update the UI by removing the deleted comment
       setPosts(posts.map(post => {
         if (post._id === postId) {
           const updatedComments = post.comments.filter(comment => comment._id !== commentId);
@@ -471,18 +445,16 @@ const ProfilePage = () => {
     }
   };
 
-  // Toggle comment section for a post
   const toggleCommentDropdown = async (postId) => {
     if (activeCommentPostId === postId) {
       setActiveCommentPostId(null);
       return;
     }
-    
+
     setActiveCommentPostId(postId);
     await fetchComments(postId);
   };
 
-  // Handle profile picture upload
   const handleProfilePicUpload = async (file) => {
     if (!file) return;
 
@@ -502,7 +474,7 @@ const ProfilePage = () => {
     try {
       setUploadingProfilePic(true);
       setError(null);
-      
+
       const token = localStorage.getItem("token");
       const formData = new FormData();
       formData.append("profilePic", file);
@@ -533,7 +505,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Handle file changes for posts
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -559,14 +530,12 @@ const ProfilePage = () => {
     reader.readAsDataURL(file);
   };
 
-  // Remove attached file
   const removeFile = () => {
     setSelectedFile(null);
     setFilePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Handle post creation
   const handleCreatePost = async () => {
     if (!postContent.trim() && !selectedFile) {
       setError("Post content or image cannot be empty");
@@ -574,11 +543,10 @@ const ProfilePage = () => {
       return;
     }
 
-    // Validate date is not in the future
     const selectedDateObj = new Date(selectedDate);
     const today = new Date();
-    today.setHours(23, 59, 59, 999); // End of today for comparison
-    
+    today.setHours(23, 59, 59, 999); 
+
     if (selectedDateObj > today) {
       setError("Cannot create posts with future dates");
       toast.error("Cannot create posts with future dates");
@@ -587,12 +555,11 @@ const ProfilePage = () => {
 
     try {
       const token = localStorage.getItem("token");
-      
-      // Format the date properly for the API - use the selected date
-      const formattedDate = selectedDate 
-        ? new Date(selectedDate + 'T12:00:00').toISOString() 
+
+      const formattedDate = selectedDate
+        ? new Date(selectedDate + 'T12:00:00').toISOString()
         : new Date().toISOString();
-      
+
       const response = await fetch(`${config.apiUrl}/posts`, {
         method: "POST",
         headers: {
@@ -612,8 +579,7 @@ const ProfilePage = () => {
       }
 
       const result = await response.json();
-      
-      // Create a new post object with the selected date, not current date
+
       const newPost = {
         _id: result._id || Date.now().toString(),
         content: postContent,
@@ -638,14 +604,11 @@ const ProfilePage = () => {
       setPostContent("");
       removeFile();
       setError(null);
-      
-      // Reset the date to today after posting
+
       setSelectedDate(new Date().toISOString().split("T")[0]);
-      
-      // Show success message
+
       toast.success("Post created successfully!");
-      
-      // Refetch posts to ensure we have the latest data from server
+
       fetchUserPosts(token, username);
     } catch (error) {
       console.error("Post error:", error);
@@ -675,14 +638,14 @@ const ProfilePage = () => {
           if (post._id === postId) {
             const currentLikes = parseInt(post.likes) || 0;
             const newLikedState = !post.isLiked;
-            
+
             // Show toast notification
             if (newLikedState) {
               toast.success("Post liked!");
             } else {
               toast.info("Post unliked");
             }
-            
+
             return {
               ...post,
               isLiked: newLikedState,
@@ -701,14 +664,12 @@ const ProfilePage = () => {
     }
   };
 
-  // Handle logout
   const handleLogout = () => {
     localStorage.clear();
     navigate("/login");
     toast.info("Logged out successfully");
   };
 
-  // Navigation functions
   const navigateToMain = () => {
     navigate("/dashboard");
   };
@@ -721,21 +682,20 @@ const ProfilePage = () => {
     setShowMobileMenu(!showMobileMenu);
   };
 
-  // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "Just now";
-    
+
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return "Invalid Date";
-      
+
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
+
       if (diffInSeconds < 60) {
         return "Just now";
       }
-      
+
       return date.toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
@@ -754,9 +714,8 @@ const ProfilePage = () => {
   }, [darkMode]);
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${
-      darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
-    }`}>
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
+      }`}>
       {/* Toast Container */}
       <ToastContainer
         position="top-right"
@@ -770,49 +729,48 @@ const ProfilePage = () => {
         pauseOnHover
         theme={darkMode ? "dark" : "light"}
       />
-      
+
       {/* Image Preview Modal */}
+
       {showImagePreview && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+        <div
+          className="fixed inset-0 bg-transparent backdrop-blur bg-opacity-10 flex items-center justify-center z-[9999] p-4"
           onClick={() => setShowImagePreview(false)}
         >
-          <div 
+          <div
             className="relative max-w-full max-h-full flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <img 
+            <img
               ref={imagePreviewRef}
-              src={previewImage} 
-              alt="Preview" 
+              src={previewImage}
+              alt="Preview"
               className="max-w-full max-h-full object-contain rounded-lg"
               onLoad={handleImageLoad}
               style={getImagePreviewStyle()}
             />
-            <button 
-              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+            <button
+              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors cursor-pointer z-[10000]"
               onClick={() => setShowImagePreview(false)}
             >
-              <FaTimes />
+              <FaTimes className="text-lg" />
             </button>
-            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
               {imageDimensions.width} × {imageDimensions.height}
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Navigation Bar */}
-      <nav className={`${
-        darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-      } border-b shadow-md px-4 sm:px-6 py-3 sticky top-0 z-50`}>
+      <nav className={`${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+        } border-b shadow-md px-4 sm:px-6 py-3 sticky top-0 z-50`}>
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={goBack}
-              className={`p-2 rounded-full ${
-                darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
-              } transition-colors cursor-pointer`}
+              className={`p-2 rounded-full ${darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
+                } transition-colors cursor-pointer`}
               title="Go back"
             >
               <FaArrowLeft className="text-gray-600 dark:text-gray-300 text-sm sm:text-base" />
@@ -837,11 +795,10 @@ const ProfilePage = () => {
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-full ${
-                darkMode
-                  ? "bg-gray-700 text-yellow-300 hover:bg-gray-600"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              } transition-colors cursor-pointer`}
+              className={`p-2 rounded-full ${darkMode
+                ? "bg-gray-700 text-yellow-300 hover:bg-gray-600"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                } transition-colors cursor-pointer`}
               title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {darkMode ? <FaSun /> : <FaMoon />}
@@ -872,11 +829,9 @@ const ProfilePage = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           ref={mobileMenuRef}
-          className={`md:hidden fixed top-16 right-4 z-50 w-48 ${
-            darkMode ? "bg-gray-800" : "bg-white"
-          } rounded-lg shadow-xl border ${
-            darkMode ? "border-gray-700" : "border-gray-200"
-          }`}
+          className={`md:hidden fixed top-16 right-4 z-50 w-48 ${darkMode ? "bg-gray-800" : "bg-white"
+            } rounded-lg shadow-xl border ${darkMode ? "border-gray-700" : "border-gray-200"
+            }`}
         >
           <div className="flex flex-col p-4 gap-3">
             <button
@@ -889,9 +844,8 @@ const ProfilePage = () => {
 
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`flex items-center gap-2 p-2 rounded-lg ${
-                darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"
-              } justify-center`}
+              className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"
+                } justify-center`}
             >
               {darkMode ? <FaSun /> : <FaMoon />}
               <span>{darkMode ? "Light Mode" : "Dark Mode"}</span>
@@ -926,13 +880,11 @@ const ProfilePage = () => {
       )}
 
       {/* Main Content */}
-      <div className={`pt-4 sm:pt-6 pb-12 ${
-        darkMode ? "bg-gray-900" : "bg-gradient-to-r from-gray-100 to-gray-300"
-      }`}>
+      <div className={`pt-4 sm:pt-6 pb-12 ${darkMode ? "bg-gray-900" : "bg-gradient-to-r from-gray-100 to-gray-300"
+        }`}>
         {/* Profile Section */}
-        <div className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
-          darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-        } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}>
+        <div className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}>
           <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 mb-4 sm:mb-6">
             <div className="relative group self-center sm:self-auto">
               <input
@@ -951,9 +903,8 @@ const ProfilePage = () => {
                   <img
                     src={profilePic}
                     alt="Profile"
-                    className={`w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-blue-400 hover:scale-105 transition-transform ${
-                      uploadingProfilePic ? "opacity-50" : ""
-                    }`}
+                    className={`w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-blue-400 hover:scale-105 transition-transform ${uploadingProfilePic ? "opacity-50" : ""
+                      }`}
                     onError={(e) => {
                       e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`;
                     }}
@@ -986,9 +937,8 @@ const ProfilePage = () => {
                     <textarea
                       value={newBio}
                       onChange={(e) => setNewBio(e.target.value)}
-                      className={`w-full p-2 rounded-lg ${
-                        darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      className={`w-full p-2 rounded-lg ${darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                       rows="2"
                       maxLength="200"
                       placeholder="Tell us about yourself..."
@@ -997,9 +947,8 @@ const ProfilePage = () => {
                       <button
                         onClick={handleBioUpdate}
                         disabled={updatingBio}
-                        className={`px-3 py-1 rounded-lg font-medium ${
-                          updatingBio ? "bg-blue-400" : "bg-blue-500 hover:bg-blue-600"
-                        } text-white transition-colors`}
+                        className={`px-3 py-1 rounded-lg font-medium ${updatingBio ? "bg-blue-400" : "bg-blue-500 hover:bg-blue-600"
+                          } text-white transition-colors`}
                       >
                         {updatingBio ? "Saving..." : "Save"}
                       </button>
@@ -1009,7 +958,7 @@ const ProfilePage = () => {
                           setNewBio(bio);
                         }}
                         className="px-3 py-1 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                        >
+                      >
                         Cancel
                       </button>
                     </div>
@@ -1031,9 +980,8 @@ const ProfilePage = () => {
               </div>
 
               <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
-                <div className={`flex items-center gap-1 sm:gap-2 ${
-                  darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
-                } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
+                <div className={`flex items-center gap-1 sm:gap-2 ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-100 hover:bg-gray-200"
+                  } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}>
                   <span className="text-blue-500">📊</span>
                   <span>{posts.length} Posts</span>
                 </div>
@@ -1043,9 +991,8 @@ const ProfilePage = () => {
         </div>
 
         {/* Create Post Section */}
-        <div className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
-          darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-        } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}>
+        <div className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}>
           <div className="flex items-center gap-3 mb-3 sm:mb-4">
             <img
               src={profilePic}
@@ -1056,7 +1003,7 @@ const ProfilePage = () => {
               }}
               onClick={() => navigateToUserProfile(currentUserProfile?._id)}
             />
-            <span 
+            <span
               className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
               onClick={() => navigateToUserProfile(currentUserProfile?._id)}
             >
@@ -1068,11 +1015,10 @@ const ProfilePage = () => {
             value={postContent}
             onChange={(e) => setPostContent(e.target.value)}
             placeholder="What's on your mind?"
-            className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
-              darkMode
-                ? "bg-gray-700 text-white placeholder-gray-400"
-                : "bg-gray-100 placeholder-gray-500"
-            } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
+            className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${darkMode
+              ? "bg-gray-700 text-white placeholder-gray-400"
+              : "bg-gray-100 placeholder-gray-500"
+              } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
             rows="3"
           ></textarea>
 
@@ -1103,11 +1049,10 @@ const ProfilePage = () => {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className={`${
-                    darkMode
-                      ? "bg-gray-700 text-white border-gray-600"
-                      : "bg-gray-100 border-gray-300"
-                  } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
+                  className={`${darkMode
+                    ? "bg-gray-700 text-white border-gray-600"
+                    : "bg-gray-100 border-gray-300"
+                    } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
                 />
                 {selectedDate && selectedDate !== new Date().toISOString().split('T')[0] && (
                   <span className="text-xs text-blue-500">
@@ -1136,11 +1081,10 @@ const ProfilePage = () => {
               <button
                 onClick={handleCreatePost}
                 disabled={!postContent.trim() && !filePreview}
-                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
-                  (postContent.trim() || filePreview)
-                    ? "bg-blue-500 hover:bg-blue-600 text-white"
-                    : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-                } transition-colors cursor-pointer text-sm sm:text-base`}
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${(postContent.trim() || filePreview)
+                  ? "bg-blue-500 hover:bg-blue-600 text-white"
+                  : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                  } transition-colors cursor-pointer text-sm sm:text-base`}
               >
                 Post
               </button>
@@ -1155,9 +1099,8 @@ const ProfilePage = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
             </div>
           ) : posts.length === 0 ? (
-            <div className={`text-center py-8 ${
-              darkMode ? "text-gray-400" : "text-gray-500"
-            }`}>
+            <div className={`text-center py-8 ${darkMode ? "text-gray-400" : "text-gray-500"
+              }`}>
               <p>You haven't posted anything yet.</p>
               <button
                 onClick={navigateToMain}
@@ -1171,11 +1114,10 @@ const ProfilePage = () => {
               {posts.map((post) => (
                 <div
                   key={post._id}
-                  className={`${
-                    darkMode
-                      ? "bg-gray-800 border-gray-700"
-                      : "bg-white border-gray-200"
-                  } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
+                  className={`${darkMode
+                    ? "bg-gray-800 border-gray-700"
+                    : "bg-white border-gray-200"
+                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
                 >
                   {/* Post Header */}
                   <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -1188,7 +1130,7 @@ const ProfilePage = () => {
                       }}
                       onClick={() => navigateToUserProfile(post.userId?._id)}
                     />
-                    <span 
+                    <span
                       className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
                       onClick={() => navigateToUserProfile(post.userId?._id)}
                     >
@@ -1200,39 +1142,38 @@ const ProfilePage = () => {
                   </div>
 
                   {/* Post Content */}
-                  <p className={`mb-3 sm:mb-4 ${
-                    darkMode ? "text-gray-300" : "text-gray-700"
-                  } text-sm sm:text-base`}>
+                  <p className={`mb-3 sm:mb-4 ${darkMode ? "text-gray-300" : "text-gray-700"
+                    } text-sm sm:text-base`}>
                     {post.content}
                   </p>
 
                   {/* Post Image */}
                   {post.image && (
-                    <img
-                      src={post.image}
-                      alt="Post"
-                      className="w-full rounded-lg sm:rounded-xl mb-3 sm:mb-4 cursor-pointer max-h-80 object-cover"
-                      onClick={() => {
-                        setPreviewImage(post.image);
-                        setShowImagePreview(true);
-                      }}
-                      onError={(e) => {
-                        e.target.style.display = "none";
-                      }}
-                    />
+                    <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                      <img
+                        src={post.image}
+                        alt="Post"
+                        className="max-h-96 max-w-full object-contain cursor-pointer"
+                        onClick={() => {
+                          setPreviewImage(post.image);
+                          setShowImagePreview(true);
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    </div>
                   )}
-
                   {/* Post Actions */}
                   <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={() => toggleLike(post._id)}
-                      className={`flex items-center gap-1 ${
-                        post.isLiked
-                          ? "text-red-500 hover:text-red-600"
-                          : darkMode
+                      className={`flex items-center gap-1 ${post.isLiked
+                        ? "text-red-500 hover:text-red-600"
+                        : darkMode
                           ? "text-gray-400 hover:text-gray-300"
                           : "text-gray-500 hover:text-gray-700"
-                      } transition-colors cursor-pointer text-xs sm:text-sm`}
+                        } transition-colors cursor-pointer text-xs sm:text-sm`}
                     >
                       {post.isLiked ? (
                         <FaHeart className="text-red-500" />
@@ -1245,11 +1186,10 @@ const ProfilePage = () => {
                     <button
                       onClick={() => toggleCommentDropdown(post._id)}
                       disabled={isFetchingComments}
-                      className={`flex items-center gap-1 ${
-                        darkMode
-                          ? "text-gray-400 hover:text-gray-300"
-                          : "text-gray-500 hover:text-gray-700"
-                      } transition-colors cursor-pointer text-xs sm:text-sm`}
+                      className={`flex items-center gap-1 ${darkMode
+                        ? "text-gray-400 hover:text-gray-300"
+                        : "text-gray-500 hover:text-gray-700"
+                        } transition-colors cursor-pointer text-xs sm:text-sm`}
                     >
                       <FaComment />
                       <span>{post.commentCount || post.comments?.length || 0}</span>
@@ -1267,9 +1207,8 @@ const ProfilePage = () => {
                       ) : (
                         <>
                           {post.comments && post.comments.length > 0 ? (
-                            <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                              darkMode ? "bg-gray-700" : "bg-gray-100"
-                            }`}>
+                            <div className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"
+                              }`}>
                               {post.comments.map((comment) => (
                                 <div key={comment._id} className="flex items-start space-x-2">
                                   <img
@@ -1286,7 +1225,7 @@ const ProfilePage = () => {
                                   />
                                   <div className="flex-1">
                                     <div className="flex items-center space-x-2">
-                                      <span 
+                                      <span
                                         className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1295,9 +1234,8 @@ const ProfilePage = () => {
                                       >
                                         {comment.userId?.realname || comment.userId?.username || 'Unknown User'}
                                       </span>
-                                      <span className={`text-xs ${
-                                        darkMode ? "text-gray-400" : "text-gray-500"
-                                      }`}>
+                                      <span className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"
+                                        }`}>
                                         {formatDate(comment.createdAt)}
                                       </span>
                                     </div>
@@ -1305,26 +1243,26 @@ const ProfilePage = () => {
                                       {comment.content}
                                     </p>
                                     {/* Delete button for user's own comments OR post owner */}
-                                    {(comment.userId?._id === currentUserProfile?._id || 
+                                    {(comment.userId?._id === currentUserProfile?._id ||
                                       comment.userId?.username === username ||
                                       post.userId?._id === currentUserProfile?._id ||
                                       post.username === username) && (
-                                      <div className="mt-1 flex justify-end">
-                                        <button
-                                          onClick={() => handleDeleteComment(comment._id, post._id)}
-                                          disabled={isDeletingComment}
-                                          className="text-red-500 hover:text-red-700 text-xs flex items-center"
-                                          title="Delete comment"
-                                        >
-                                          {isDeletingComment ? (
-                                            <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
-                                          ) : (
-                                            <FaTrashAlt className="mr-1" />
-                                          )}
-                                          Delete
-                                        </button>
-                                      </div>
-                                    )}
+                                        <div className="mt-1 flex justify-end">
+                                          <button
+                                            onClick={() => handleDeleteComment(comment._id, post._id)}
+                                            disabled={isDeletingComment}
+                                            className="text-red-500 hover:text-red-700 text-xs flex items-center"
+                                            title="Delete comment"
+                                          >
+                                            {isDeletingComment ? (
+                                              <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
+                                            ) : (
+                                              <FaTrashAlt className="mr-1" />
+                                            )}
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
                                   </div>
                                 </div>
                               ))}
@@ -1346,12 +1284,11 @@ const ProfilePage = () => {
                             <div className="flex-1 flex space-x-2">
                               <input
                                 type="text"
-                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                  darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
-                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${darkMode ? "bg-gray-700 border-gray-600" : "bg-white border-gray-300"
+                                  } focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                 placeholder="Write a comment..."
                                 value={commentContent[post._id] || ""}
-                                onChange={(e) => 
+                                onChange={(e) =>
                                   setCommentContent({
                                     ...commentContent,
                                     [post._id]: e.target.value
@@ -1364,11 +1301,10 @@ const ProfilePage = () => {
                                 }}
                               />
                               <button
-                                className={`px-3 py-1 rounded-full text-sm ${
-                                  !commentContent[post._id]?.trim() || isAddingComment
-                                    ? "bg-blue-300 cursor-not-allowed"
-                                    : "bg-blue-500 hover:bg-blue-600"
-                                } text-white transition-colors`}
+                                className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isAddingComment
+                                  ? "bg-blue-300 cursor-not-allowed"
+                                  : "bg-blue-500 hover:bg-blue-600"
+                                  } text-white transition-colors`}
                                 onClick={() => handleAddComment(post._id)}
                                 disabled={!commentContent[post._id]?.trim() || isAddingComment}
                               >
