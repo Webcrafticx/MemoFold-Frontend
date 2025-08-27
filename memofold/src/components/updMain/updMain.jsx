@@ -733,7 +733,7 @@ const MainDashboard = () => {
                             updatedLikes = [
                                 ...post.likes,
                                 user._id, // Store user ID
-                                username, // Store username for backward compatibility
+                                // username, // Store username for backward compatibility
                             ];
                         }
 
