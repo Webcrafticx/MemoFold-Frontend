@@ -6,6 +6,10 @@ export const useAuth = () => {
     const [token, setToken] = useState(localStorage.getItem("token"));
     const [username, setUsername] = useState(localStorage.getItem("username"));
     const [realname, setRealname] = useState(localStorage.getItem("realname"));
+    const [userId, setUserId] = useState(localStorage.getItem("userId"));
+    const [profilePic, setProfilePic] = useState(
+        localStorage.getItem("profilePic")
+    );
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
@@ -37,15 +41,23 @@ export const useAuth = () => {
                 token: data.token,
                 username: data.username || username.trim(),
                 realname: data.realname || (isDemoUser ? "Demo User" : "User"),
+                userId: data.userId || data._id,
+                profilePic: data.profilePic || null,
             };
 
             localStorage.setItem("token", userData.token);
             localStorage.setItem("username", userData.username);
             localStorage.setItem("realname", userData.realname);
+            localStorage.setItem("userId", userData.userId);
+            if (userData.profilePic) {
+                localStorage.setItem("profilePic", userData.profilePic);
+            }
 
             setToken(userData.token);
             setUsername(userData.username);
             setRealname(userData.realname);
+            setUserId(userData.userId);
+            setProfilePic(userData.profilePic);
 
             navigate("/dashboard");
             return { success: true };
@@ -97,6 +109,8 @@ export const useAuth = () => {
         setToken(null);
         setUsername(null);
         setRealname(null);
+        setUserId(null);
+        setProfilePic(null);
         navigate("/login");
     };
 
@@ -158,10 +172,32 @@ export const useAuth = () => {
         }
     };
 
+    // Add a method to update user profile data
+    const updateUserProfile = (userData) => {
+        if (userData._id) {
+            localStorage.setItem("userId", userData._id);
+            setUserId(userData._id);
+        }
+        if (userData.profilePic) {
+            localStorage.setItem("profilePic", userData.profilePic);
+            setProfilePic(userData.profilePic);
+        }
+        if (userData.realname) {
+            localStorage.setItem("realname", userData.realname);
+            setRealname(userData.realname);
+        }
+        if (userData.username) {
+            localStorage.setItem("username", userData.username);
+            setUsername(userData.username);
+        }
+    };
+
     return {
         token,
         username,
         realname,
+        userId,
+        profilePic,
         loading,
         error,
         login,
@@ -169,5 +205,13 @@ export const useAuth = () => {
         logout,
         requestPasswordReset,
         resetPassword,
+        updateUserProfile,
+        user: {
+            // Return a user object for convenience
+            _id: userId,
+            username,
+            realname,
+            profilePic,
+        },
     };
 };

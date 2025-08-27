@@ -172,21 +172,34 @@ const MainDashboard = () => {
                 // Get stored likes from localStorage
                 const storedLikes = getStoredLikes();
 
-                const postsWithComments = data.map((post) => ({
-                    ...post,
-                    comments: post.comments || [],
-                    commentCount: post.comments ? post.comments.length : 0,
-                    // Use stored likes if available, otherwise use API data
-                    likes: storedLikes[post._id] || post.likes || [],
-                }));
+                const postsWithComments = data.map((post) => {
+                    // Get likes from storage or API
+                    const postLikes = storedLikes[post._id] || post.likes || [];
+
+                    // Check if current user has liked this post (handles both user ID and username)
+                    const hasUserLiked =
+                        postLikes.includes(user._id) ||
+                        postLikes.includes(username);
+
+                    return {
+                        ...post,
+                        comments: post.comments || [],
+                        commentCount: post.comments ? post.comments.length : 0,
+                        likes: postLikes,
+                        hasUserLiked: hasUserLiked,
+                    };
+                });
 
                 setPosts(postsWithComments);
 
-                // Update localStorage with current likes
+                // Update localStorage with current likes (preserve both formats)
                 const likesByPost = {};
                 data.forEach((post) => {
-                    likesByPost[post._id] =
+                    const storedPostLikes =
                         storedLikes[post._id] || post.likes || [];
+
+                    // Keep all existing likes (both user IDs and usernames)
+                    likesByPost[post._id] = storedPostLikes;
                 });
 
                 localStorage.setItem("postLikes", JSON.stringify(likesByPost));
@@ -292,7 +305,7 @@ const MainDashboard = () => {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({
-                        userId: username,
+                        userId: user._id, // Use user ID instead of username
                     }),
                 }
             );
@@ -307,16 +320,18 @@ const MainDashboard = () => {
                     if (post._id === postId) {
                         const updatedComments = post.comments.map((comment) => {
                             if (comment._id === commentId) {
-                                const isLiked =
-                                    comment.likes?.includes(username);
+                                const isLiked = comment.likes?.includes(
+                                    user._id
+                                );
 
                                 return {
                                     ...comment,
                                     likes: isLiked
                                         ? comment.likes.filter(
-                                              (user) => user !== username
+                                              (likeUserId) =>
+                                                  likeUserId !== user._id
                                           )
-                                        : [...(comment.likes || []), username],
+                                        : [...(comment.likes || []), user._id],
                                 };
                             }
                             return comment;
@@ -693,7 +708,7 @@ const MainDashboard = () => {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({ userId: username }),
+                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
                 }
             );
 
@@ -705,17 +720,30 @@ const MainDashboard = () => {
             setPosts(
                 posts.map((post) => {
                     if (post._id === postId) {
-                        const isLiked = post.likes?.includes(username);
-                        const updatedLikes = isLiked
-                            ? post.likes.filter((user) => user !== username)
-                            : [...(post.likes || []), username];
+                        const isLiked = post.hasUserLiked;
+                        let updatedLikes;
 
-                        // Update localStorage
+                        if (isLiked) {
+                            // Remove both user ID and username
+                            updatedLikes = post.likes.filter(
+                                (like) => like !== user._id && like !== username
+                            );
+                        } else {
+                            // Add both user ID and username for compatibility
+                            updatedLikes = [
+                                ...post.likes,
+                                user._id, // Store user ID
+                                username, // Store username for backward compatibility
+                            ];
+                        }
+
+                        // Update localStorage with both formats
                         updateStoredLikes(postId, updatedLikes);
 
                         return {
                             ...post,
                             likes: updatedLikes,
+                            hasUserLiked: !isLiked,
                         };
                     }
                     return post;
@@ -1709,7 +1737,7 @@ const MainDashboard = () => {
                                                 handleLikePost(post._id)
                                             }
                                         >
-                                            {post.likes?.includes(username) ? (
+                                            {post.hasUserLiked ? (
                                                 <FaHeart className="text-red-500" />
                                             ) : (
                                                 <FaRegHeart />
@@ -1718,7 +1746,6 @@ const MainDashboard = () => {
                                                 {post.likes?.length || 0}
                                             </span>
                                         </button>
-
                                         <button
                                             className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                                             onClick={() =>
@@ -1851,7 +1878,7 @@ const MainDashboard = () => {
                                                                                     }
                                                                                 >
                                                                                     {comment.likes?.includes(
-                                                                                        username
+                                                                                        user._id
                                                                                     ) ? (
                                                                                         <FaHeart className="text-red-500 text-xs" />
                                                                                     ) : (

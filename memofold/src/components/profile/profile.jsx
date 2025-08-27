@@ -20,6 +20,7 @@ import "react-toastify/dist/ReactToastify.css";
 import logo from "../../assets/logo.png";
 import config from "../../hooks/config";
 import { useNavigate } from "react-router-dom";
+import imageCompression from "browser-image-compression";
 
 const ProfilePage = () => {
     const [profilePic, setProfilePic] = useState(
@@ -69,22 +70,6 @@ const ProfilePage = () => {
 
     const navigate = useNavigate();
 
-    // Helper functions to manage localStorage likes
-    const getStoredLikes = () => {
-        try {
-            return JSON.parse(localStorage.getItem("postLikes") || "{}");
-        } catch (error) {
-            console.error("Error parsing stored likes:", error);
-            return {};
-        }
-    };
-
-    const updateStoredLikes = (postId, likes) => {
-        const storedLikes = getStoredLikes();
-        storedLikes[postId] = likes;
-        localStorage.setItem("postLikes", JSON.stringify(storedLikes));
-    };
-
     useEffect(() => {
         initializeApp();
     }, []);
@@ -92,6 +77,9 @@ const ProfilePage = () => {
     const initializeApp = () => {
         const savedTheme = localStorage.getItem("darkMode");
         if (savedTheme) setDarkMode(savedTheme === "true");
+        if (!localStorage.getItem("postLikes")) {
+            localStorage.setItem("postLikes", JSON.stringify({}));
+        }
 
         const token = localStorage.getItem("token");
         const storedUsername = localStorage.getItem("username");
@@ -129,7 +117,15 @@ const ProfilePage = () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     };
-
+    // Add this with your other helper functions
+    const getStoredLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("postLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored likes:", error);
+            return {};
+        }
+    };
     const handleImageLoad = (e) => {
         const img = e.target;
         setImageDimensions({
@@ -318,28 +314,33 @@ const ProfilePage = () => {
                 const postsData = await response.json();
 
                 // Get stored likes from localStorage
-                const storedLikes = getStoredLikes();
+                const storedLikes = JSON.parse(
+                    localStorage.getItem("postLikes") || "{}"
+                );
 
-                const postsWithComments = postsData.map((post) => ({
-                    ...post,
-                    // Use stored likes if available, otherwise use API data
-                    likes: storedLikes[post._id] || post.likes || [],
-                    comments: post.comments || [],
-                    commentCount: post.commentsCount || 0,
-                    profilePic: profilePic,
-                    username: username,
-                }));
+                const postsWithComments = postsData.map((post) => {
+                    // Get likes from storage or API
+                    const postLikes = storedLikes[post._id] || post.likes || [];
 
-                setPosts(postsWithComments);
+                    // Check if current user has liked this post (handles both user ID and username)
+                    const currentUserId = localStorage.getItem("userId");
+                    const currentUsername = localStorage.getItem("username");
+                    const hasUserLiked =
+                        postLikes.includes(currentUserId) ||
+                        postLikes.includes(currentUsername);
 
-                // Update localStorage with current likes
-                const likesByPost = {};
-                postsData.forEach((post) => {
-                    likesByPost[post._id] =
-                        storedLikes[post._id] || post.likes || [];
+                    return {
+                        ...post,
+                        isLiked: hasUserLiked,
+                        likes: postLikes.length,
+                        comments: post.comments || [],
+                        commentCount: post.comments ? post.comments.length : 0,
+                        profilePic: profilePic,
+                        username: username,
+                    };
                 });
 
-                localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+                setPosts(postsWithComments);
             } else {
                 throw new Error("Failed to fetch posts");
             }
@@ -348,7 +349,6 @@ const ProfilePage = () => {
             throw error;
         }
     };
-
     const fetchComments = async (postId) => {
         setIsFetchingComments(true);
         try {
@@ -386,7 +386,6 @@ const ProfilePage = () => {
         }
     };
 
-    // Handle adding a comment
     const handleAddComment = async (postId) => {
         if (!commentContent[postId]?.trim()) {
             setError("Comment cannot be empty");
@@ -431,7 +430,6 @@ const ProfilePage = () => {
         }
     };
 
-    // Handle deleting a comment
     const handleDeleteComment = async (commentId, postId) => {
         const post = posts.find((p) => p._id === postId);
 
@@ -581,7 +579,23 @@ const ProfilePage = () => {
         }
     };
 
-    const handleFileChange = (e) => {
+    const compressImage = async (file) => {
+        const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1024,
+            useWebWorker: true,
+        };
+
+        try {
+            const compressedFile = await imageCompression(file, options);
+            return compressedFile;
+        } catch (error) {
+            console.warn("Image compression failed, using original:", error);
+            return file; // Fallback to original file
+        }
+    };
+
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -601,12 +615,20 @@ const ProfilePage = () => {
             return;
         }
 
-        setSelectedFile(file);
-        setError(null);
+        try {
+            // Compress the image
+            const compressedFile = await compressImage(file);
+            setSelectedFile(compressedFile);
+            setError(null);
 
-        const reader = new FileReader();
-        reader.onload = (event) => setFilePreview(event.target.result);
-        reader.readAsDataURL(file);
+            const reader = new FileReader();
+            reader.onload = (event) => setFilePreview(event.target.result);
+            reader.readAsDataURL(compressedFile);
+        } catch (error) {
+            console.error("Error processing image:", error);
+            setError("Failed to process image");
+            toast.error("Failed to process image");
+        }
     };
 
     const removeFile = () => {
@@ -639,17 +661,34 @@ const ProfilePage = () => {
                 ? new Date(selectedDate + "T12:00:00").toISOString()
                 : new Date().toISOString();
 
+            // Convert image to base64 if selected
+            let imageData = null;
+            if (selectedFile) {
+                imageData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const dataURL = reader.result;
+                        resolve(dataURL);
+                    };
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(selectedFile);
+                });
+            }
+
+            const postData = {
+                content: postContent,
+                createdAt: formattedDate,
+                date: formattedDate,
+                image: imageData,
+            };
+
             const response = await fetch(`${config.apiUrl}/posts`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    content: postContent,
-                    createdAt: formattedDate,
-                    date: formattedDate,
-                }),
+                body: JSON.stringify(postData),
             });
 
             if (!response.ok) {
@@ -663,7 +702,8 @@ const ProfilePage = () => {
                 _id: result._id || Date.now().toString(),
                 content: postContent,
                 createdAt: formattedDate,
-                likes: [],
+                isLiked: false, // Initialize as not liked
+                likes: 0, // Initialize with 0 likes
                 comments: [],
                 commentCount: 0,
                 profilePic: profilePic,
@@ -679,6 +719,7 @@ const ProfilePage = () => {
             // Update the posts state immediately
             setPosts([newPost, ...posts]);
             setStats((prev) => ({ ...prev, posts: prev.posts + 1 }));
+
             setPostContent("");
             removeFile();
             setError(null);
@@ -695,7 +736,6 @@ const ProfilePage = () => {
         }
     };
 
-    // Handle click outside mobile menu
     const handleClickOutside = (e) => {
         if (
             mobileMenuRef.current &&
@@ -705,41 +745,11 @@ const ProfilePage = () => {
         }
     };
 
-    // Toggle like on post
     const toggleLike = async (postId) => {
         try {
             const token = localStorage.getItem("token");
-            const username = localStorage.getItem("username");
+            const currentUserId = localStorage.getItem("userId");
 
-            // Update UI immediately for better UX
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const isLiked = post.likes?.includes(username);
-                        const updatedLikes = isLiked
-                            ? post.likes.filter((user) => user !== username)
-                            : [...(post.likes || []), username];
-
-                        // Update localStorage
-                        updateStoredLikes(postId, updatedLikes);
-
-                        // Show toast notification
-                        if (!isLiked) {
-                            toast.success("Post liked!");
-                        } else {
-                            toast.info("Post unliked");
-                        }
-
-                        return {
-                            ...post,
-                            likes: updatedLikes,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            // Send API request
             const response = await fetch(
                 `${config.apiUrl}/posts/like/${postId}`,
                 {
@@ -748,35 +758,70 @@ const ProfilePage = () => {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({ userId: username }),
+                    body: JSON.stringify({ userId: currentUserId }),
                 }
             );
 
-            if (!response.ok) {
+            if (response.ok) {
+                // Get stored likes from localStorage
+                const storedLikes = JSON.parse(
+                    localStorage.getItem("postLikes") || "{}"
+                );
+                const currentPostLikes = storedLikes[postId] || [];
+                const currentUsername = localStorage.getItem("username");
+
+                setPosts(
+                    posts.map((post) => {
+                        if (post._id === postId) {
+                            const isCurrentlyLiked = post.isLiked;
+                            let updatedLikes;
+
+                            if (isCurrentlyLiked) {
+                                // Remove both user ID and username
+                                updatedLikes = currentPostLikes.filter(
+                                    (like) =>
+                                        like !== currentUserId &&
+                                        like !== currentUsername
+                                );
+                            } else {
+                                // Add both user ID and username for compatibility
+                                updatedLikes = [
+                                    ...currentPostLikes,
+                                    currentUserId,
+                                    currentUsername,
+                                ];
+                            }
+
+                            // Update localStorage
+                            storedLikes[postId] = updatedLikes;
+                            localStorage.setItem(
+                                "postLikes",
+                                JSON.stringify(storedLikes)
+                            );
+
+                            // Show toast notification
+                            if (!isCurrentlyLiked) {
+                                toast.success("Post liked!");
+                            } else {
+                                toast.info("Post unliked");
+                            }
+
+                            return {
+                                ...post,
+                                isLiked: !isCurrentlyLiked,
+                                likes: updatedLikes.length,
+                            };
+                        }
+                        return post;
+                    })
+                );
+            } else {
                 throw new Error("Failed to like post");
             }
         } catch (error) {
             console.error("Error toggling like:", error);
             setError(error.message);
             toast.error(error.message);
-
-            // Revert UI changes if API call fails
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const isLiked = post.likes?.includes(username);
-                        const updatedLikes = isLiked
-                            ? post.likes.filter((user) => user !== username)
-                            : [...(post.likes || []), username];
-
-                        return {
-                            ...post,
-                            likes: updatedLikes,
-                        };
-                    }
-                    return post;
-                })
-            );
         }
     };
 
@@ -823,7 +868,6 @@ const ProfilePage = () => {
         }
     };
 
-    // Theme handling
     useEffect(() => {
         localStorage.setItem("darkMode", darkMode);
         document.body.className = darkMode
@@ -852,7 +896,6 @@ const ProfilePage = () => {
             />
 
             {/* Image Preview Modal */}
-
             {showImagePreview && (
                 <div
                     className="fixed inset-0 bg-transparent backdrop-blur bg-opacity-10 flex items-center justify-center z-[9999] p-4"
@@ -1156,42 +1199,10 @@ const ProfilePage = () => {
                                         darkMode
                                             ? "bg-gray-700 hover:bg-gray-600"
                                             : "bg-gray-100 hover:bg-gray-200"
-                                    } px-3 py-2 rounded-lg transition-colors`}
+                                    } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                                 >
-                                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                                        {stats.posts}
-                                    </span>
-                                    <span className="text-gray-600 dark:text-gray-300">
-                                        Posts
-                                    </span>
-                                </div>
-                                <div
-                                    className={`flex items-center gap-1 sm:gap-2 ${
-                                        darkMode
-                                            ? "bg-gray-700 hover:bg-gray-600"
-                                            : "bg-gray-100 hover:bg-gray-200"
-                                    } px-3 py-2 rounded-lg transition-colors`}
-                                >
-                                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                                        {stats.followers}
-                                    </span>
-                                    <span className="text-gray-600 dark:text-gray-300">
-                                        Followers
-                                    </span>
-                                </div>
-                                <div
-                                    className={`flex items-center gap-1 sm:gap-2 ${
-                                        darkMode
-                                            ? "bg-gray-700 hover:bg-gray-600"
-                                            : "bg-gray-100 hover:bg-gray-200"
-                                    } px-3 py-2 rounded-lg transition-colors`}
-                                >
-                                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                                        {stats.following}
-                                    </span>
-                                    <span className="text-gray-600 dark:text-gray-300">
-                                        Following
-                                    </span>
+                                    <span className="text-blue-500">📊</span>
+                                    <span>{posts.length} Posts</span>
                                 </div>
                             </div>
                         </div>
@@ -1200,101 +1211,122 @@ const ProfilePage = () => {
 
                 {/* Create Post Section */}
                 <div
-                    className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
+                    className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
                         darkMode
                             ? "bg-gray-800 border-gray-700"
                             : "bg-white border-gray-200"
-                    } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}
+                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
                 >
-                    <div className="flex flex-col gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                        <img
+                            src={profilePic}
+                            alt={username}
+                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                            onError={(e) => {
+                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    username
+                                )}&background=random`;
+                            }}
+                            onClick={() =>
+                                navigateToUserProfile(currentUserProfile?._id)
+                            }
+                        />
+                        <span
+                            className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+                            onClick={() =>
+                                navigateToUserProfile(currentUserProfile?._id)
+                            }
+                        >
+                            {username}
+                        </span>
+                    </div>
+
+                    <textarea
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                        placeholder="What's on your mind?"
+                        className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
+                            darkMode
+                                ? "bg-gray-700 text-white placeholder-gray-400"
+                                : "bg-gray-100 placeholder-gray-500"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
+                        rows="3"
+                    ></textarea>
+
+                    {filePreview && (
+                        <div className="relative mb-3">
                             <img
-                                src={profilePic}
-                                alt="Profile"
-                                className="w-10 h-10 rounded-full border-2 border-blue-400"
-                                onError={(e) => {
-                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                        username
-                                    )}&background=random`;
+                                src={filePreview}
+                                alt="Preview"
+                                className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                                onClick={() => {
+                                    setPreviewImage(filePreview);
+                                    setShowImagePreview(true);
                                 }}
                             />
-                            <div className="flex-1">
-                                <h3 className="font-semibold dark:text-white">
-                                    {username}
-                                </h3>
+                            <button
+                                onClick={removeFile}
+                                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+                        <div className="flex flex-wrap gap-2">
+                            <div className="flex items-center gap-1 sm:gap-2">
                                 <input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) =>
                                         setSelectedDate(e.target.value)
                                     }
-                                    className={`text-xs ${
+                                    className={`${
                                         darkMode
-                                            ? "bg-gray-700 text-gray-300"
-                                            : "bg-gray-100 text-gray-600"
-                                    } px-2 py-1 rounded cursor-pointer`}
+                                            ? "bg-gray-700 text-white border-gray-600"
+                                            : "bg-gray-100 border-gray-300"
+                                    } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
                                 />
+                                {selectedDate &&
+                                    selectedDate !==
+                                        new Date()
+                                            .toISOString()
+                                            .split("T")[0] && (
+                                        <span className="text-xs text-blue-500">
+                                            Posting for:{" "}
+                                            {new Date(
+                                                selectedDate
+                                            ).toLocaleDateString()}
+                                        </span>
+                                    )}
                             </div>
                         </div>
 
-                        <textarea
-                            value={postContent}
-                            onChange={(e) => setPostContent(e.target.value)}
-                            placeholder="What's on your mind?"
-                            className={`w-full p-3 rounded-lg min-h-[100px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                darkMode
-                                    ? "bg-gray-700 text-white placeholder-gray-400"
-                                    : "bg-gray-100 text-gray-800 placeholder-gray-500"
-                            }`}
-                        />
-
-                        {filePreview && (
-                            <div className="relative">
-                                <img
-                                    src={filePreview}
-                                    alt="Preview"
-                                    className="w-full max-h-64 object-contain rounded-lg"
-                                />
-                                <button
-                                    onClick={removeFile}
-                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors cursor-pointer"
-                                >
-                                    <FaTimes className="text-sm" />
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="flex justify-between items-center">
-                            <label
-                                htmlFor="fileInput"
-                                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${
-                                    darkMode
-                                        ? "bg-gray-700 hover:bg-gray-600"
-                                        : "bg-gray-100 hover:bg-gray-200"
-                                } transition-colors`}
+                        <div className="flex gap-1 sm:gap-2 self-end">
+                            <button
+                                onClick={() => fileInputRef.current.click()}
+                                className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                                title="Attach file"
                             >
-                                <FaPaperclip className="text-gray-600 dark:text-gray-300" />
-                                <span className="text-sm text-gray-600 dark:text-gray-300">
-                                    Attach Image
-                                </span>
-                                <input
-                                    id="fileInput"
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    className="hidden"
-                                    accept="image/*"
-                                />
-                            </label>
+                                <FaPaperclip className="text-xs sm:text-sm" />
+                            </button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept="image/*"
+                            />
 
                             <button
                                 onClick={handleCreatePost}
-                                disabled={!postContent.trim() && !selectedFile}
-                                className={`px-4 py-2 rounded-lg font-medium ${
-                                    !postContent.trim() && !selectedFile
-                                        ? "bg-gray-400 cursor-not-allowed"
-                                        : "bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-cyan-500 hover:to-blue-600 hover:scale-105"
-                                } text-white transition-all`}
+                                disabled={!postContent.trim() && !filePreview}
+                                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+                                    postContent.trim() || filePreview
+                                        ? "bg-blue-500 hover:bg-blue-600 text-white"
+                                        : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                } transition-colors cursor-pointer text-sm sm:text-base`}
                             >
                                 Post
                             </button>
@@ -1303,349 +1335,384 @@ const ProfilePage = () => {
                 </div>
 
                 {/* Posts Section */}
-                <div className="max-w-4xl mx-auto">
-                    <h3
-                        className={`text-xl font-bold mb-4 ${
-                            darkMode ? "text-white" : "text-gray-800"
-                        }`}
-                    >
-                        Your Posts
-                    </h3>
-
+                <section className="max-w-2xl mx-auto px-3 sm:px-4">
                     {loading ? (
-                        <div className="flex justify-center items-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                        <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
                         </div>
                     ) : posts.length === 0 ? (
                         <div
-                            className={`text-center py-12 rounded-xl ${
-                                darkMode
-                                    ? "bg-gray-800 text-gray-300"
-                                    : "bg-white text-gray-500"
+                            className={`text-center py-8 ${
+                                darkMode ? "text-gray-400" : "text-gray-500"
                             }`}
                         >
-                            <p className="text-lg">
-                                You haven't created any posts yet.
-                            </p>
-                            <p className="mt-2">
-                                Share your thoughts by creating your first post!
-                            </p>
+                            <p>You haven't posted anything yet.</p>
+                            <button
+                                onClick={navigateToMain}
+                                className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer text-sm sm:text-base"
+                            >
+                                Create Your First Post
+                            </button>
                         </div>
                     ) : (
-                        <div className="space-y-4 sm:space-y-6">
+                        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
                             {posts.map((post) => (
-                                <motion.div
+                                <div
                                     key={post._id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3 }}
                                     className={`${
                                         darkMode
                                             ? "bg-gray-800 border-gray-700"
                                             : "bg-white border-gray-200"
-                                    } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 transition-all hover:shadow-2xl`}
+                                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
                                 >
-                                    <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                                    {/* Post Header */}
+                                    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                                         <img
-                                            src={
-                                                post.userId?.profilePic ||
-                                                post.profilePic ||
-                                                "https://ui-avatars.com/api/?name=User&background=random"
-                                            }
-                                            alt="Profile"
-                                            className="w-10 h-10 rounded-full border-2 border-blue-400 cursor-pointer"
+                                            src={post.profilePic}
+                                            alt={post.username}
+                                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                            onError={(e) => {
+                                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                                    post.username
+                                                )}&background=random`;
+                                            }}
                                             onClick={() =>
                                                 navigateToUserProfile(
                                                     post.userId?._id
                                                 )
                                             }
-                                            onError={(e) => {
-                                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                    post.userId?.username ||
-                                                        post.username
-                                                )}&background=random`;
-                                            }}
                                         />
-                                        <div className="flex-1">
-                                            <h4
-                                                className="font-semibold dark:text-white cursor-pointer"
-                                                onClick={() =>
-                                                    navigateToUserProfile(
-                                                        post.userId?._id
-                                                    )
-                                                }
-                                            >
-                                                {post.userId?.username ||
-                                                    post.username}
-                                            </h4>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                {formatDate(post.createdAt)}
-                                            </p>
-                                        </div>
+                                        <span
+                                            className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+                                            onClick={() =>
+                                                navigateToUserProfile(
+                                                    post.userId?._id
+                                                )
+                                            }
+                                        >
+                                            {post.username}
+                                        </span>
+                                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 ml-auto">
+                                            {formatDate(post.createdAt)}
+                                        </span>
                                     </div>
 
-                                    {post.content && (
-                                        <p className="mb-3 sm:mb-4 dark:text-gray-200 whitespace-pre-wrap break-words">
-                                            {post.content}
-                                        </p>
-                                    )}
+                                    {/* Post Content */}
+                                    <p
+                                        className={`mb-3 sm:mb-4 ${
+                                            darkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-700"
+                                        } text-sm sm:text-base`}
+                                    >
+                                        {post.content}
+                                    </p>
 
+                                    {/* Post Image */}
                                     {post.image && (
-                                        <div className="mb-3 sm:mb-4">
+                                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                                             <img
                                                 src={post.image}
                                                 alt="Post"
-                                                className="w-full max-h-96 object-contain rounded-lg cursor-pointer"
+                                                className="max-h-96 max-w-full object-contain cursor-pointer"
                                                 onClick={() => {
                                                     setPreviewImage(post.image);
                                                     setShowImagePreview(true);
                                                 }}
                                                 onError={(e) => {
-                                                    console.error(
-                                                        "Image failed to load:",
-                                                        post.image
-                                                    );
                                                     e.target.style.display =
                                                         "none";
                                                 }}
                                             />
                                         </div>
                                     )}
-
-                                    <div className="flex items-center gap-4 sm:gap-6 pt-2 sm:pt-3 border-t dark:border-gray-700">
+                                    {/* Post Actions */}
+                                    <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
                                         <button
                                             onClick={() => toggleLike(post._id)}
-                                            className="flex items-center gap-1 sm:gap-2 text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 transition-colors cursor-pointer"
+                                            className={`flex items-center gap-1 ${
+                                                post.isLiked
+                                                    ? "text-red-500 hover:text-red-600"
+                                                    : darkMode
+                                                    ? "text-gray-400 hover:text-gray-300"
+                                                    : "text-gray-500 hover:text-gray-700"
+                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
                                         >
-                                            {post.likes?.includes(username) ? (
-                                                <FaHeart className="text-red-500 text-lg sm:text-xl" />
+                                            {post.isLiked ? (
+                                                <FaHeart className="text-red-500" />
                                             ) : (
-                                                <FaRegHeart className="text-lg sm:text-xl" />
+                                                <FaRegHeart />
                                             )}
-                                            <span className="text-sm sm:text-base">
-                                                {post.likes?.length || 0}
-                                            </span>
+                                            <span>{post.likes || 0}</span>
                                         </button>
 
                                         <button
                                             onClick={() =>
                                                 toggleCommentDropdown(post._id)
                                             }
-                                            className="flex items-center gap-1 sm:gap-2 text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                                            disabled={isFetchingComments}
+                                            className={`flex items-center gap-1 ${
+                                                darkMode
+                                                    ? "text-gray-400 hover:text-gray-300"
+                                                    : "text-gray-500 hover:text-gray-700"
+                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
                                         >
-                                            <FaComment className="text-lg sm:text-xl" />
-                                            <span className="text-sm sm:text-base">
-                                                {post.commentCount || 0}
+                                            <FaComment />
+                                            <span>
+                                                {post.commentCount ||
+                                                    post.comments?.length ||
+                                                    0}
                                             </span>
                                         </button>
                                     </div>
 
                                     {/* Comments Section */}
                                     {activeCommentPostId === post._id && (
-                                        <motion.div
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{
-                                                opacity: 1,
-                                                height: "auto",
-                                            }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            transition={{ duration: 0.3 }}
-                                            className="mt-4 pt-4 border-t dark:border-gray-700"
-                                        >
+                                        <div className="mt-4">
                                             {isFetchingComments ? (
-                                                <div className="flex justify-center py-4">
-                                                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                                                <div className="text-center py-4">
+                                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    <p className="text-sm mt-2">
+                                                        Loading comments...
+                                                    </p>
                                                 </div>
                                             ) : (
                                                 <>
-                                                    <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
-                                                        {post.comments &&
-                                                        post.comments.length >
-                                                            0 ? (
-                                                            post.comments.map(
+                                                    {post.comments &&
+                                                    post.comments.length > 0 ? (
+                                                        <div
+                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                                                darkMode
+                                                                    ? "bg-gray-700"
+                                                                    : "bg-gray-100"
+                                                            }`}
+                                                        >
+                                                            {post.comments.map(
                                                                 (comment) => (
                                                                     <div
                                                                         key={
                                                                             comment._id
                                                                         }
-                                                                        className="flex gap-2"
+                                                                        className="flex items-start space-x-2"
                                                                     >
                                                                         <img
                                                                             src={
                                                                                 comment
                                                                                     .userId
                                                                                     ?.profilePic ||
-                                                                                "https://ui-avatars.com/api/?name=User&background=random"
-                                                                            }
-                                                                            alt="Profile"
-                                                                            className="w-8 h-8 rounded-full cursor-pointer"
-                                                                            onClick={() =>
-                                                                                navigateToUserProfile(
+                                                                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                                                                     comment
                                                                                         .userId
-                                                                                        ?._id
-                                                                                )
+                                                                                        ?.realname ||
+                                                                                        "User"
+                                                                                )}&background=random`
                                                                             }
+                                                                            alt={
+                                                                                comment
+                                                                                    .userId
+                                                                                    ?.realname
+                                                                            }
+                                                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
                                                                             onError={(
                                                                                 e
                                                                             ) => {
                                                                                 e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                                                                     comment
                                                                                         .userId
-                                                                                        ?.username ||
+                                                                                        ?.realname ||
                                                                                         "User"
                                                                                 )}&background=random`;
                                                                             }}
+                                                                            onClick={(
+                                                                                e
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                navigateToUserProfile(
+                                                                                    comment
+                                                                                        .userId
+                                                                                        ?._id
+                                                                                );
+                                                                            }}
                                                                         />
                                                                         <div className="flex-1">
-                                                                            <div
-                                                                                className={`${
-                                                                                    darkMode
-                                                                                        ? "bg-gray-700"
-                                                                                        : "bg-gray-100"
-                                                                                } rounded-lg p-3`}
-                                                                            >
-                                                                                <div className="flex justify-between items-start">
-                                                                                    <h5
-                                                                                        className="font-semibold text-sm dark:text-white cursor-pointer"
-                                                                                        onClick={() =>
-                                                                                            navigateToUserProfile(
-                                                                                                comment
-                                                                                                    .userId
-                                                                                                    ?._id
-                                                                                            )
-                                                                                        }
-                                                                                    >
-                                                                                        {comment
-                                                                                            .userId
-                                                                                            ?.username ||
-                                                                                            "Unknown"}
-                                                                                    </h5>
-                                                                                    {(comment
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <span
+                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                    onClick={(
+                                                                                        e
+                                                                                    ) => {
+                                                                                        e.stopPropagation();
+                                                                                        navigateToUserProfile(
+                                                                                            comment
+                                                                                                .userId
+                                                                                                ?._id
+                                                                                        );
+                                                                                    }}
+                                                                                >
+                                                                                    {comment
                                                                                         .userId
-                                                                                        ?.username ===
-                                                                                        username ||
+                                                                                        ?.realname ||
                                                                                         comment
                                                                                             .userId
-                                                                                            ?._id ===
-                                                                                            currentUserProfile?._id ||
-                                                                                        post
-                                                                                            .userId
-                                                                                            ?.username ===
-                                                                                            username ||
-                                                                                        post
-                                                                                            .userId
-                                                                                            ?._id ===
-                                                                                            currentUserProfile?._id) && (
-                                                                                        <button
-                                                                                            onClick={() =>
-                                                                                                handleDeleteComment(
-                                                                                                    comment._id,
-                                                                                                    post._id
-                                                                                                )
-                                                                                            }
-                                                                                            disabled={
-                                                                                                isDeletingComment
-                                                                                            }
-                                                                                            className="text-red-500 hover:text-red-700 text-xs"
-                                                                                        >
-                                                                                            {isDeletingComment ? (
-                                                                                                "Deleting..."
-                                                                                            ) : (
-                                                                                                <FaTrashAlt />
-                                                                                            )}
-                                                                                        </button>
+                                                                                            ?.username ||
+                                                                                        "Unknown User"}
+                                                                                </span>
+                                                                                <span
+                                                                                    className={`text-xs ${
+                                                                                        darkMode
+                                                                                            ? "text-gray-400"
+                                                                                            : "text-gray-500"
+                                                                                    }`}
+                                                                                >
+                                                                                    {formatDate(
+                                                                                        comment.createdAt
                                                                                     )}
-                                                                                </div>
-                                                                                <p className="text-sm dark:text-gray-300 mt-1">
-                                                                                    {
-                                                                                        comment.content
-                                                                                    }
-                                                                                </p>
+                                                                                </span>
                                                                             </div>
-                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                {formatDate(
-                                                                                    comment.createdAt
-                                                                                )}
+                                                                            <p className="text-sm whitespace-pre-line mt-1">
+                                                                                {
+                                                                                    comment.content
+                                                                                }
                                                                             </p>
+                                                                            {/* Delete button for user's own comments OR post owner */}
+                                                                            {(comment
+                                                                                .userId
+                                                                                ?._id ===
+                                                                                currentUserProfile?._id ||
+                                                                                comment
+                                                                                    .userId
+                                                                                    ?.username ===
+                                                                                    username ||
+                                                                                post
+                                                                                    .userId
+                                                                                    ?._id ===
+                                                                                    currentUserProfile?._id ||
+                                                                                post.username ===
+                                                                                    username) && (
+                                                                                <div className="mt-1 flex justify-end">
+                                                                                    <button
+                                                                                        onClick={() =>
+                                                                                            handleDeleteComment(
+                                                                                                comment._id,
+                                                                                                post._id
+                                                                                            )
+                                                                                        }
+                                                                                        disabled={
+                                                                                            isDeletingComment
+                                                                                        }
+                                                                                        className="text-red-500 hover:text-red-700 text-xs flex items-center"
+                                                                                        title="Delete comment"
+                                                                                    >
+                                                                                        {isDeletingComment ? (
+                                                                                            <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
+                                                                                        ) : (
+                                                                                            <FaTrashAlt className="mr-1" />
+                                                                                        )}
+                                                                                        Delete
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 )
-                                                            )
-                                                        ) : (
-                                                            <p className="text-center text-gray-500 dark:text-gray-400 py-4">
-                                                                No comments yet.
-                                                                Be the first to
-                                                                comment!
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                                            No comments yet. Be
+                                                            the first to
+                                                            comment!
+                                                        </div>
+                                                    )}
 
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={
-                                                                commentContent[
-                                                                    post._id
-                                                                ] || ""
-                                                            }
-                                                            onChange={(e) =>
-                                                                setCommentContent(
-                                                                    {
-                                                                        ...commentContent,
-                                                                        [post._id]:
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                    }
+                                                    {/* Add Comment Input */}
+                                                    <div className="flex items-center space-x-2">
+                                                        <img
+                                                            src={profilePic}
+                                                            alt={username}
+                                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                                            onClick={() =>
+                                                                navigateToUserProfile(
+                                                                    currentUserProfile?._id
                                                                 )
                                                             }
-                                                            placeholder="Add a comment..."
-                                                            className={`flex-1 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                                                darkMode
-                                                                    ? "bg-gray-700 text-white placeholder-gray-400"
-                                                                    : "bg-gray-100 text-gray-800 placeholder-gray-500"
-                                                            }`}
-                                                            onKeyPress={(e) => {
-                                                                if (
-                                                                    e.key ===
-                                                                    "Enter"
-                                                                ) {
+                                                        />
+                                                        <div className="flex-1 flex space-x-2">
+                                                            <input
+                                                                type="text"
+                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                                    darkMode
+                                                                        ? "bg-gray-700 border-gray-600"
+                                                                        : "bg-white border-gray-300"
+                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                placeholder="Write a comment..."
+                                                                value={
+                                                                    commentContent[
+                                                                        post._id
+                                                                    ] || ""
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setCommentContent(
+                                                                        {
+                                                                            ...commentContent,
+                                                                            [post._id]:
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                        }
+                                                                    )
+                                                                }
+                                                                onKeyPress={(
+                                                                    e
+                                                                ) => {
+                                                                    if (
+                                                                        e.key ===
+                                                                        "Enter"
+                                                                    ) {
+                                                                        handleAddComment(
+                                                                            post._id
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                className={`px-3 py-1 rounded-full text-sm ${
+                                                                    !commentContent[
+                                                                        post._id
+                                                                    ]?.trim() ||
+                                                                    isAddingComment
+                                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                                } text-white transition-colors`}
+                                                                onClick={() =>
                                                                     handleAddComment(
                                                                         post._id
-                                                                    );
+                                                                    )
                                                                 }
-                                                            }}
-                                                        />
-                                                        <button
-                                                            onClick={() =>
-                                                                handleAddComment(
-                                                                    post._id
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                isAddingComment
-                                                            }
-                                                            className={`px-3 py-2 rounded-lg font-medium ${
-                                                                isAddingComment
-                                                                    ? "bg-blue-400"
-                                                                    : "bg-blue-500 hover:bg-blue-600"
-                                                            } text-white transition-colors`}
-                                                        >
-                                                            {isAddingComment
-                                                                ? "Posting..."
-                                                                : "Post"}
-                                                        </button>
+                                                                disabled={
+                                                                    !commentContent[
+                                                                        post._id
+                                                                    ]?.trim() ||
+                                                                    isAddingComment
+                                                                }
+                                                            >
+                                                                {isAddingComment ? (
+                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                ) : (
+                                                                    "Post"
+                                                                )}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </>
                                             )}
-                                        </motion.div>
+                                        </div>
                                     )}
-                                </motion.div>
+                                </div>
                             ))}
                         </div>
                     )}
-                </div>
+                </section>
             </div>
         </div>
     );
