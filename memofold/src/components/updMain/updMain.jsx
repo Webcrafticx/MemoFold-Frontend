@@ -67,7 +67,24 @@ const MainDashboard = () => {
         storedLikes[postId] = likes;
         localStorage.setItem("postLikes", JSON.stringify(storedLikes));
     };
+    // Add these helper functions near the post like functions
+    const getStoredCommentLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("commentLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored comment likes:", error);
+            return {};
+        }
+    };
 
+    const updateStoredCommentLikes = (commentId, likes) => {
+        const storedCommentLikes = getStoredCommentLikes();
+        storedCommentLikes[commentId] = likes;
+        localStorage.setItem(
+            "commentLikes",
+            JSON.stringify(storedCommentLikes)
+        );
+    };
     // Create refs for dropdowns
     const dropdownRef = useRef(null);
     const commentDropdownRefs = useRef({});
@@ -239,12 +256,46 @@ const MainDashboard = () => {
             const responseData = await response.json();
             const comments = responseData.comments || [];
 
+            // Get stored comment likes from localStorage
+            const storedCommentLikes = getStoredCommentLikes();
+
+            const commentsWithLikes = comments.map((comment) => {
+                // Get likes from storage or API
+                const commentLikes =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+
+                // Check if current user has liked this comment
+                const hasUserLiked = commentLikes.includes(user._id);
+
+                return {
+                    ...comment,
+                    likes: commentLikes,
+                    hasUserLiked: hasUserLiked,
+                };
+            });
+
             setPosts(
                 posts.map((post) =>
                     post._id === postId
-                        ? { ...post, comments, commentCount: comments.length }
+                        ? {
+                              ...post,
+                              comments: commentsWithLikes,
+                              commentCount: commentsWithLikes.length,
+                          }
                         : post
                 )
+            );
+
+            // Update localStorage with current comment likes
+            const likesByComment = {};
+            comments.forEach((comment) => {
+                likesByComment[comment._id] =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+            });
+
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(likesByComment)
             );
         } catch (err) {
             setError(err.message);
@@ -296,42 +347,38 @@ const MainDashboard = () => {
 
     const handleLikeComment = async (commentId, postId) => {
         try {
-            const response = await fetch(
-                `${config.apiUrl}/posts/comments/${commentId}/like`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        userId: user._id, // Use user ID instead of username
-                    }),
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to like comment");
-            }
-
+            // Optimistic UI update
             setPosts(
                 posts.map((post) => {
                     if (post._id === postId) {
                         const updatedComments = post.comments.map((comment) => {
                             if (comment._id === commentId) {
-                                const isLiked = comment.likes?.includes(
-                                    user._id
+                                const isLiked = comment.hasUserLiked;
+                                let updatedLikes;
+
+                                if (isLiked) {
+                                    // Remove user ID
+                                    updatedLikes = comment.likes.filter(
+                                        (likeUserId) => likeUserId !== user._id
+                                    );
+                                } else {
+                                    // Add user ID
+                                    updatedLikes = [
+                                        ...(comment.likes || []),
+                                        user._id,
+                                    ];
+                                }
+
+                                // Update localStorage
+                                updateStoredCommentLikes(
+                                    commentId,
+                                    updatedLikes
                                 );
 
                                 return {
                                     ...comment,
-                                    likes: isLiked
-                                        ? comment.likes.filter(
-                                              (likeUserId) =>
-                                                  likeUserId !== user._id
-                                          )
-                                        : [...(comment.likes || []), user._id],
+                                    likes: updatedLikes,
+                                    hasUserLiked: !isLiked,
                                 };
                             }
                             return comment;
@@ -345,9 +392,34 @@ const MainDashboard = () => {
                     return post;
                 })
             );
+
+            const response = await fetch(
+                `${config.apiUrl}/posts/comments/${commentId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        userId: user._id,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like comment");
+            }
+
+            // Refresh comments to ensure sync with server
+            await fetchComments(postId);
         } catch (err) {
             setError(err.message);
             console.error("Error liking comment:", err);
+
+            // Revert optimistic update on error
+            await fetchComments(postId);
         }
     };
 
@@ -1877,9 +1949,7 @@ const MainDashboard = () => {
                                                                                         )
                                                                                     }
                                                                                 >
-                                                                                    {comment.likes?.includes(
-                                                                                        user._id
-                                                                                    ) ? (
+                                                                                    {comment.hasUserLiked ? (
                                                                                         <FaHeart className="text-red-500 text-xs" />
                                                                                     ) : (
                                                                                         <FaRegHeart className="text-xs" />
@@ -1890,7 +1960,7 @@ const MainDashboard = () => {
                                                                                             ?.length ||
                                                                                             0}
                                                                                     </span>
-                                                                                </button>
+                                                                                </button>{" "}
                                                                                 {/* Allow post owner OR comment owner to delete */}
                                                                                 {(comment
                                                                                     .userId
