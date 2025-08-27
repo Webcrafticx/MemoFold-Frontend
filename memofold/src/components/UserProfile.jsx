@@ -17,8 +17,7 @@ import config from "../hooks/config";
 const UserProfile = () => {
     const { userId } = useParams();
     const navigate = useNavigate();
-    const { token, username } = useAuth();
-
+    const { token, username, user } = useAuth();
     const [userData, setUserData] = useState(null);
     const [userDescription, setUserDescription] = useState("");
     const [userPosts, setUserPosts] = useState([]);
@@ -118,20 +117,31 @@ const UserProfile = () => {
             // Get stored likes from localStorage
             const storedLikes = getStoredLikes();
 
-            const postsWithLikes = postsData.map((post) => ({
-                ...post,
-                // Use stored likes if available, otherwise use API data
-                likes: storedLikes[post._id] || post.likes || [],
-                comments: post.comments || [],
-            }));
+            const postsWithLikes = postsData.map((post) => {
+                // Get likes from storage or API
+                const postLikes = storedLikes[post._id] || post.likes || [];
+
+                // Check if current user has liked this post (handles both user ID and username)
+                const hasUserLiked =
+                    postLikes.includes(user._id) ||
+                    postLikes.includes(username);
+
+                return {
+                    ...post,
+                    likes: postLikes,
+                    hasUserLiked: hasUserLiked,
+                    comments: post.comments || [],
+                };
+            });
 
             setUserPosts(postsWithLikes);
 
             // Update localStorage with current likes
             const likesByPost = {};
             postsData.forEach((post) => {
-                likesByPost[post._id] =
+                const storedPostLikes =
                     storedLikes[post._id] || post.likes || [];
+                likesByPost[post._id] = storedPostLikes;
             });
 
             localStorage.setItem("postLikes", JSON.stringify(likesByPost));
@@ -164,19 +174,12 @@ const UserProfile = () => {
             const responseData = await response.json();
             const comments = responseData.comments || [];
 
-            const commentsWithLikes = comments.map((comment) => ({
-                ...comment,
-                isLiked:
-                    comment.likes?.some((like) => like.userId === username) ||
-                    false,
-            }));
-
             setUserPosts((posts) =>
                 posts.map((post) =>
                     post._id === postId
                         ? {
                               ...post,
-                              comments: commentsWithLikes,
+                              comments: comments,
                           }
                         : post
                 )
@@ -190,8 +193,8 @@ const UserProfile = () => {
     };
 
     const handleLike = async (postId) => {
-        if (!username) {
-            console.error("Username not available");
+        if (!username || !user?._id) {
+            console.error("User information not available");
             setError("You must be logged in to like posts");
             return;
         }
@@ -203,17 +206,30 @@ const UserProfile = () => {
             setUserPosts((posts) =>
                 posts.map((post) => {
                     if (post._id === postId) {
-                        const isLiked = post.likes?.includes(username);
-                        const updatedLikes = isLiked
-                            ? post.likes.filter((user) => user !== username)
-                            : [...(post.likes || []), username];
+                        const isLiked = post.hasUserLiked;
+                        let updatedLikes;
 
-                        // Update localStorage
+                        if (isLiked) {
+                            // Remove both user ID and username
+                            updatedLikes = post.likes.filter(
+                                (like) => like !== user._id && like !== username
+                            );
+                        } else {
+                            // Add both user ID and username for compatibility
+                            updatedLikes = [
+                                ...post.likes,
+                                user._id, // Store user ID
+                                username, // Store username for backward compatibility
+                            ];
+                        }
+
+                        // Update localStorage with both formats
                         updateStoredLikes(postId, updatedLikes);
 
                         return {
                             ...post,
                             likes: updatedLikes,
+                            hasUserLiked: !isLiked,
                         };
                     }
                     return post;
@@ -229,37 +245,20 @@ const UserProfile = () => {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({ userId: username }),
+                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
                 }
             );
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(
-                    errorData.message || "Failed to update like status"
-                );
+                throw new Error(errorData.message || "Failed to like post");
             }
         } catch (err) {
             console.error("Error liking post:", err);
             setError(err.message);
 
             // Revert UI changes if API call fails
-            setUserPosts((posts) =>
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const isLiked = post.likes?.includes(username);
-                        const updatedLikes = isLiked
-                            ? post.likes.filter((user) => user !== username)
-                            : [...(post.likes || []), username];
-
-                        return {
-                            ...post,
-                            likes: updatedLikes,
-                        };
-                    }
-                    return post;
-                })
-            );
+            await fetchUserPosts(userData.username);
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
@@ -694,9 +693,7 @@ const UserProfile = () => {
                                             {isLiking[post._id] ? (
                                                 // Loader while liking/unliking
                                                 <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                            ) : post.likes?.includes(
-                                                  username
-                                              ) ? (
+                                            ) : post.hasUserLiked ? (
                                                 // When already liked -> filled red heart
                                                 <FaHeart className="text-xl text-red-500" />
                                             ) : (
@@ -705,9 +702,7 @@ const UserProfile = () => {
                                             )}
                                             <span
                                                 className={`text-sm font-medium ${
-                                                    post.likes?.includes(
-                                                        username
-                                                    )
+                                                    post.hasUserLiked
                                                         ? "text-red-500"
                                                         : "text-gray-500"
                                                 }`}
@@ -763,8 +758,14 @@ const UserProfile = () => {
                                                                             comment.username ||
                                                                             "Unknown"}
                                                                     </span>
+                                                                    {comment.createdAt && (
+                                                                        <span className="text-xs text-gray-500">
+                                                                            {formatDate(
+                                                                                comment.createdAt
+                                                                            )}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
-
                                                                 <p className="text-sm mb-1">
                                                                     {comment.content ||
                                                                         ""}

@@ -130,17 +130,36 @@ const MainFeed = () => {
             // Get stored likes from localStorage
             const storedLikes = getStoredLikes();
 
-            const postsWithLikes = postsData.map((post) => ({
-                ...post,
-                isLiked:
-                    storedLikes[post._id]?.includes(username) ||
-                    post.likes?.some((like) => like.userId === username) ||
-                    false,
-                createdAt: post.createdAt || new Date().toISOString(),
-                comments: post.comments || [],
-            }));
+            const postsWithLikes = postsData.map((post) => {
+                // Get likes from storage or API
+                const postLikes = storedLikes[post._id] || post.likes || [];
+
+                // Check if current user has liked this post (handles both user ID and username)
+                const hasUserLiked =
+                    postLikes.includes(user._id) ||
+                    postLikes.includes(username) ||
+                    post.likes?.some((like) => like.userId === username);
+
+                return {
+                    ...post,
+                    likes: postLikes,
+                    hasUserLiked: hasUserLiked,
+                    createdAt: post.createdAt || new Date().toISOString(),
+                    comments: post.comments || [],
+                };
+            });
 
             setPosts(postsWithLikes);
+
+            // Update localStorage with current likes
+            const likesByPost = {};
+            postsData.forEach((post) => {
+                const storedPostLikes =
+                    storedLikes[post._id] || post.likes || [];
+                likesByPost[post._id] = storedPostLikes;
+            });
+
+            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
         } catch (err) {
             console.error("Error fetching posts:", err);
             setError(err.message);
@@ -215,44 +234,6 @@ const MainFeed = () => {
         setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
 
         try {
-            // Optimistic UI update
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments = post.comments?.map(
-                            (comment) => {
-                                if (comment._id === commentId) {
-                                    const isLiked = comment.isLiked;
-                                    const updatedLikes = isLiked
-                                        ? comment.likes?.filter(
-                                              (like) => like.userId !== username
-                                          ) || []
-                                        : [
-                                              ...(comment.likes || []),
-                                              { userId: username },
-                                          ];
-
-                                    // Update localStorage for comment likes
-                                    updateStoredCommentLikes(
-                                        commentId,
-                                        updatedLikes.map((like) => like.userId)
-                                    );
-
-                                    return {
-                                        ...comment,
-                                        isLiked: !isLiked,
-                                        likes: updatedLikes,
-                                    };
-                                }
-                                return comment;
-                            }
-                        );
-                        return { ...post, comments: updatedComments };
-                    }
-                    return post;
-                })
-            );
-
             const response = await fetch(
                 `${config.apiUrl}/posts/comments/${commentId}/like`,
                 {
@@ -262,7 +243,7 @@ const MainFeed = () => {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({
-                        userId: username,
+                        userId: user._id, // Use user ID instead of username
                     }),
                 }
             );
@@ -272,11 +253,11 @@ const MainFeed = () => {
                 throw new Error(errorData.message || "Failed to like comment");
             }
 
+            // Refresh comments to get updated like status
             await fetchComments(postId);
         } catch (err) {
             console.error("Error liking comment:", err);
             setError(err.message);
-            await fetchComments(postId);
         } finally {
             setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
         }
@@ -381,8 +362,8 @@ const MainFeed = () => {
             e.stopPropagation();
         }
 
-        if (!username) {
-            console.error("Username not available");
+        if (!username || !user?._id) {
+            console.error("User information not available");
             setError("You must be logged in to like posts");
             return;
         }
@@ -393,23 +374,30 @@ const MainFeed = () => {
             setPosts(
                 posts.map((post) => {
                     if (post._id === postId) {
-                        const isLiked = post.isLiked;
-                        const updatedLikes = isLiked
-                            ? post.likes?.filter(
-                                  (like) => like.userId !== username
-                              ) || []
-                            : [...(post.likes || []), { userId: username }];
+                        const isLiked = post.hasUserLiked;
+                        let updatedLikes;
 
-                        // Update localStorage
-                        updateStoredLikes(
-                            postId,
-                            updatedLikes.map((like) => like.userId)
-                        );
+                        if (isLiked) {
+                            // Remove both user ID and username
+                            updatedLikes = post.likes.filter(
+                                (like) => like !== user._id && like !== username
+                            );
+                        } else {
+                            // Add both user ID and username for compatibility
+                            updatedLikes = [
+                                ...post.likes,
+                                user._id, // Store user ID
+                                username, // Store username for backward compatibility
+                            ];
+                        }
+
+                        // Update localStorage with both formats
+                        updateStoredLikes(postId, updatedLikes);
 
                         return {
                             ...post,
-                            isLiked: !isLiked,
                             likes: updatedLikes,
+                            hasUserLiked: !isLiked,
                         };
                     }
                     return post;
@@ -424,50 +412,20 @@ const MainFeed = () => {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
+                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
                 }
             );
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(
-                    errorData.message || "Failed to update like status"
-                );
+                throw new Error(errorData.message || "Failed to like post");
             }
-
-            const updatedPost = await response.json();
-            setPosts(
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              ...updatedPost,
-                              isLiked:
-                                  updatedPost.likes?.some(
-                                      (like) => like.userId === username
-                                  ) || false,
-                          }
-                        : post
-                )
-            );
         } catch (err) {
             console.error("Error liking post:", err);
             setError(err.message);
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        return {
-                            ...post,
-                            isLiked: !post.isLiked,
-                            likes: post.isLiked
-                                ? post.likes?.filter(
-                                      (like) => like.userId !== username
-                                  ) || []
-                                : [...(post.likes || []), { userId: username }],
-                        };
-                    }
-                    return post;
-                })
-            );
+
+            // Revert optimistic update on error
+            await fetchPosts();
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
@@ -879,14 +837,14 @@ const MainFeed = () => {
                                 >
                                     {isLiking[post._id] ? (
                                         <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                    ) : post.isLiked ? (
+                                    ) : post.hasUserLiked ? (
                                         <FaHeart className="text-xl text-red-500" />
                                     ) : (
                                         <FaRegHeart className="text-xl text-gray-400" />
                                     )}
                                     <span
                                         className={`text-sm font-medium ${
-                                            post.isLiked
+                                            post.hasUserLiked
                                                 ? "text-red-500"
                                                 : "text-gray-400"
                                         }`}
