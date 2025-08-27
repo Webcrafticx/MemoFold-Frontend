@@ -219,7 +219,7 @@ const UserProfile = () => {
                             updatedLikes = [
                                 ...post.likes,
                                 user._id, // Store user ID
-                                username, // Store username for backward compatibility
+                                // username, // Store username for backward compatibility
                             ];
                         }
 
@@ -707,7 +707,7 @@ const UserProfile = () => {
                                                         : "text-gray-500"
                                                 }`}
                                             >
-                                                {post.likes?.length || 0} likes
+                                                {post.likes?.length || 0}
                                             </span>
                                         </button>
 

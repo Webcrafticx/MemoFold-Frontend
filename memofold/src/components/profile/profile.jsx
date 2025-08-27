@@ -788,7 +788,7 @@ const ProfilePage = () => {
                                 updatedLikes = [
                                     ...currentPostLikes,
                                     currentUserId,
-                                    currentUsername,
+                                    // currentUsername,
                                 ];
                             }
 
