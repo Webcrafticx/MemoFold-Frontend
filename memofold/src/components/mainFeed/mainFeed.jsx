@@ -9,6 +9,7 @@ import {
     FaTimes,
 } from "react-icons/fa";
 import config from "../../hooks/config";
+import { motion } from "framer-motion";
 
 const MainFeed = () => {
     const { token, logout, user, username, realname } = useAuth();
@@ -28,6 +29,10 @@ const MainFeed = () => {
     const [commentContent, setCommentContent] = useState({});
     const [isLikingComment, setIsLikingComment] = useState({});
     const [isDeletingComment, setIsDeletingComment] = useState({});
+    const [likeCooldown, setLikeCooldown] = useState({});
+
+    // Floating hearts state
+    const [floatingHearts, setFloatingHearts] = useState([]);
 
     // Image preview states
     const [showImagePreview, setShowImagePreview] = useState(false);
@@ -37,6 +42,40 @@ const MainFeed = () => {
         height: 0,
     });
     const imagePreviewRef = useRef(null);
+
+    // Floating Hearts Animation Component
+    const FloatingHearts = () => (
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+            {floatingHearts.map((heart) => (
+                <motion.div
+                    key={heart.id}
+                    className="absolute text-red-500 text-xl pointer-events-none"
+                    initial={{
+                        x: heart.x,
+                        y: heart.y,
+                        scale: 0,
+                        opacity: 1,
+                    }}
+                    animate={{
+                        y: heart.y - 100,
+                        scale: [0, 1.2, 1],
+                        opacity: [1, 1, 0],
+                    }}
+                    transition={{
+                        duration: 1.5,
+                        ease: "easeOut",
+                    }}
+                    onAnimationComplete={() => {
+                        setFloatingHearts((hearts) =>
+                            hearts.filter((h) => h.id !== heart.id)
+                        );
+                    }}
+                >
+                    ❤️
+                </motion.div>
+            ))}
+        </div>
+    );
 
     // Helper functions to manage localStorage likes
     const getStoredLikes = () => {
@@ -421,80 +460,108 @@ const MainFeed = () => {
         localStorage.setItem("darkMode", newMode);
     };
 
-    const handleLike = async (postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+  const handleLike = async (postId, e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
 
-        if (!username || !user?._id) {
-            console.error("User information not available");
-            setError("You must be logged in to like posts");
-            return;
-        }
+    // Prevent multiple rapid likes
+    if (likeCooldown[postId]) return;
+    
+    setLikeCooldown(prev => ({...prev, [postId]: true}));
+    
+    // Set a timeout to reset the cooldown after 500ms
+    setTimeout(() => {
+        setLikeCooldown(prev => ({...prev, [postId]: false}));
+    }, 500);
 
-        setIsLiking((prev) => ({ ...prev, [postId]: true }));
+    if (!username || !user?._id) {
+        console.error("User information not available");
+        setError("You must be logged in to like posts");
+        return;
+    }
 
-        try {
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const isLiked = post.hasUserLiked;
-                        let updatedLikes;
+    setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
-                        if (isLiked) {
-                            // Remove both user ID and username
-                            updatedLikes = post.likes.filter(
-                                (like) => like !== user._id && like !== username
-                            );
-                        } else {
-                            // Add both user ID and username for compatibility
-                            updatedLikes = [
-                                ...post.likes,
-                                user._id, // Store user ID
-                                // username, // Store username for backward compatibility
-                            ];
-                        }
+    try {
+        // Store the current state to check if we're adding a like (not removing)
+        const currentPost = posts.find(post => post._id === postId);
+        const isAddingLike = !currentPost?.hasUserLiked;
 
-                        // Update localStorage with both formats
-                        updateStoredLikes(postId, updatedLikes);
+        setPosts(
+            posts.map((post) => {
+                if (post._id === postId) {
+                    const isLiked = post.hasUserLiked;
+                    let updatedLikes;
 
-                        return {
-                            ...post,
-                            likes: updatedLikes,
-                            hasUserLiked: !isLiked,
-                        };
+                    if (isLiked) {
+                        // Remove both user ID and username
+                        updatedLikes = post.likes.filter(
+                            (like) => like !== user._id && like !== username
+                        );
+                    } else {
+                        // Add both user ID and username for compatibility
+                        updatedLikes = [
+                            ...post.likes,
+                            user._id, // Store user ID
+                        ];
                     }
-                    return post;
-                })
-            );
 
-            const response = await fetch(
-                `${config.apiUrl}/posts/like/${postId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
+                    // Update localStorage with both formats
+                    updateStoredLikes(postId, updatedLikes);
+
+                    return {
+                        ...post,
+                        likes: updatedLikes,
+                        hasUserLiked: !isLiked,
+                    };
                 }
-            );
+                return post;
+            })
+        );
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to like post");
-            }
-        } catch (err) {
-            console.error("Error liking post:", err);
-            setError(err.message);
-
-            // Revert optimistic update on error
-            await fetchPosts();
-        } finally {
-            setIsLiking((prev) => ({ ...prev, [postId]: false }));
+        // Add floating hearts animation ONLY when adding a like (not removing)
+        if (isAddingLike && e) {
+            const rect = e.target.getBoundingClientRect();
+            
+            // Add just one heart instead of multiple
+            setFloatingHearts((hearts) => [
+                ...hearts,
+                {
+                    id: Date.now(),
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                },
+            ]);
         }
-    };
+
+        const response = await fetch(
+            `${config.apiUrl}/posts/like/${postId}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ userId: user._id }), // Send user ID to API
+            }
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to like post");
+        }
+    } catch (err) {
+        console.error("Error liking post:", err);
+        setError(err.message);
+
+        // Revert optimistic update on error
+        await fetchPosts();
+    } finally {
+        setIsLiking((prev) => ({ ...prev, [postId]: false }));
+    }
+};
 
     const toggleCommentDropdown = async (postId, e) => {
         if (e) {
@@ -678,6 +745,9 @@ const MainFeed = () => {
                 darkMode ? "dark bg-gray-900 text-gray-100" : "bg-[#fdfaf6]"
             }`}
         >
+            {/* Floating Hearts Animation */}
+            <FloatingHearts />
+            
             {/* Error Message */}
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
@@ -891,11 +961,12 @@ const MainFeed = () => {
                             )}
 
                             <div className="flex items-center justify-between border-t border-gray-200 pt-3">
-                                <button
+                                <motion.button
+                                    whileTap={{ scale: 0.9 }}
                                     onClick={(e) => handleLike(post._id, e)}
-                                    disabled={isLiking[post._id]}
+                                    disabled={isLiking[post._id] || likeCooldown[post._id]}
                                     className={`flex items-center gap-1 ${
-                                        isLiking[post._id]
+                                        isLiking[post._id] || likeCooldown[post._id]
                                             ? "opacity-50 cursor-not-allowed"
                                             : ""
                                     } hover:text-red-500 transition-colors cursor-pointer`}
@@ -907,7 +978,11 @@ const MainFeed = () => {
                                     ) : (
                                         <FaRegHeart className="text-xl text-gray-400" />
                                     )}
-                                    <span
+                                    <motion.span
+                                        key={post.likes?.length || 0}
+                                        initial={{ scale: 1 }}
+                                        animate={{ scale: [1.2, 1] }}
+                                        transition={{ duration: 0.2 }}
                                         className={`text-sm font-medium ${
                                             post.hasUserLiked
                                                 ? "text-red-500"
@@ -915,8 +990,8 @@ const MainFeed = () => {
                                         }`}
                                     >
                                         {post.likes?.length || 0}
-                                    </span>
-                                </button>
+                                    </motion.span>
+                                </motion.button>
 
                                 <button
                                     className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
