@@ -12,6 +12,7 @@ import {
     FaCommentDots,
     FaTimes,
 } from "react-icons/fa";
+import { motion } from "framer-motion";
 import config from "../hooks/config";
 
 const UserProfile = () => {
@@ -29,6 +30,9 @@ const UserProfile = () => {
     const [commentContent, setCommentContent] = useState({});
     const [loadingComments, setLoadingComments] = useState({});
 
+    // Floating hearts state
+    const [floatingHearts, setFloatingHearts] = useState([]);
+
     // Image preview states
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
@@ -37,6 +41,40 @@ const UserProfile = () => {
         height: 0,
     });
     const imagePreviewRef = useRef(null);
+
+    // Floating Hearts Animation Component
+    const FloatingHearts = () => (
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+            {floatingHearts.map((heart) => (
+                <motion.div
+                    key={heart.id}
+                    className="absolute text-red-500 text-xl pointer-events-none"
+                    initial={{
+                        x: heart.x,
+                        y: heart.y,
+                        scale: 0,
+                        opacity: 1,
+                    }}
+                    animate={{
+                        y: heart.y - 100,
+                        scale: [0, 1.2, 1],
+                        opacity: [1, 1, 0],
+                    }}
+                    transition={{
+                        duration: 1.5,
+                        ease: "easeOut",
+                    }}
+                    onAnimationComplete={() => {
+                        setFloatingHearts((hearts) =>
+                            hearts.filter((h) => h.id !== heart.id)
+                        );
+                    }}
+                >
+                    ❤️
+                </motion.div>
+            ))}
+        </div>
+    );
 
     // Helper functions to manage localStorage likes
     const getStoredLikes = () => {
@@ -192,7 +230,11 @@ const UserProfile = () => {
         }
     };
 
-    const handleLike = async (postId) => {
+    const handleLike = async (postId, e) => {
+        if (e) {
+            e.stopPropagation();
+        }
+
         if (!username || !user?._id) {
             console.error("User information not available");
             setError("You must be logged in to like posts");
@@ -219,8 +261,26 @@ const UserProfile = () => {
                             updatedLikes = [
                                 ...post.likes,
                                 user._id, // Store user ID
-                                // username, // Store username for backward compatibility
                             ];
+
+                            // Add floating hearts animation when liking
+                            if (e) {
+                                const rect = e.target.getBoundingClientRect();
+                                const heartCount = 5; // Number of hearts to show
+                                
+                                for (let i = 0; i < heartCount; i++) {
+                                    setTimeout(() => {
+                                        setFloatingHearts((hearts) => [
+                                            ...hearts,
+                                            {
+                                                id: Date.now() + i,
+                                                x: rect.left + rect.width / 2,
+                                                y: rect.top + rect.height / 2,
+                                            },
+                                        ]);
+                                    }, i * 100); // Stagger the hearts
+                                }
+                            }
                         }
 
                         // Update localStorage with both formats
@@ -467,7 +527,10 @@ const UserProfile = () => {
     }
 
     return (
-        <div className="min-h-screen  bg-gray-50">
+        <div className="min-h-screen bg-gray-50">
+            {/* Floating Hearts Animation */}
+            <FloatingHearts />
+
             {/* Image Preview Modal */}
             {showImagePreview && (
                 <div
@@ -678,11 +741,9 @@ const UserProfile = () => {
                                     )}
 
                                     <div className="flex items-center justify-between border-t border-gray-200 pt-3">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleLike(post._id);
-                                            }}
+                                        <motion.button
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={(e) => handleLike(post._id, e)}
                                             disabled={isLiking[post._id]}
                                             className={`flex items-center gap-1 ${
                                                 isLiking[post._id]
@@ -700,7 +761,11 @@ const UserProfile = () => {
                                                 // When not liked -> outlined heart
                                                 <FaRegHeart className="text-xl text-gray-500" />
                                             )}
-                                            <span
+                                            <motion.span
+                                                key={post.likes?.length || 0}
+                                                initial={{ scale: 1 }}
+                                                animate={{ scale: [1.2, 1] }}
+                                                transition={{ duration: 0.2 }}
                                                 className={`text-sm font-medium ${
                                                     post.hasUserLiked
                                                         ? "text-red-500"
@@ -708,8 +773,8 @@ const UserProfile = () => {
                                                 }`}
                                             >
                                                 {post.likes?.length || 0}
-                                            </span>
-                                        </button>
+                                            </motion.span>
+                                        </motion.button>
 
                                         <button
                                             className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"

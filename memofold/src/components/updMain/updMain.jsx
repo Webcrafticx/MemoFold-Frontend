@@ -22,6 +22,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import config from "../../hooks/config";
 import imageCompression from "browser-image-compression";
+import { motion } from "framer-motion";
 
 const MainDashboard = () => {
     const [darkMode, setDarkMode] = useState(false);
@@ -50,6 +51,10 @@ const MainDashboard = () => {
         width: 0,
         height: 0,
     });
+    
+    // Floating hearts state
+    const [floatingHearts, setFloatingHearts] = useState([]);
+    
     const navigate = useNavigate();
 
     // Helper functions to manage localStorage likes
@@ -67,6 +72,7 @@ const MainDashboard = () => {
         storedLikes[postId] = likes;
         localStorage.setItem("postLikes", JSON.stringify(storedLikes));
     };
+    
     // Add these helper functions near the post like functions
     const getStoredCommentLikes = () => {
         try {
@@ -85,6 +91,41 @@ const MainDashboard = () => {
             JSON.stringify(storedCommentLikes)
         );
     };
+    
+    // Floating Hearts Animation Component
+    const FloatingHearts = () => (
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+            {floatingHearts.map((heart) => (
+                <motion.div
+                    key={heart.id}
+                    className="absolute text-red-500 text-xl pointer-events-none"
+                    initial={{
+                        x: heart.x,
+                        y: heart.y,
+                        scale: 0,
+                        opacity: 1,
+                    }}
+                    animate={{
+                        y: heart.y - 100,
+                        scale: [0, 1.2, 1],
+                        opacity: [1, 1, 0],
+                    }}
+                    transition={{
+                        duration: 1.5,
+                        ease: "easeOut",
+                    }}
+                    onAnimationComplete={() => {
+                        setFloatingHearts((hearts) =>
+                            hearts.filter((h) => h.id !== heart.id)
+                        );
+                    }}
+                >
+                    ❤️
+                </motion.div>
+            ))}
+        </div>
+    );
+
     // Create refs for dropdowns
     const dropdownRef = useRef(null);
     const commentDropdownRefs = useRef({});
@@ -770,7 +811,7 @@ const MainDashboard = () => {
         }
     };
 
-    const handleLikePost = async (postId) => {
+    const handleLikePost = async (postId, event) => {
         try {
             const response = await fetch(
                 `${config.apiUrl}/posts/like/${postId}`,
@@ -807,6 +848,25 @@ const MainDashboard = () => {
                                 user._id, // Store user ID
                                 // username, // Store username for backward compatibility
                             ];
+
+                            // Add floating hearts animation when liking
+                            if (event) {
+                                const rect = event.target.getBoundingClientRect();
+                                const heartCount = 5; // Number of hearts to show
+                                
+                                for (let i = 0; i < heartCount; i++) {
+                                    setTimeout(() => {
+                                        setFloatingHearts((hearts) => [
+                                            ...hearts,
+                                            {
+                                                id: Date.now() + i,
+                                                x: rect.left + rect.width / 2,
+                                                y: rect.top + rect.height / 2,
+                                            },
+                                        ]);
+                                    }, i * 100); // Stagger the hearts
+                                }
+                            }
                         }
 
                         // Update localStorage with both formats
@@ -1200,6 +1260,9 @@ const MainDashboard = () => {
                     : "bg-gradient-to-r from-gray-100 to-gray-200"
             }`}
         >
+            {/* Floating Hearts Animation */}
+            <FloatingHearts />
+            
             <ToastContainer
                 position="top-right"
                 autoClose={3000}
@@ -1803,21 +1866,26 @@ const MainDashboard = () => {
                                     )}
 
                                     <div className="flex justify-between items-center border-t  py-2 my-2 border-gray-200 dark:border-gray-700">
-                                        <button
+                                        <motion.button
+                                            whileTap={{ scale: 0.9 }}
                                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                            onClick={() =>
-                                                handleLikePost(post._id)
-                                            }
+                                            onClick={(e) => handleLikePost(post._id, e)}
                                         >
                                             {post.hasUserLiked ? (
                                                 <FaHeart className="text-red-500" />
                                             ) : (
                                                 <FaRegHeart />
                                             )}
-                                            <span className="text-sm">
+                                            <motion.span
+                                                key={post.likes?.length || 0}
+                                                initial={{ scale: 1 }}
+                                                animate={{ scale: [1.2, 1] }}
+                                                transition={{ duration: 0.2 }}
+                                                className="text-sm"
+                                            >
                                                 {post.likes?.length || 0}
-                                            </span>
-                                        </button>
+                                            </motion.span>
+                                        </motion.button>
                                         <button
                                             className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                                             onClick={() =>
