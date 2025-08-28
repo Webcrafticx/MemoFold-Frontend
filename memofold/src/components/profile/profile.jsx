@@ -524,60 +524,75 @@ const ProfilePage = () => {
     };
 
     const handleProfilePicUpload = async (file) => {
-        if (!file) return;
+    if (!file) return;
 
-        const validTypes = ["image/jpeg", "image/png", "image/gif"];
-        if (
-            !validTypes.includes(file.type) &&
-            !file.type.startsWith("image/")
-        ) {
-            setError("Please upload a valid image (JPEG, PNG, GIF)");
-            toast.error("Please upload a valid image (JPEG, PNG, GIF)");
-            return;
-        }
+    const validTypes = ["image/jpeg", "image/png", "image/gif"];
+    if (
+        !validTypes.includes(file.type) &&
+        !file.type.startsWith("image/")
+    ) {
+        setError("Please upload a valid image (JPEG, PNG, GIF)");
+        toast.error("Please upload a valid image (JPEG, PNG, GIF)");
+        return;
+    }
 
-        if (file.size > 5 * 1024 * 1024) {
-            setError("Image size should be less than 5MB");
-            toast.error("Image size should be less than 5MB");
-            return;
-        }
+    if (file.size > 5 * 1024 * 1024) {
+        setError("Image size should be less than 5MB");
+        toast.error("Image size should be less than 5MB");
+        return;
+    }
 
-        try {
-            setUploadingProfilePic(true);
-            setError(null);
+    try {
+        setUploadingProfilePic(true);
+        setError(null);
 
-            const token = localStorage.getItem("token");
-            const formData = new FormData();
-            formData.append("profilePic", file);
+        const token = localStorage.getItem("token");
+        const formData = new FormData();
+        formData.append("profilePic", file);
 
-            const response = await fetch(
-                `${config.apiUrl}/user/upload-profile-pic`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: formData,
-                }
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                const imageUrl = data.profilePicUrl || data.imagePath;
-                setProfilePic(imageUrl);
-                localStorage.setItem("profilePic", imageUrl);
-                toast.success("Profile picture updated successfully!");
-            } else {
-                throw new Error("Failed to upload profile picture");
+        const response = await fetch(
+            `${config.apiUrl}/user/upload-profile-pic`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
             }
-        } catch (error) {
-            console.error("Upload error:", error);
-            setError(error.message);
-            toast.error(error.message);
-        } finally {
-            setUploadingProfilePic(false);
+        );
+
+        if (response.ok) {
+            const data = await response.json();
+            const imageUrl = data.profilePicUrl || data.imagePath;
+            
+            // Update profile picture in state and localStorage
+            setProfilePic(imageUrl);
+            localStorage.setItem("profilePic", imageUrl);
+            
+            // Update profile picture in all posts
+            setPosts(prevPosts => 
+                prevPosts.map(post => ({
+                    ...post,
+                    profilePic: imageUrl,
+                    userId: {
+                        ...post.userId,
+                        profilePic: imageUrl
+                    }
+                }))
+            );
+            
+            toast.success("Profile picture updated successfully!");
+        } else {
+            throw new Error("Failed to upload profile picture");
         }
-    };
+    } catch (error) {
+        console.error("Upload error:", error);
+        setError(error.message);
+        toast.error(error.message);
+    } finally {
+        setUploadingProfilePic(false);
+    }
+};
 
     const compressImage = async (file) => {
         const options = {
