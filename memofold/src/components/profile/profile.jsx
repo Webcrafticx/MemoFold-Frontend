@@ -122,6 +122,309 @@ const ProfilePage = () => {
         height: 0,
     });
 
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState("");
+    const [editFiles, setEditFiles] = useState([]);
+    const [isUpdatingPost, setIsUpdatingPost] = useState(false);
+    const [isDeletingPost, setIsDeletingPost] = useState(false);
+
+    const startEditPost = (postId) => {
+        const postToEdit = posts.find((post) => post._id === postId);
+        if (postToEdit) {
+            setEditContent(postToEdit.content);
+            setEditingPostId(postId);
+            setEditFiles([]);
+            setError(null);
+        } else {
+            setError("Post not found for editing");
+        }
+    };
+
+    const cancelEditPost = () => {
+        setEditingPostId(null);
+        setEditContent("");
+        setEditFiles([]);
+    };
+
+    const handleUpdatePost = async (postId) => {
+        if (!editContent.trim() && editFiles.length === 0) {
+            setError("Post content or file cannot be empty");
+            return;
+        }
+
+        setIsUpdatingPost(true);
+        setError(null);
+
+        try {
+            const token = localStorage.getItem("token");
+
+            // Convert only the first file to complete data URL format with compression
+            let imageData = null;
+            if (editFiles.length > 0) {
+                const file = editFiles[0];
+
+                // Compress image before converting to base64
+                const options = {
+                    maxSizeMB: 1, // Maximum file size in MB
+                    maxWidthOrHeight: 1024, // Maximum width or height
+                    useWebWorker: true, // Use web worker for faster compression
+                };
+
+                try {
+                    const compressedFile = await imageCompression(
+                        file,
+                        options
+                    );
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = (error) => reject(error);
+                        reader.readAsDataURL(compressedFile);
+                    });
+                } catch (compressionError) {
+                    console.warn(
+                        "Image compression failed, using original:",
+                        compressionError
+                    );
+                    // Fallback to original file if compression fails
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const dataURL = reader.result;
+                            resolve(dataURL);
+                        };
+                        reader.onerror = (error) => reject(error);
+                        reader.readAsDataURL(file);
+                    });
+                }
+            }
+
+            const postData = {
+                content: editContent,
+                ...(imageData && { image: imageData }),
+            };
+
+            const response = await fetch(
+                `${config.apiUrl}/posts/update/${postId}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(postData),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to update post");
+            }
+
+            setPosts(
+                posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              content: editContent,
+                              ...(imageData && { image: imageData }),
+                          }
+                        : post
+                )
+            );
+
+            setEditingPostId(null);
+            setEditContent("");
+            setEditFiles([]);
+            setError(null);
+
+            // Show success notification
+            toast.success("Post updated successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } catch (err) {
+            setError(err.message);
+            console.error("Error updating post:", err);
+
+            // Show error notification
+            toast.error("Failed to update post. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } finally {
+            setIsUpdatingPost(false);
+        }
+    };
+
+    const handleDeletePost = async (postId) => {
+        if (!window.confirm("Are you sure you want to delete this post?")) {
+            return;
+        }
+
+        setIsDeletingPost(true);
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(
+                `${config.apiUrl}/posts/delete/${postId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to delete post");
+            }
+
+            setPosts(posts.filter((post) => post._id !== postId));
+
+            // Remove post likes from localStorage when post is deleted
+            const storedLikes = getStoredLikes();
+            delete storedLikes[postId];
+            localStorage.setItem("postLikes", JSON.stringify(storedLikes));
+
+            // Show success notification
+            toast.success("Post deleted successfully!", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } catch (err) {
+            setError(err.message);
+            console.error("Error deleting post:", err);
+
+            // Show error notification
+            toast.error("Failed to delete post. Please try again.", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+            });
+        } finally {
+            setIsDeletingPost(false);
+        }
+    };
+
+    const handleEditFileSelect = (e) => {
+        const files = Array.from(e.target.files);
+        const validFiles = files.filter((file) => {
+            const validTypes = [
+                "image/jpeg",
+                "image/png",
+                "application/pdf",
+                "video/mp4",
+                "text/plain",
+            ];
+            return validTypes.includes(file.type);
+        });
+
+        if (validFiles.length !== files.length) {
+            setError(
+                "Some files were not accepted. Only images, PDFs, videos and text files are allowed."
+            );
+        }
+
+        setEditFiles((prev) => [...prev, ...validFiles]);
+    };
+
+    const removeEditFile = (index) => {
+        setEditFiles((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const renderImagePreview = (file, isEdit = false) => {
+        if (file.type.startsWith("image/")) {
+            return (
+                <div className="relative">
+                    <img
+                        src={URL.createObjectURL(file)}
+                        alt="Preview"
+                        className="w-16 h-16 object-contain rounded-lg cursor-pointer"
+                        onClick={() => {
+                            setPreviewImage(URL.createObjectURL(file));
+                            setShowImagePreview(true);
+                        }}
+                    />
+                    <button
+                        onClick={() =>
+                            isEdit
+                                ? removeEditFile(editFiles.indexOf(file))
+                                : removeFile(selectedFiles.indexOf(file))
+                        }
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
+                    >
+                        <FaTimes />
+                    </button>
+                </div>
+            );
+        }
+        return (
+            <div
+                className={`p-2 rounded-lg flex items-center ${
+                    isDarkMode ? "bg-gray-600" : "bg-white"
+                }`}
+            >
+                <span className="mr-2">📁</span>
+                <span className="text-sm truncate max-w-xs">{file.name}</span>
+                <button
+                    onClick={() =>
+                        isEdit
+                            ? removeEditFile(editFiles.indexOf(file))
+                            : removeFile(selectedFiles.indexOf(file))
+                    }
+                    className="ml-2 text-red-500 hover:text-red-700 cursor-pointer"
+                >
+                    <FaTimes />
+                </button>
+            </div>
+        );
+    };
+
+    const renderExistingImagePreview = (imageUrl) => {
+        return (
+            <div className="relative mb-4 w-full flex justify-center">
+                <img
+                    src={imageUrl}
+                    alt="Post image"
+                    className="max-h-96 max-w-full object-contain rounded-lg cursor-pointer"
+                    onClick={() => {
+                        setPreviewImage(imageUrl);
+                        setShowImagePreview(true);
+                    }}
+                />
+                <button
+                    onClick={() => {
+                        setEditFiles([]);
+                        setEditContent((prev) => prev + " [Image removed]");
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 cursor-pointer"
+                >
+                    <FaTimes />
+                </button>
+            </div>
+        );
+    };
+
     // Add floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
 
@@ -1170,29 +1473,48 @@ const ProfilePage = () => {
                                     className="cursor-pointer block"
                                 >
                                     <div className="relative">
-                                        <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden border-4 border-blue-400 shadow-lg">
-                                            <img
-                                                src={profilePic}
-                                                alt="Profile"
-                                                className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
-                                                    uploadingProfilePic
-                                                        ? "opacity-50"
-                                                        : ""
-                                                }`}
-                                                onError={(e) => {
-                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                        username
-                                                    )}&background=random`;
-                                                }}
-                                            />
-                                        </div>
-                                        {uploadingProfilePic && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                        <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg">
+                                            {profilePic &&
+                                            profilePic !==
+                                                "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                                <img
+                                                    src={profilePic}
+                                                    alt="Profile"
+                                                    className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
+                                                        uploadingProfilePic
+                                                            ? "opacity-50"
+                                                            : ""
+                                                    }`}
+                                                    onError={(e) => {
+                                                        e.target.style.display =
+                                                            "none";
+                                                        e.target.nextSibling.style.display =
+                                                            "flex";
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <span
+                                                className="flex items-center justify-center w-full h-full text-white font-semibold text-4xl"
+                                                style={
+                                                    profilePic &&
+                                                    profilePic !==
+                                                        "https://ui-avatars.com/api/?name=User&background=random"
+                                                        ? { display: "none" }
+                                                        : {}
+                                                }
+                                            >
+                                                {username
+                                                    ?.charAt(0)
+                                                    .toUpperCase() || "U"}
+                                            </span>
+                                            {uploadingProfilePic && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                                </div>
+                                            )}
+                                            <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md">
+                                                <FaCamera className="text-sm" />
                                             </div>
-                                        )}
-                                        <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md">
-                                            <FaCamera className="text-sm" />
                                         </div>
                                     </div>
                                 </label>
@@ -1296,23 +1618,40 @@ const ProfilePage = () => {
                         } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
                     >
                         <div className="flex items-center gap-3 mb-3 sm:mb-4">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-blue-400 shadow-md cursor-pointer">
-                                <img
-                                    src={profilePic}
-                                    alt={username}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                            username
-                                        )}&background=random`;
-                                    }}
-                                    onClick={() =>
-                                        navigateToUserProfile(
-                                            currentUserProfile?._id
-                                        )
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
+                                {profilePic &&
+                                profilePic !==
+                                    "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                    <img
+                                        src={profilePic}
+                                        alt={username}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            e.target.style.display = "none";
+                                            e.target.nextSibling.style.display =
+                                                "flex";
+                                        }}
+                                        onClick={() =>
+                                            navigateToUserProfile(
+                                                currentUserProfile?._id
+                                            )
+                                        }
+                                    />
+                                ) : null}
+                                <span
+                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
+                                    style={
+                                        profilePic &&
+                                        profilePic !==
+                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                            ? { display: "none" }
+                                            : {}
                                     }
-                                />
+                                >
+                                    {username?.charAt(0).toUpperCase() || "U"}
+                                </span>
                             </div>
+
                             <div className="flex flex-col">
                                 <span
                                     className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
@@ -1466,47 +1805,241 @@ const ProfilePage = () => {
                                         } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
                                     >
                                         {/* Post Header */}
-                                        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                                            <img
-                                                src={post.profilePic}
-                                                alt={post.username}
-                                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                                                onError={(e) => {
-                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                        post.username
-                                                    )}&background=random`;
-                                                }}
-                                                onClick={() =>
-                                                    navigateToUserProfile(
-                                                        post.userId?._id
-                                                    )
-                                                }
-                                            />
-                                            <span
-                                                className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
-                                                onClick={() =>
-                                                    navigateToUserProfile(
-                                                        post.userId?._id
-                                                    )
-                                                }
-                                            >
-                                                {post.username}
-                                            </span>
-                                            <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 ml-auto">
-                                                {formatDate(post.createdAt)}
-                                            </span>
-                                        </div>
+                                        <div className="flex items-start justify-between mb-3 sm:mb-4">
+                                            <div className="flex items-center gap-2 sm:gap-3">
+                                                <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                    {post.userId?.profilePic ? (
+                                                        <img
+                                                            src={
+                                                                post.userId
+                                                                    .profilePic
+                                                            }
+                                                            alt={
+                                                                post.userId
+                                                                    .username
+                                                            }
+                                                            className="w-10 h-10 object-cover"
+                                                            onError={(e) => {
+                                                                e.target.style.display =
+                                                                    "none";
+                                                                e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
+                                                                    post.userId.username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                    "U"
+                                                                }</span>`;
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
+                                                            {post.userId?.username
+                                                                ?.charAt(0)
+                                                                .toUpperCase() ||
+                                                                "U"}
+                                                        </span>
+                                                    )}
+                                                </div>
 
-                                        {/* Post Content */}
-                                        <p
-                                            className={`mb-3 sm:mb-4 ${
-                                                isDarkMode
-                                                    ? "text-gray-300"
-                                                    : "text-gray-700"
-                                            } text-sm sm:text-base`}
-                                        >
-                                            {post.content}
-                                        </p>
+                                                <div>
+                                                    <h3
+                                                        className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors cursor-pointer"
+                                                        onClick={() =>
+                                                            navigateToUserProfile(
+                                                                post.userId?._id
+                                                            )
+                                                        }
+                                                    >
+                                                        {post.userId
+                                                            ?.realname ||
+                                                            post.userId
+                                                                ?.username ||
+                                                            "Unknown User"}
+                                                    </h3>
+                                                    <p
+                                                        className={`text-xs ${
+                                                            isDarkMode
+                                                                ? "text-gray-400"
+                                                                : "text-gray-500"
+                                                        }`}
+                                                    >
+                                                        @
+                                                        {post.userId
+                                                            ?.username ||
+                                                            "unknown"}{" "}
+                                                        ·{" "}
+                                                        {formatDate(
+                                                            post.createdAt
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Edit/Delete buttons - positioned at top right */}
+                                            {post.userId?._id ===
+                                                currentUserProfile?._id && (
+                                                <div className="flex items-center space-x-2">
+                                                    <button
+                                                        onClick={() =>
+                                                            startEditPost(
+                                                                post._id
+                                                            )
+                                                        }
+                                                        className={`p-1 rounded-full ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
+                                                        }`}
+                                                        title="Edit post"
+                                                    >
+                                                        <FaEdit className="text-blue-500 text-sm" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDeletePost(
+                                                                post._id
+                                                            )
+                                                        }
+                                                        className={`p-1 rounded-full ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
+                                                        }`}
+                                                        title="Delete post"
+                                                        disabled={
+                                                            isDeletingPost
+                                                        }
+                                                    >
+                                                        <FaTrashAlt className="text-red-500 text-sm" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* Post Content - Add edit mode */}
+                                        {editingPostId === post._id ? (
+                                            <div className="mb-3 sm:mb-4">
+                                                <textarea
+                                                    value={editContent}
+                                                    onChange={(e) =>
+                                                        setEditContent(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    className={`w-full p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                                        isDarkMode
+                                                            ? "bg-gray-700 text-white border-gray-600"
+                                                            : "bg-gray-100 text-gray-800 border-gray-300"
+                                                    }`}
+                                                    rows={3}
+                                                />
+                                                {/* Edit Files Preview */}
+                                                {editFiles.length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {editFiles.map(
+                                                            (file, index) => (
+                                                                <div
+                                                                    key={index}
+                                                                >
+                                                                    {renderImagePreview(
+                                                                        file,
+                                                                        true
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {post.image && (
+                                                    <div className="mt-2">
+                                                        {renderExistingImagePreview(
+                                                            post.image
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <label
+                                                        className={`p-1 rounded-full cursor-pointer ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            onChange={
+                                                                handleEditFileSelect
+                                                            }
+                                                            accept="image/*,application/pdf,video/mp4,text/plain"
+                                                        />
+                                                        <FaPaperclip className="text-gray-500 text-sm" />
+                                                    </label>
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            onClick={() =>
+                                                                handleUpdatePost(
+                                                                    post._id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                isUpdatingPost
+                                                            }
+                                                            className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                                                isUpdatingPost
+                                                                    ? "bg-gray-400 cursor-not-allowed"
+                                                                    : "bg-green-500 hover:bg-green-600 text-white"
+                                                            }`}
+                                                        >
+                                                            {isUpdatingPost
+                                                                ? "Saving..."
+                                                                : "Save"}
+                                                        </button>
+                                                        <button
+                                                            onClick={
+                                                                cancelEditPost
+                                                            }
+                                                            className="px-3 py-1 rounded-lg text-sm font-medium bg-gray-500 hover:bg-gray-600 text-white"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p
+                                                    className={`mb-3 sm:mb-4 ${
+                                                        isDarkMode
+                                                            ? "text-gray-300"
+                                                            : "text-gray-700"
+                                                    } text-sm sm:text-base`}
+                                                >
+                                                    {post.content}
+                                                </p>
+                                                {post.image && (
+                                                    <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                                                        <img
+                                                            src={post.image}
+                                                            alt="Post"
+                                                            className="max-h-96 max-w-full object-contain cursor-pointer"
+                                                            onClick={() => {
+                                                                setPreviewImage(
+                                                                    post.image
+                                                                );
+                                                                setShowImagePreview(
+                                                                    true
+                                                                );
+                                                            }}
+                                                            onError={(e) => {
+                                                                e.target.style.display =
+                                                                    "none";
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
 
                                         {/* Post Image */}
                                         {post.image && (
@@ -1761,16 +2294,59 @@ const ProfilePage = () => {
 
                                                         {/* Add Comment Input */}
                                                         <div className="flex items-center space-x-2">
-                                                            <img
-                                                                src={profilePic}
-                                                                alt={username}
-                                                                className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                                                                onClick={() =>
-                                                                    navigateToUserProfile(
-                                                                        currentUserProfile?._id
-                                                                    )
-                                                                }
-                                                            />
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border border-gray-200 dark:border-gray-600 cursor-pointer">
+                                                                {profilePic &&
+                                                                profilePic !==
+                                                                    "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                                                    <img
+                                                                        src={
+                                                                            profilePic
+                                                                        }
+                                                                        alt={
+                                                                            username
+                                                                        }
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(
+                                                                            e
+                                                                        ) => {
+                                                                            e.target.style.display =
+                                                                                "none";
+                                                                            e.target.nextSibling.style.display =
+                                                                                "flex";
+                                                                        }}
+                                                                        onClick={() =>
+                                                                            navigateToUserProfile(
+                                                                                currentUserProfile?._id
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                ) : null}
+                                                                <span
+                                                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
+                                                                    style={
+                                                                        profilePic &&
+                                                                        profilePic !==
+                                                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                                                            ? {
+                                                                                  display:
+                                                                                      "none",
+                                                                              }
+                                                                            : {}
+                                                                    }
+                                                                    onClick={() =>
+                                                                        navigateToUserProfile(
+                                                                            currentUserProfile?._id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                        "U"}
+                                                                </span>
+                                                            </div>
                                                             <div className="flex-1 flex space-x-2">
                                                                 <input
                                                                     type="text"
