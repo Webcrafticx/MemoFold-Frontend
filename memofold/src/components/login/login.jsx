@@ -20,7 +20,7 @@ const LoginPage = () => {
     // Redirect if already logged in
     useEffect(() => {
         if (token) {
-            navigate("/dashboard");
+            navigate("/feed");
         }
     }, [token, navigate]);
 
@@ -266,21 +266,17 @@ const LoginPage = () => {
             {/* Footer */}
             <footer className="bg-gray-50 py-4 px-4 sm:px-6 text-center">
                 <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-2">
-                    {[
-                        "About",
-                        "Help",
-                        "Privacy",
-                        "Terms",
-                        "Contact",
-                    ].map((item) => (
-                        <Link
-                            key={item}
-                            to={`/${item.toLowerCase()}`}
-                            className="text-xs sm:text-sm text-gray-600 hover:underline cursor-pointer"
-                        >
-                            {item}
-                        </Link>
-                    ))}
+                    {["About", "Help", "Privacy", "Terms", "Contact"].map(
+                        (item) => (
+                            <Link
+                                key={item}
+                                to={`/${item.toLowerCase()}`}
+                                className="text-xs sm:text-sm text-gray-600 hover:underline cursor-pointer"
+                            >
+                                {item}
+                            </Link>
+                        )
+                    )}
                 </div>
                 <div className="text-xs text-gray-500">
                     © {new Date().getFullYear()} MemoFold

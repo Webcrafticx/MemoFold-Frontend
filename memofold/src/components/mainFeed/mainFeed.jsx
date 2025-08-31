@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import config from "../../hooks/config";
 import { motion } from "framer-motion";
+import Navbar from "../navbar";
 
 const MainFeed = () => {
     const { token, logout, user, username, realname } = useAuth();
@@ -460,108 +461,108 @@ const MainFeed = () => {
         localStorage.setItem("darkMode", newMode);
     };
 
-  const handleLike = async (postId, e) => {
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
+    const handleLike = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    // Prevent multiple rapid likes
-    if (likeCooldown[postId]) return;
-    
-    setLikeCooldown(prev => ({...prev, [postId]: true}));
-    
-    // Set a timeout to reset the cooldown after 500ms
-    setTimeout(() => {
-        setLikeCooldown(prev => ({...prev, [postId]: false}));
-    }, 500);
+        // Prevent multiple rapid likes
+        if (likeCooldown[postId]) return;
 
-    if (!username || !user?._id) {
-        console.error("User information not available");
-        setError("You must be logged in to like posts");
-        return;
-    }
+        setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
 
-    setIsLiking((prev) => ({ ...prev, [postId]: true }));
+        // Set a timeout to reset the cooldown after 500ms
+        setTimeout(() => {
+            setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
+        }, 500);
 
-    try {
-        // Store the current state to check if we're adding a like (not removing)
-        const currentPost = posts.find(post => post._id === postId);
-        const isAddingLike = !currentPost?.hasUserLiked;
+        if (!username || !user?._id) {
+            console.error("User information not available");
+            setError("You must be logged in to like posts");
+            return;
+        }
 
-        setPosts(
-            posts.map((post) => {
-                if (post._id === postId) {
-                    const isLiked = post.hasUserLiked;
-                    let updatedLikes;
+        setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
-                    if (isLiked) {
-                        // Remove both user ID and username
-                        updatedLikes = post.likes.filter(
-                            (like) => like !== user._id && like !== username
-                        );
-                    } else {
-                        // Add both user ID and username for compatibility
-                        updatedLikes = [
-                            ...post.likes,
-                            user._id, // Store user ID
-                        ];
+        try {
+            // Store the current state to check if we're adding a like (not removing)
+            const currentPost = posts.find((post) => post._id === postId);
+            const isAddingLike = !currentPost?.hasUserLiked;
+
+            setPosts(
+                posts.map((post) => {
+                    if (post._id === postId) {
+                        const isLiked = post.hasUserLiked;
+                        let updatedLikes;
+
+                        if (isLiked) {
+                            // Remove both user ID and username
+                            updatedLikes = post.likes.filter(
+                                (like) => like !== user._id && like !== username
+                            );
+                        } else {
+                            // Add both user ID and username for compatibility
+                            updatedLikes = [
+                                ...post.likes,
+                                user._id, // Store user ID
+                            ];
+                        }
+
+                        // Update localStorage with both formats
+                        updateStoredLikes(postId, updatedLikes);
+
+                        return {
+                            ...post,
+                            likes: updatedLikes,
+                            hasUserLiked: !isLiked,
+                        };
                     }
+                    return post;
+                })
+            );
 
-                    // Update localStorage with both formats
-                    updateStoredLikes(postId, updatedLikes);
+            // Add floating hearts animation ONLY when adding a like (not removing)
+            if (isAddingLike && e) {
+                const rect = e.target.getBoundingClientRect();
 
-                    return {
-                        ...post,
-                        likes: updatedLikes,
-                        hasUserLiked: !isLiked,
-                    };
-                }
-                return post;
-            })
-        );
-
-        // Add floating hearts animation ONLY when adding a like (not removing)
-        if (isAddingLike && e) {
-            const rect = e.target.getBoundingClientRect();
-            
-            // Add just one heart instead of multiple
-            setFloatingHearts((hearts) => [
-                ...hearts,
-                {
-                    id: Date.now(),
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2,
-                },
-            ]);
-        }
-
-        const response = await fetch(
-            `${config.apiUrl}/posts/like/${postId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ userId: user._id }), // Send user ID to API
+                // Add just one heart instead of multiple
+                setFloatingHearts((hearts) => [
+                    ...hearts,
+                    {
+                        id: Date.now(),
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2,
+                    },
+                ]);
             }
-        );
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Failed to like post");
+            const response = await fetch(
+                `${config.apiUrl}/posts/like/${postId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like post");
+            }
+        } catch (err) {
+            console.error("Error liking post:", err);
+            setError(err.message);
+
+            // Revert optimistic update on error
+            await fetchPosts();
+        } finally {
+            setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
-    } catch (err) {
-        console.error("Error liking post:", err);
-        setError(err.message);
-
-        // Revert optimistic update on error
-        await fetchPosts();
-    } finally {
-        setIsLiking((prev) => ({ ...prev, [postId]: false }));
-    }
-};
+    };
 
     const toggleCommentDropdown = async (postId, e) => {
         if (e) {
@@ -747,7 +748,7 @@ const MainFeed = () => {
         >
             {/* Floating Hearts Animation */}
             <FloatingHearts />
-            
+
             {/* Error Message */}
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
@@ -805,48 +806,7 @@ const MainFeed = () => {
                 </div>
             )}
 
-            <header
-                className={`bg-white shadow-sm px-6 py-4 flex justify-between items-center ${
-                    darkMode ? "dark:bg-gray-800" : ""
-                }`}
-            >
-                <h1
-                    className="text-xl font-semibold text-gray-900 tracking-wide dark:text-white cursor-pointer hover:text-blue-500 transition-colors"
-                    onClick={() => navigate("/dashboard")}
-                >
-                    MemoFold
-                </h1>
-
-                <nav className="flex gap-5">
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            navigate("/dashboard");
-                        }}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                    >
-                        Home
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            navigate("/profile");
-                        }}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                    >
-                        My Profile
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            logout();
-                        }}
-                        className="text-gray-600 font-medium hover:text-blue-500 dark:text-gray-300 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                    >
-                        Logout
-                    </button>
-                </nav>
-            </header>
+            <Navbar />
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 {isLoading ? (
@@ -964,9 +924,13 @@ const MainFeed = () => {
                                 <motion.button
                                     whileTap={{ scale: 0.9 }}
                                     onClick={(e) => handleLike(post._id, e)}
-                                    disabled={isLiking[post._id] || likeCooldown[post._id]}
+                                    disabled={
+                                        isLiking[post._id] ||
+                                        likeCooldown[post._id]
+                                    }
                                     className={`flex items-center gap-1 ${
-                                        isLiking[post._id] || likeCooldown[post._id]
+                                        isLiking[post._id] ||
+                                        likeCooldown[post._id]
                                             ? "opacity-50 cursor-not-allowed"
                                             : ""
                                     } hover:text-red-500 transition-colors cursor-pointer`}

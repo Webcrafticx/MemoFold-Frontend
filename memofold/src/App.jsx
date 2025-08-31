@@ -116,7 +116,7 @@ function App() {
                         {/* Other public routes that don't need auth check */}
                         <Route
                             path="/"
-                            element={<Navigate to="/dashboard" replace />}
+                            element={<Navigate to="/feed" replace />}
                         />
                         <Route path="/api" element={<ApiDocumentation />} />
                         <Route path="/about" element={<About />} />

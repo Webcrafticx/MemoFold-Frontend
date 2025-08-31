@@ -1,0 +1,323 @@
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import config from "../hooks/config";
+import {
+    FaUserCircle,
+    FaMoon,
+    FaSun,
+    FaComment,
+    FaSignOutAlt,
+    FaPlusCircle,
+    FaHome,
+    FaCalendarAlt,
+} from "react-icons/fa";
+import logo from "../assets/logo.png";
+
+const Navbar = ({ onDarkModeChange }) => {
+    const [darkMode, setDarkMode] = useState(() => {
+        return localStorage.getItem("darkMode") === "true";
+    });
+    const [selectedDate, setSelectedDate] = useState("");
+    const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+    const { token, username, realname, logout, user } = useAuth();
+    const [profilePic, setProfilePic] = useState(
+        localStorage.getItem("profilePic") ||
+            "https://ui-avatars.com/api/?name=User&background=random"
+    );
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
+    const navigate = useNavigate();
+    const profileDropdownRef = useRef(null);
+
+    // Handle dark mode
+    useEffect(() => {
+        if (darkMode) {
+            document.body.classList.add("dark");
+        } else {
+            document.body.classList.remove("dark");
+        }
+        localStorage.setItem("darkMode", darkMode);
+    }, [darkMode]);
+
+    // Handle outside clicks to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (
+                profileDropdownRef.current &&
+                !profileDropdownRef.current.contains(event.target)
+            ) {
+                setShowProfileDropdown(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                const response = await fetch(`${config.apiUrl}/user/me`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    setCurrentUserProfile(userData);
+                    if (userData.profilePic) {
+                        setProfilePic(userData.profilePic);
+                        localStorage.setItem("profilePic", userData.profilePic);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching user data:", error);
+            }
+        };
+
+        if (token) {
+            fetchUserData();
+        }
+    }, [token]);
+
+    const toggleDarkMode = () => {
+        const newMode = !darkMode;
+        setDarkMode(newMode);
+        localStorage.setItem("darkMode", newMode);
+
+        if (onDarkModeChange) {
+            onDarkModeChange(newMode);
+        }
+    };
+
+    const handleProfileClick = () => {
+        navigate("/profile");
+        setShowProfileDropdown(false);
+    };
+
+    const handleFeedbackClick = () => {
+        navigate("/feedback");
+        setShowProfileDropdown(false);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate("/login");
+        } catch (err) {
+            console.error("Logout error:", err);
+        }
+    };
+
+    const navigateToUserProfile = (userId) => {
+        if (userId) {
+            if (currentUserProfile && userId === currentUserProfile._id) {
+                navigate("/profile");
+            } else {
+                navigate(`/user/${userId}`);
+            }
+        }
+    };
+
+    const navigateToMain = () => {
+        navigate("/feed");
+        setShowProfileDropdown(false);
+    };
+
+    const navigateToCreatePost = () => {
+        navigate("/create-post");
+        setShowProfileDropdown(false);
+    };
+
+    const handleDateChange = (date) => {
+        setSelectedDate(date);
+        console.log("Selected date:", date);
+        setShowProfileDropdown(false);
+    };
+
+    return (
+        <div className={`max-w-screen pb-4`}>
+            <div
+                className={`flex justify-between items-center py-4 rounded-xl px-8 ${
+                    darkMode ? "bg-gray-800" : "bg-white"
+                } shadow-md`}
+            >
+                {/* Left Section: Logo */}
+                <div className="flex items-center space-x-2">
+                    <img
+                        src={logo}
+                        alt="MemoFold"
+                        className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+                    />
+                    <span className="font-bold text-lg sm:text-xl bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+                        MemoFold
+                    </span>
+                </div>
+
+                {/* Right Section: Profile Dropdown */}
+                <div className="relative" ref={profileDropdownRef}>
+                    <button
+                        className={`p-1 rounded-full border-2 ${
+                            darkMode
+                                ? "border-cyan-500 hover:border-cyan-400"
+                                : "border-blue-500 hover:border-blue-400"
+                        } transition-colors cursor-pointer`}
+                        onClick={() =>
+                            setShowProfileDropdown(!showProfileDropdown)
+                        }
+                    >
+                        <img
+                            src={profilePic}
+                            alt={username}
+                            className="w-8 h-8 rounded-full object-cover"
+                            onError={(e) => {
+                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    username
+                                )}&background=random`;
+                            }}
+                        />
+                    </button>
+
+                    {showProfileDropdown && (
+                        <div
+                            className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
+                                darkMode ? "bg-gray-800" : "bg-white"
+                            } ring-1 ring-black ring-opacity-5 z-50 p-4`}
+                        >
+                            {/* User Info */}
+                            <div className="flex items-center space-x-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <img
+                                    src={profilePic}
+                                    alt={username}
+                                    className="w-12 h-12 rounded-full object-cover border-2 border-blue-500"
+                                    onError={(e) => {
+                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                            username
+                                        )}&background=random`;
+                                    }}
+                                />
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                                        {realname || username}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        @{username}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Date Filter */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                                    <FaCalendarAlt className="inline mr-2" />
+                                    Date Filter
+                                </label>
+                                <input
+                                    type="date"
+                                    className={`w-full px-3 py-2 rounded-lg text-sm border ${
+                                        darkMode
+                                            ? "bg-gray-700 border-gray-600 text-white"
+                                            : "bg-white border-gray-300 text-gray-800"
+                                    } cursor-pointer`}
+                                    value={selectedDate}
+                                    onChange={(e) =>
+                                        handleDateChange(e.target.value)
+                                    }
+                                    min="1950-01-01"
+                                    max="2025-12-31"
+                                />
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                <button
+                                    onClick={navigateToCreatePost}
+                                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-3 rounded-lg hover:from-cyan-500 hover:to-blue-600 transition-all cursor-pointer text-sm"
+                                >
+                                    <FaPlusCircle />
+                                    <span>Create Post</span>
+                                </button>
+
+                                <button
+                                    onClick={navigateToMain}
+                                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold text-sm ${
+                                        darkMode
+                                            ? "bg-gray-700 text-white hover:bg-gray-600"
+                                            : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                                    } transition-colors cursor-pointer`}
+                                >
+                                    <FaHome />
+                                    <span>Home</span>
+                                </button>
+                            </div>
+
+                            {/* Navigation Links */}
+                            <div className="space-y-2 mb-4">
+                                <button
+                                    className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
+                                        darkMode
+                                            ? "text-gray-200 hover:bg-gray-700"
+                                            : "text-gray-700 hover:bg-gray-100"
+                                    } cursor-pointer`}
+                                    onClick={handleProfileClick}
+                                >
+                                    <FaUserCircle className="mr-3" />
+                                    Profile
+                                </button>
+
+                                <button
+                                    className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
+                                        darkMode
+                                            ? "text-gray-200 hover:bg-gray-700"
+                                            : "text-gray-700 hover:bg-gray-100"
+                                    } cursor-pointer`}
+                                    onClick={handleFeedbackClick}
+                                >
+                                    <FaComment className="mr-3" />
+                                    Feedback
+                                </button>
+                            </div>
+
+                            {/* Dark Mode Toggle */}
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 mb-4">
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                    {darkMode ? "Light Mode" : "Dark Mode"}
+                                </span>
+                                <button
+                                    onClick={toggleDarkMode}
+                                    className={`p-2 rounded-full ${
+                                        darkMode ? "bg-cyan-500" : "bg-gray-300"
+                                    } transition-colors cursor-pointer`}
+                                >
+                                    {darkMode ? (
+                                        <FaSun className="text-sm text-yellow-400" />
+                                    ) : (
+                                        <FaMoon className="text-sm text-gray-600" />
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Logout Button */}
+                            <button
+                                className={`flex items-center justify-center w-full px-3 py-2 text-sm rounded-lg ${
+                                    darkMode
+                                        ? "text-red-400 hover:bg-gray-700 border border-red-400"
+                                        : "text-red-600 hover:bg-gray-100 border border-red-600"
+                                } cursor-pointer transition-colors`}
+                                onClick={handleLogout}
+                            >
+                                <FaSignOutAlt className="mr-2" />
+                                Logout
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Navbar;
