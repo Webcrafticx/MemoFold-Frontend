@@ -807,9 +807,9 @@ const MainFeed = () => {
                         >
                             <FaTimes />
                         </button>
-                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
-                            {imageDimensions.width} × {imageDimensions.height}
-                        </div>
+                        {/* <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+                           
+                        </div> */}
                     </div>
                 </div>
             )}
