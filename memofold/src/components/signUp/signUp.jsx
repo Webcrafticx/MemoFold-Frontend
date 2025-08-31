@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const SignUp = () => {
     const [formData, setFormData] = useState({
@@ -11,6 +12,8 @@ const SignUp = () => {
         confirmPassword: "",
     });
     const [formErrors, setFormErrors] = useState({});
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { register, loading, error } = useAuth();
     const navigate = useNavigate();
 
@@ -26,10 +29,19 @@ const SignUp = () => {
         }
     };
 
+    const togglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
+
+    const toggleConfirmPasswordVisibility = () => {
+        setShowConfirmPassword(!showConfirmPassword);
+    };
+
     const validateForm = () => {
         const errors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+        // Check if all fields are filled
         if (!formData.realname.trim()) {
             errors.realname = "Full name is required";
         }
@@ -52,7 +64,9 @@ const SignUp = () => {
             errors.password = "Password must be at least 6 characters";
         }
 
-        if (formData.password !== formData.confirmPassword) {
+        if (!formData.confirmPassword) {
+            errors.confirmPassword = "Please confirm your password";
+        } else if (formData.password !== formData.confirmPassword) {
             errors.confirmPassword = "Passwords do not match";
         }
 
@@ -62,6 +76,15 @@ const SignUp = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Validate passwords match
+        if (formData.password !== formData.confirmPassword) {
+            setFormErrors((prev) => ({
+                ...prev,
+                confirmPassword: "Passwords do not match",
+            }));
+            return;
+        }
 
         if (!validateForm()) return;
 
@@ -79,8 +102,8 @@ const SignUp = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-5">
-            <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4 sm:p-5">
+            <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-md mx-auto">
                 <h2 className="text-center text-2xl font-semibold text-gray-800 mb-6">
                     Create New Account
                 </h2>
@@ -97,7 +120,7 @@ const SignUp = () => {
                             htmlFor="realname"
                             className="block text-sm font-medium text-gray-600 mb-1"
                         >
-                            Full Name
+                            Full Name *
                         </label>
                         <input
                             type="text"
@@ -105,11 +128,13 @@ const SignUp = () => {
                             name="realname"
                             value={formData.realname}
                             onChange={handleChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            required
+                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
                                 formErrors.realname
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
                             }`}
+                            placeholder="Enter your full name"
                         />
                         {formErrors.realname && (
                             <p className="mt-1 text-sm text-red-600">
@@ -123,7 +148,7 @@ const SignUp = () => {
                             htmlFor="username"
                             className="block text-sm font-medium text-gray-600 mb-1"
                         >
-                            Username
+                            Username *
                         </label>
                         <input
                             type="text"
@@ -131,11 +156,13 @@ const SignUp = () => {
                             name="username"
                             value={formData.username}
                             onChange={handleChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            required
+                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
                                 formErrors.username
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
                             }`}
+                            placeholder="Choose a username"
                         />
                         {formErrors.username && (
                             <p className="mt-1 text-sm text-red-600">
@@ -149,7 +176,7 @@ const SignUp = () => {
                             htmlFor="email"
                             className="block text-sm font-medium text-gray-600 mb-1"
                         >
-                            Email
+                            Email *
                         </label>
                         <input
                             type="email"
@@ -157,8 +184,9 @@ const SignUp = () => {
                             name="email"
                             value={formData.email}
                             onChange={handleChange}
+                            required
                             placeholder="example@gmail.com"
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
                                 formErrors.email
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -171,25 +199,41 @@ const SignUp = () => {
                         )}
                     </div>
 
-                    <div>
+                    <div className="relative">
                         <label
                             htmlFor="password"
                             className="block text-sm font-medium text-gray-600 mb-1"
                         >
-                            Password
+                            Password *
                         </label>
                         <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             id="password"
                             name="password"
                             value={formData.password}
                             onChange={handleChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            required
+                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors pr-10 ${
                                 formErrors.password
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
                             }`}
+                            placeholder="Enter your password"
                         />
+                        <button
+                            type="button"
+                            onClick={togglePasswordVisibility}
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
+                            aria-label={
+                                showPassword ? "Hide password" : "Show password"
+                            }
+                        >
+                            {showPassword ? (
+                                <FaEyeSlash size={16} />
+                            ) : (
+                                <FaEye size={16} />
+                            )}
+                        </button>
                         {formErrors.password && (
                             <p className="mt-1 text-sm text-red-600">
                                 {formErrors.password}
@@ -197,25 +241,43 @@ const SignUp = () => {
                         )}
                     </div>
 
-                    <div>
+                    <div className="relative">
                         <label
                             htmlFor="confirmPassword"
                             className="block text-sm font-medium text-gray-600 mb-1"
                         >
-                            Confirm Password
+                            Confirm Password *
                         </label>
                         <input
-                            type="password"
+                            type={showConfirmPassword ? "text" : "password"}
                             id="confirmPassword"
                             name="confirmPassword"
                             value={formData.confirmPassword}
                             onChange={handleChange}
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            required
+                            className={`w-full px-3 py-2 cursor-pointer border rounded-lg focus:outline-none transition-colors pr-10 ${
                                 formErrors.confirmPassword
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
                             }`}
+                            placeholder="Confirm your password"
                         />
+                        <button
+                            type="button"
+                            onClick={toggleConfirmPasswordVisibility}
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
+                            aria-label={
+                                showConfirmPassword
+                                    ? "Hide password"
+                                    : "Show password"
+                            }
+                        >
+                            {showConfirmPassword ? (
+                                <FaEyeSlash size={16} />
+                            ) : (
+                                <FaEye size={16} />
+                            )}
+                        </button>
                         {formErrors.confirmPassword && (
                             <p className="mt-1 text-sm text-red-600">
                                 {formErrors.confirmPassword}
@@ -226,7 +288,7 @@ const SignUp = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-gradient-to-r from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r cursor-pointer from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <span className="flex items-center justify-center">
@@ -264,12 +326,13 @@ const SignUp = () => {
                     <div className="flex-grow border-t border-gray-300"></div>
                 </div>
 
-                <div className="text-center">
+                <div className="text-center text-sm">
+                    Already have an account?{" "}
                     <a
                         href="/login"
-                        className="text-[#58c8f4] hover:text-[#0095f6] hover:underline font-medium text-sm transition-colors"
+                        className="text-[#58c8f4] hover:text-[#0095f6] hover:underline font-medium transition-colors"
                     >
-                        Already have an account? Login
+                        Login
                     </a>
                 </div>
             </div>

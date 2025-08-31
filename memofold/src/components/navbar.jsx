@@ -22,8 +22,7 @@ const Navbar = ({ onDarkModeChange }) => {
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const { token, username, realname, logout, user } = useAuth();
     const [profilePic, setProfilePic] = useState(
-        localStorage.getItem("profilePic") ||
-            "https://ui-avatars.com/api/?name=User&background=random"
+        localStorage.getItem("profilePic") || ""
     );
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const navigate = useNavigate();
@@ -71,6 +70,9 @@ const Navbar = ({ onDarkModeChange }) => {
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
                         localStorage.setItem("profilePic", userData.profilePic);
+                    } else {
+                        setProfilePic("");
+                        localStorage.removeItem("profilePic");
                     }
                 }
             } catch (error) {
@@ -146,7 +148,10 @@ const Navbar = ({ onDarkModeChange }) => {
                 } shadow-md`}
             >
                 {/* Left Section: Logo */}
-                <div className="flex items-center space-x-2">
+                <button
+                    className="flex items-center space-x-2 cursor-pointer"
+                    onClick={navigateToMain}
+                >
                     <img
                         src={logo}
                         alt="MemoFold"
@@ -155,30 +160,40 @@ const Navbar = ({ onDarkModeChange }) => {
                     <span className="font-bold text-lg sm:text-xl bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
                         MemoFold
                     </span>
-                </div>
+                </button>
 
                 {/* Right Section: Profile Dropdown */}
                 <div className="relative" ref={profileDropdownRef}>
                     <button
-                        className={`p-1 rounded-full border-2 ${
+                        className={`p-1 rounded-full border-2 cursor-pointer ${
                             darkMode
                                 ? "border-cyan-500 hover:border-cyan-400"
                                 : "border-blue-500 hover:border-blue-400"
-                        } transition-colors cursor-pointer`}
+                        } transition-colors`}
                         onClick={() =>
                             setShowProfileDropdown(!showProfileDropdown)
                         }
                     >
-                        <img
-                            src={profilePic}
-                            alt={username}
-                            className="w-8 h-8 rounded-full object-cover"
-                            onError={(e) => {
-                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    username
-                                )}&background=random`;
-                            }}
-                        />
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
+                            {profilePic ? (
+                                <img
+                                    src={profilePic}
+                                    alt={username}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.target.style.display = "none";
+                                        e.target.nextSibling.style.display =
+                                            "flex";
+                                    }}
+                                />
+                            ) : null}
+                            <span
+                                className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
+                                style={profilePic ? { display: "none" } : {}}
+                            >
+                                {username?.charAt(0).toUpperCase() || "U"}
+                            </span>
+                        </div>
                     </button>
 
                     {showProfileDropdown && (
@@ -189,16 +204,31 @@ const Navbar = ({ onDarkModeChange }) => {
                         >
                             {/* User Info */}
                             <div className="flex items-center space-x-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                                <img
-                                    src={profilePic}
-                                    alt={username}
-                                    className="w-12 h-12 rounded-full object-cover border-2 border-blue-500"
-                                    onError={(e) => {
-                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                            username
-                                        )}&background=random`;
-                                    }}
-                                />
+                                <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400">
+                                    {profilePic ? (
+                                        <img
+                                            src={profilePic}
+                                            alt={username}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                e.target.style.display = "none";
+                                                e.target.nextSibling.style.display =
+                                                    "flex";
+                                            }}
+                                        />
+                                    ) : null}
+                                    <span
+                                        className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
+                                        style={
+                                            profilePic
+                                                ? { display: "none" }
+                                                : {}
+                                        }
+                                    >
+                                        {username?.charAt(0).toUpperCase() ||
+                                            "U"}
+                                    </span>
+                                </div>
                                 <div>
                                     <p className="text-sm font-semibold text-gray-800 dark:text-white">
                                         {realname || username}
@@ -207,51 +237,6 @@ const Navbar = ({ onDarkModeChange }) => {
                                         @{username}
                                     </p>
                                 </div>
-                            </div>
-
-                            {/* Date Filter */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                                    <FaCalendarAlt className="inline mr-2" />
-                                    Date Filter
-                                </label>
-                                <input
-                                    type="date"
-                                    className={`w-full px-3 py-2 rounded-lg text-sm border ${
-                                        darkMode
-                                            ? "bg-gray-700 border-gray-600 text-white"
-                                            : "bg-white border-gray-300 text-gray-800"
-                                    } cursor-pointer`}
-                                    value={selectedDate}
-                                    onChange={(e) =>
-                                        handleDateChange(e.target.value)
-                                    }
-                                    min="1950-01-01"
-                                    max="2025-12-31"
-                                />
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <button
-                                    onClick={navigateToCreatePost}
-                                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-3 rounded-lg hover:from-cyan-500 hover:to-blue-600 transition-all cursor-pointer text-sm"
-                                >
-                                    <FaPlusCircle />
-                                    <span>Create Post</span>
-                                </button>
-
-                                <button
-                                    onClick={navigateToMain}
-                                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold text-sm ${
-                                        darkMode
-                                            ? "bg-gray-700 text-white hover:bg-gray-600"
-                                            : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                                    } transition-colors cursor-pointer`}
-                                >
-                                    <FaHome />
-                                    <span>Home</span>
-                                </button>
                             </div>
 
                             {/* Navigation Links */}

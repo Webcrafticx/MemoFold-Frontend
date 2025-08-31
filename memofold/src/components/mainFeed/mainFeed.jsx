@@ -44,6 +44,14 @@ const MainFeed = () => {
     });
     const imagePreviewRef = useRef(null);
 
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        return localStorage.getItem("darkMode") === "true";
+    });
+
+    // Handle dark mode changes from Navbar
+    const handleDarkModeChange = (darkMode) => {
+        setIsDarkMode(darkMode);
+    };
     // Floating Hearts Animation Component
     const FloatingHearts = () => (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
@@ -743,7 +751,7 @@ const MainFeed = () => {
     return (
         <div
             className={`min-h-screen ${
-                darkMode ? "dark bg-gray-900 text-gray-100" : "bg-[#fdfaf6]"
+                isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-[#fdfaf6]"
             }`}
         >
             {/* Floating Hearts Animation */}
@@ -806,7 +814,7 @@ const MainFeed = () => {
                 </div>
             )}
 
-            <Navbar />
+            <Navbar onDarkModeChange={handleDarkModeChange} />
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 {isLoading ? (
@@ -817,7 +825,7 @@ const MainFeed = () => {
                 ) : error ? (
                     <div
                         className={`text-center py-10 rounded-xl ${
-                            darkMode ? "bg-gray-800" : "bg-white"
+                            isDarkMode ? "bg-gray-800" : "bg-white"
                         } shadow-lg w-full max-w-2xl`}
                     >
                         <p className="text-lg text-red-500">
@@ -833,7 +841,7 @@ const MainFeed = () => {
                 ) : posts.length === 0 ? (
                     <div
                         className={`text-center py-10 rounded-xl ${
-                            darkMode ? "bg-gray-800" : "bg-white"
+                            isDarkMode ? "bg-gray-800" : "bg-white"
                         } shadow-lg w-full max-w-2xl`}
                     >
                         <p className="text-lg">
@@ -845,7 +853,7 @@ const MainFeed = () => {
                         <div
                             key={post._id}
                             className={`w-full max-w-2xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
-                                darkMode ? "dark:bg-gray-800" : ""
+                                isDarkMode ? "dark:bg-gray-800" : ""
                             }`}
                         >
                             <div
@@ -859,10 +867,10 @@ const MainFeed = () => {
                                         <img
                                             src={post.userId.profilePic}
                                             alt={post.userId.username}
-                                            className="w-full h-full object-cover"
+                                            className="w-8 h-8 object-cover rounded-full"
                                             onError={(e) => {
                                                 e.target.style.display = "none";
-                                                e.target.parentElement.innerHTML = `<span class="text-lg font-semibold text-gray-700">${
+                                                e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
                                                     post.userId.username
                                                         ?.charAt(0)
                                                         .toUpperCase() || "U"
@@ -870,7 +878,7 @@ const MainFeed = () => {
                                             }}
                                         />
                                     ) : (
-                                        <span className="text-lg font-semibold text-gray-700">
+                                        <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
                                             {post.userId.username
                                                 ?.charAt(0)
                                                 .toUpperCase() || "U"}
@@ -886,7 +894,7 @@ const MainFeed = () => {
                                     </h3>
                                     <p
                                         className={`text-xs ${
-                                            darkMode
+                                            isDarkMode
                                                 ? "text-gray-400"
                                                 : "text-gray-500"
                                         }`}
@@ -992,7 +1000,7 @@ const MainFeed = () => {
                                             post.comments.length > 0 ? (
                                                 <div
                                                     className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                        darkMode
+                                                        isDarkMode
                                                             ? "bg-gray-700"
                                                             : "bg-gray-100"
                                                     }`}
@@ -1081,7 +1089,7 @@ const MainFeed = () => {
                                                                         </span>
                                                                         <span
                                                                             className={`text-xs ${
-                                                                                darkMode
+                                                                                isDarkMode
                                                                                     ? "text-gray-400"
                                                                                     : "text-gray-500"
                                                                             }`}
@@ -1231,7 +1239,7 @@ const MainFeed = () => {
                                                     <input
                                                         type="text"
                                                         className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                                            darkMode
+                                                            isDarkMode
                                                                 ? "bg-gray-700 border-gray-600 text-white"
                                                                 : "bg-white border-gray-300"
                                                         } focus:outline-none focus:ring-1 focus:ring-blue-500`}
