@@ -1364,8 +1364,7 @@ const ProfilePage = () => {
                                 <FaTimes className="text-lg" />
                             </button>
                             <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
-                                {imageDimensions.width} ×{" "}
-                                {imageDimensions.height}
+                                @{username}
                             </div>
                         </div>
                     </div>
@@ -2041,7 +2040,7 @@ const ProfilePage = () => {
                                             </>
                                         )}
 
-                                        {/* Post Image */}
+                                        {/* Post Image
                                         {post.image && (
                                             <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                                                 <img
@@ -2062,7 +2061,7 @@ const ProfilePage = () => {
                                                     }}
                                                 />
                                             </div>
-                                        )}
+                                        )} */}
                                         {/* Post Actions */}
                                         <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
                                             <motion.button

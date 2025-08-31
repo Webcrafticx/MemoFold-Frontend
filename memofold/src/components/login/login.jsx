@@ -58,20 +58,20 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col ">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Main Content */}
-            <main className="flex-1 flex flex-col lg:flex-row justify-center items-center lg:items-start gap-8 lg:gap-12 xl:gap-20 py-8 lg:py-12 px-4 sm:px-6">
-                {/* Story Carousel - Hidden on small screens, shown on medium and up */}
-                <div className="hidden md:flex relative w-full md:w-1/2 lg:w-2/5 xl:w-2/5 max-w-md h-[400px] md:h-[500px] items-center justify-center mb-8 md:mb-0">
+            <main className="flex-1 flex flex-col lg:flex-row justify-center items-center lg:items-start gap-12 lg:gap-20 py-12 px-4 sm:px-6">
+                {/* Story Carousel */}
+                <div className="relative w-72 h-[500px] flex items-center justify-center">
                     {[snip1, snip2, snip3].map((img, index) => (
                         <div
                             key={index}
-                            className={`absolute w-4/5 h-[90%] overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 ${
+                            className={`absolute w-64 h-[450px] overflow-hidden rounded-3xl shadow-2xl cursor-pointer transition-all duration-300 ${
                                 index === 0
-                                    ? "-left-6 -rotate-3"
+                                    ? "-left-8 -rotate-3"
                                     : index === 1
                                     ? "z-20"
-                                    : "left-6 rotate-3"
+                                    : "left-8 rotate-3"
                             } ${
                                 isHovering === index
                                     ? "scale-105 -translate-y-2 z-30"
@@ -90,8 +90,8 @@ const LoginPage = () => {
                     ))}
                 </div>
 
-                {/* Login Section - Full width on small screens, half on medium and up */}
-                <div className="w-full md:w-1/2 lg:w-2/5 xl:w-2/5 max-w-md md:mt-6">
+                {/* Login Section */}
+                <div className="w-full max-w-xs sm:max-w-sm md:mt-10">
                     {/* Login Box */}
                     <div className="bg-white border border-gray-200 rounded-xl p-6 text-center shadow-lg mb-3">
                         <div className="flex flex-col items-center mb-5">
@@ -119,7 +119,7 @@ const LoginPage = () => {
                                     value={formData.username}
                                     onChange={handleChange}
                                     placeholder="Username"
-                                    className={`w-full px-3 py-2 cursor-pointer text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
+                                    className={`w-full px-3 py-2 text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
                                         formErrors.username
                                             ? "border-red-500"
                                             : "border-gray-200 focus:ring-1 focus:ring-blue-500"
@@ -139,7 +139,7 @@ const LoginPage = () => {
                                     value={formData.password}
                                     onChange={handleChange}
                                     placeholder="Password"
-                                    className={`w-full px-3 py-2  cursor-pointer text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
+                                    className={`w-full px-3 py-2 text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
                                         formErrors.password
                                             ? "border-red-500"
                                             : "border-gray-200 focus:ring-1 focus:ring-blue-500"
@@ -248,6 +248,7 @@ const LoginPage = () => {
                                 Sign up
                             </Link>
                         </p>
+
                         {/* <Link
                             to="/forgot-password"
                             className="text-sm text-blue-400 hover:text-blue-500 hover:underline cursor-pointer"
@@ -255,6 +256,11 @@ const LoginPage = () => {
                             Forgot password?
                         </Link> */}
                     </div>
+
+                    {/* Signup Box */}
+                    {/* <div className="bg-white border border-gray-200 rounded-xl p-5 text-center shadow-lg">
+                        
+                    </div> */}
                 </div>
             </main>
 

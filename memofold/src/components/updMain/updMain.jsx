@@ -1264,7 +1264,7 @@ const MainDashboard = () => {
                             <FaTimes className="text-lg" />
                         </button>
                         <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
-                            {imageDimensions.width} × {imageDimensions.height}
+                            @{username}
                         </div>
                     </div>
                 </div>
