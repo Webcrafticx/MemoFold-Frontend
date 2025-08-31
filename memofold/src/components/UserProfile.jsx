@@ -14,6 +14,7 @@ import {
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
+import Navbar from "./navbar";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -267,7 +268,7 @@ const UserProfile = () => {
                             if (e) {
                                 const rect = e.target.getBoundingClientRect();
                                 const heartCount = 5; // Number of hearts to show
-                                
+
                                 for (let i = 0; i < heartCount; i++) {
                                     setTimeout(() => {
                                         setFloatingHearts((hearts) => [
@@ -431,7 +432,14 @@ const UserProfile = () => {
             setIsCommenting((prev) => ({ ...prev, [postId]: false }));
         }
     };
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        return localStorage.getItem("darkMode") === "true";
+    });
 
+    // Handle dark mode changes from Navbar
+    const handleDarkModeChange = (darkMode) => {
+        setIsDarkMode(darkMode);
+    };
     // Function to handle image load and get dimensions
     const handleImageLoad = (e) => {
         const img = e.target;
@@ -561,9 +569,9 @@ const UserProfile = () => {
                     </div>
                 </div>
             )}
-
+            <Navbar onDarkModeChange={handleDarkModeChange} />
             {/* Header */}
-            <header className="bg-white shadow-sm px-6 py-4 flex items-center">
+            {/* <header className="bg-white shadow-sm px-6 py-4 flex items-center">
                 <button
                     onClick={() => navigate(-1)}
                     className="mr-4 p-2 rounded-full hover:bg-gray-100"
@@ -578,12 +586,12 @@ const UserProfile = () => {
                         {userPosts.length} posts
                     </p>
                 </div>
-            </header>
+            </header> */}
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 {/* Profile Info */}
                 <div className="w-full max-w-4xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ">
                     <div className="flex flex-col items-center md:flex-row md:items-start">
-                        <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 mb-4 md:mb-0 md:mr-6">
+                        <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 mb-4 md:mb-0 md:mr-6">
                             {userData.profilePic ? (
                                 <img
                                     src={userData.profilePic}
@@ -591,13 +599,13 @@ const UserProfile = () => {
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                         e.target.style.display = "none";
-                                        e.target.parentElement.innerHTML = `<span class="text-2xl font-semibold text-gray-700">
-                      ${userData.username?.charAt(0).toUpperCase() || "U"}
-                    </span>`;
+                                        e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full text-white font-bold text-3xl">
+                    ${userData.username?.charAt(0).toUpperCase() || "U"}
+                </span>`;
                                     }}
                                 />
                             ) : (
-                                <span className="text-2xl font-semibold text-gray-700">
+                                <span className="flex items-center justify-center w-full h-full text-white font-bold text-3xl">
                                     {userData.username
                                         ?.charAt(0)
                                         .toUpperCase() || "U"}
@@ -676,7 +684,7 @@ const UserProfile = () => {
                                     className="bg-white rounded-lg p-4 shadow-sm "
                                 >
                                     <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
                                             {userData.profilePic ? (
                                                 <img
                                                     src={userData.profilePic}
@@ -685,16 +693,13 @@ const UserProfile = () => {
                                                     onError={(e) => {
                                                         e.target.style.display =
                                                             "none";
-                                                        e.target.parentElement.innerHTML = `<span class="text-lg font-semibold text-gray-700">
-                              ${
-                                  userData.username?.charAt(0).toUpperCase() ||
-                                  "U"
-                              }
-                            </span>`;
+                                                        e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full text-white font-semibold text-sm">
+                    ${userData.username?.charAt(0).toUpperCase() || "U"}
+                </span>`;
                                                     }}
                                                 />
                                             ) : (
-                                                <span className="text-lg font-semibold text-gray-700">
+                                                <span className="flex items-center justify-center w-full h-full text-white font-semibold text-sm">
                                                     {userData.username
                                                         ?.charAt(0)
                                                         .toUpperCase() || "U"}
@@ -743,7 +748,9 @@ const UserProfile = () => {
                                     <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                                         <motion.button
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={(e) => handleLike(post._id, e)}
+                                            onClick={(e) =>
+                                                handleLike(post._id, e)
+                                            }
                                             disabled={isLiking[post._id]}
                                             className={`flex items-center gap-1 ${
                                                 isLiking[post._id]

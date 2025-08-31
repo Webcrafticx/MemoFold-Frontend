@@ -13,7 +13,8 @@ import {
     FaBars,
     FaTrashAlt,
     FaEdit,
-    FaExclamationTriangle
+    FaExclamationTriangle,
+    FaCamera,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { ToastContainer, toast } from "react-toastify";
@@ -22,56 +23,61 @@ import logo from "../../assets/logo.png";
 import config from "../../hooks/config";
 import { useNavigate } from "react-router-dom";
 import imageCompression from "browser-image-compression";
+import Navbar from "../navbar";
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
-  
-  static getDerivedStateFromError(error) {
-    return { hasError: true };
-  }
-  
-  componentDidCatch(error, errorInfo) {
-    this.setState({
-      error: error,
-      errorInfo: errorInfo
-    });
-    console.error("Error caught by boundary:", error, errorInfo);
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
-          <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-            <div className="text-red-500 text-6xl mb-4">
-              <FaExclamationTriangle />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Something went wrong</h2>
-            <p className="text-gray-600 mb-6">
-              We apologize for the inconvenience. Please try refreshing the page.
-            </p>
-            <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left overflow-auto max-h-40">
-              <p className="text-sm font-mono text-red-500">
-                {this.state.error && this.state.error.toString()}
-              </p>
-            </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-            >
-              Reload Page
-            </button>
-          </div>
-        </div>
-      );
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
     }
-    
-    return this.props.children;
-  }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        this.setState({
+            error: error,
+            errorInfo: errorInfo,
+        });
+        console.error("Error caught by boundary:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
+                    <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+                        <div className="text-red-500 text-6xl mb-4">
+                            <FaExclamationTriangle />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                            Something went wrong
+                        </h2>
+                        <p className="text-gray-600 mb-6">
+                            We apologize for the inconvenience. Please try
+                            refreshing the page.
+                        </p>
+                        <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left overflow-auto max-h-40">
+                            <p className="text-sm font-mono text-red-500">
+                                {this.state.error &&
+                                    this.state.error.toString()}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+                        >
+                            Reload Page
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
 }
 
 // ProfilePage Component with Error Boundary
@@ -174,6 +180,14 @@ const ProfilePage = () => {
         };
     };
 
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        return localStorage.getItem("darkMode") === "true";
+    });
+
+    // Handle dark mode changes from Navbar
+    const handleDarkModeChange = (darkMode) => {
+        setIsDarkMode(darkMode);
+    };
     // Floating hearts animation component
     const FloatingHearts = () => (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
@@ -656,23 +670,23 @@ const ProfilePage = () => {
             if (response.ok) {
                 const data = await response.json();
                 const imageUrl = data.profilePicUrl || data.imagePath;
-                
+
                 // Update profile picture in state and localStorage
                 setProfilePic(imageUrl);
                 localStorage.setItem("profilePic", imageUrl);
-                
+
                 // Update profile picture in all posts
-                setPosts(prevPosts => 
-                    prevPosts.map(post => ({
+                setPosts((prevPosts) =>
+                    prevPosts.map((post) => ({
                         ...post,
                         profilePic: imageUrl,
                         userId: {
                             ...post.userId,
-                            profilePic: imageUrl
-                        }
+                            profilePic: imageUrl,
+                        },
                     }))
                 );
-                
+
                 toast.success("Profile picture updated successfully!");
             } else {
                 throw new Error("Failed to upload profile picture");
@@ -899,17 +913,22 @@ const ProfilePage = () => {
 
                                 // Add floating hearts animation when liking
                                 if (event) {
-                                    const rect = event.target.getBoundingClientRect();
+                                    const rect =
+                                        event.target.getBoundingClientRect();
                                     const heartCount = 5; // Number of hearts to show
-                                    
+
                                     for (let i = 0; i < heartCount; i++) {
                                         setTimeout(() => {
                                             setFloatingHearts((hearts) => [
                                                 ...hearts,
                                                 {
                                                     id: Date.now() + i,
-                                                    x: rect.left + rect.width / 2,
-                                                    y: rect.top + rect.height / 2,
+                                                    x:
+                                                        rect.left +
+                                                        rect.width / 2,
+                                                    y:
+                                                        rect.top +
+                                                        rect.height / 2,
                                                 },
                                             ]);
                                         }, i * 100); // Stagger the hearts
@@ -923,8 +942,6 @@ const ProfilePage = () => {
                                 "postLikes",
                                 JSON.stringify(storedLikes)
                             );
-
-                       
 
                             return {
                                 ...post,
@@ -998,8 +1015,8 @@ const ProfilePage = () => {
     return (
         <ErrorBoundary>
             <div
-                className={`min-h-screen transition-colors duration-300 ${
-                    darkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
+                className={`min-h-screen bg-gray-50 transition-colors duration-300 ${
+                    isDarkMode ? "bg-gray-900 text-gray-100" : "text-gray-800"
                 }`}
             >
                 {/* Floating Hearts Animation */}
@@ -1016,7 +1033,7 @@ const ProfilePage = () => {
                     pauseOnFocusLoss
                     draggable
                     pauseOnHover
-                    theme={darkMode ? "dark" : "light"}
+                    theme={isDarkMode ? "dark" : "light"}
                 />
 
                 {/* Image Preview Modal */}
@@ -1044,86 +1061,15 @@ const ProfilePage = () => {
                                 <FaTimes className="text-lg" />
                             </button>
                             <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
-                                {imageDimensions.width} × {imageDimensions.height}
+                                {imageDimensions.width} ×{" "}
+                                {imageDimensions.height}
                             </div>
                         </div>
                     </div>
                 )}
 
                 {/* Navigation Bar */}
-                <nav
-                    className={`${
-                        darkMode
-                            ? "bg-gray-800 border-gray-700"
-                            : "bg-white border-gray-200"
-                    } border-b shadow-md px-4 sm:px-6 py-3 sticky top-0 z-50`}
-                >
-                    <div className="max-w-6xl mx-auto flex justify-between items-center">
-                        <div className="flex items-center gap-2 sm:gap-4">
-                            <button
-                                onClick={goBack}
-                                className={`p-2 rounded-full ${
-                                    darkMode
-                                        ? "hover:bg-gray-700"
-                                        : "hover:bg-gray-100"
-                                } transition-colors cursor-pointer`}
-                                title="Go back"
-                            >
-                                <FaArrowLeft className="text-gray-600 dark:text-gray-300 text-sm sm:text-base" />
-                            </button>
-                            <div className="flex items-center cursor-pointer">
-                                <img
-                                    src={logo}
-                                    alt="MemoFold Logo"
-                                    className="h-12 w-12 sm:h-16 sm:w-16 object-contain rounded-xl"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center gap-4">
-                            <button
-                                onClick={navigateToMain}
-                                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 sm:px-5 rounded-xl hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all cursor-pointer text-sm sm:text-base"
-                            >
-                                <FaPlusCircle className="text-sm sm:text-lg" />
-                                <span className="hidden sm:inline">
-                                    Create Post
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setDarkMode(!darkMode)}
-                                className={`p-2 rounded-full ${
-                                    darkMode
-                                        ? "bg-gray-700 text-yellow-300 hover:bg-gray-600"
-                                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                } transition-colors cursor-pointer`}
-                                title={
-                                    darkMode
-                                        ? "Switch to light mode"
-                                        : "Switch to dark mode"
-                                }
-                            >
-                                {darkMode ? <FaSun /> : <FaMoon />}
-                            </button>
-                            <button
-                                onClick={handleLogout}
-                                className="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold transition-colors cursor-pointer text-sm sm:text-base"
-                            >
-                                Logout
-                            </button>
-                        </div>
-
-                        {/* Mobile Menu Button */}
-                        <button
-                            onClick={toggleMobileMenu}
-                            className="md:hidden p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                            aria-label="Toggle menu"
-                        >
-                            <FaBars className="text-xl" />
-                        </button>
-                    </div>
-                </nav>
+                <Navbar onDarkModeChange={handleDarkModeChange} />
 
                 {/* Mobile Menu */}
                 {showMobileMenu && (
@@ -1133,9 +1079,9 @@ const ProfilePage = () => {
                         exit={{ opacity: 0, y: -20 }}
                         ref={mobileMenuRef}
                         className={`md:hidden fixed top-16 right-4 z-50 w-48 ${
-                            darkMode ? "bg-gray-800" : "bg-white"
+                            isDarkMode ? "bg-gray-800" : "bg-white"
                         } rounded-lg shadow-xl border ${
-                            darkMode ? "border-gray-700" : "border-gray-200"
+                            isDarkMode ? "border-gray-700" : "border-gray-200"
                         }`}
                     >
                         <div className="flex flex-col p-4 gap-3">
@@ -1148,15 +1094,17 @@ const ProfilePage = () => {
                             </button>
 
                             <button
-                                onClick={() => setDarkMode(!darkMode)}
+                                onClick={() => setDarkMode(!isDarkMode)}
                                 className={`flex items-center gap-2 p-2 rounded-lg ${
-                                    darkMode
+                                    isDarkMode
                                         ? "bg-gray-700 hover:bg-gray-600"
                                         : "bg-gray-200 hover:bg-gray-300"
                                 } justify-center`}
                             >
-                                {darkMode ? <FaSun /> : <FaMoon />}
-                                <span>{darkMode ? "Light Mode" : "Dark Mode"}</span>
+                                {isDarkMode ? <FaSun /> : <FaMoon />}
+                                <span>
+                                    {isDarkMode ? "Light Mode" : "Dark Mode"}
+                                </span>
                             </button>
 
                             <button
@@ -1190,7 +1138,7 @@ const ProfilePage = () => {
                 {/* Main Content */}
                 <div
                     className={`pt-4 sm:pt-6 pb-12 ${
-                        darkMode
+                        isDarkMode
                             ? "bg-gray-900"
                             : "bg-gradient-to-r from-gray-100 to-gray-300"
                     }`}
@@ -1198,7 +1146,7 @@ const ProfilePage = () => {
                     {/* Profile Section */}
                     <div
                         className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
-                            darkMode
+                            isDarkMode
                                 ? "bg-gray-800 border-gray-700"
                                 : "bg-white border-gray-200"
                         } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}
@@ -1210,38 +1158,42 @@ const ProfilePage = () => {
                                     id="profilePicUpload"
                                     ref={profilePicInputRef}
                                     onChange={(e) =>
-                                        handleProfilePicUpload(e.target.files[0])
+                                        handleProfilePicUpload(
+                                            e.target.files[0]
+                                        )
                                     }
                                     className="hidden"
                                     accept="image/*"
                                 />
                                 <label
                                     htmlFor="profilePicUpload"
-                                    className="cursor-pointer"
+                                    className="cursor-pointer block"
                                 >
                                     <div className="relative">
-                                        <img
-                                            src={profilePic}
-                                            alt="Profile"
-                                            className={`w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-4 border-blue-400 hover:scale-105 transition-transform ${
-                                                uploadingProfilePic
-                                                    ? "opacity-50"
-                                                    : ""
-                                            }`}
-                                            onError={(e) => {
-                                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                    username
-                                                )}&background=random`;
-                                            }}
-                                        />
+                                        <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden border-4 border-blue-400 shadow-lg">
+                                            <img
+                                                src={profilePic}
+                                                alt="Profile"
+                                                className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
+                                                    uploadingProfilePic
+                                                        ? "opacity-50"
+                                                        : ""
+                                                }`}
+                                                onError={(e) => {
+                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                                        username
+                                                    )}&background=random`;
+                                                }}
+                                            />
+                                        </div>
                                         {uploadingProfilePic && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                                             </div>
                                         )}
-                                    </div>
-                                    <div className="absolute bottom-0 right-0 bg-blue-500 text-white p-1 sm:p-2 rounded-full group-hover:bg-blue-600 transition-colors">
-                                        <FaPlusCircle className="text-sm sm:text-base" />
+                                        <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md">
+                                            <FaCamera className="text-sm" />
+                                        </div>
                                     </div>
                                 </label>
                             </div>
@@ -1252,7 +1204,7 @@ const ProfilePage = () => {
                                         {username}
                                     </h2>
                                     <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-600 dark:text-gray-300 mt-1">
-                                        {realName}
+                                        @{realName}
                                     </p>
                                 </div>
 
@@ -1265,7 +1217,7 @@ const ProfilePage = () => {
                                                     setNewBio(e.target.value)
                                                 }
                                                 className={`w-full p-2 rounded-lg ${
-                                                    darkMode
+                                                    isDarkMode
                                                         ? "bg-gray-700 text-white"
                                                         : "bg-gray-100"
                                                 } focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -1320,12 +1272,14 @@ const ProfilePage = () => {
                                 <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
                                     <div
                                         className={`flex items-center gap-1 sm:gap-2 ${
-                                            darkMode
+                                            isDarkMode
                                                 ? "bg-gray-700 hover:bg-gray-600"
                                                 : "bg-gray-100 hover:bg-gray-200"
                                         } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                                     >
-                                        <span className="text-blue-500">📊</span>
+                                        <span className="text-blue-500">
+                                            📊
+                                        </span>
                                         <span>{posts.length} Posts</span>
                                     </div>
                                 </div>
@@ -1336,33 +1290,51 @@ const ProfilePage = () => {
                     {/* Create Post Section */}
                     <div
                         className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
-                            darkMode
+                            isDarkMode
                                 ? "bg-gray-800 border-gray-700"
                                 : "bg-white border-gray-200"
                         } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
                     >
                         <div className="flex items-center gap-3 mb-3 sm:mb-4">
-                            <img
-                                src={profilePic}
-                                alt={username}
-                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                                onError={(e) => {
-                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                        username
-                                    )}&background=random`;
-                                }}
-                                onClick={() =>
-                                    navigateToUserProfile(currentUserProfile?._id)
-                                }
-                            />
-                            <span
-                                className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
-                                onClick={() =>
-                                    navigateToUserProfile(currentUserProfile?._id)
-                                }
-                            >
-                                {username}
-                            </span>
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-blue-400 shadow-md cursor-pointer">
+                                <img
+                                    src={profilePic}
+                                    alt={username}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                            username
+                                        )}&background=random`;
+                                    }}
+                                    onClick={() =>
+                                        navigateToUserProfile(
+                                            currentUserProfile?._id
+                                        )
+                                    }
+                                />
+                            </div>
+                            <div className="flex flex-col">
+                                <span
+                                    className="font-semibold dark:text-white cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+                                    onClick={() =>
+                                        navigateToUserProfile(
+                                            currentUserProfile?._id
+                                        )
+                                    }
+                                >
+                                    {realName || username}
+                                </span>
+                                <span
+                                    className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer hover:text-blue-500"
+                                    onClick={() =>
+                                        navigateToUserProfile(
+                                            currentUserProfile?._id
+                                        )
+                                    }
+                                >
+                                    @{username}
+                                </span>
+                            </div>
                         </div>
 
                         <textarea
@@ -1370,7 +1342,7 @@ const ProfilePage = () => {
                             onChange={(e) => setPostContent(e.target.value)}
                             placeholder="What's on your mind?"
                             className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
-                                darkMode
+                                isDarkMode
                                     ? "bg-gray-700 text-white placeholder-gray-400"
                                     : "bg-gray-100 placeholder-gray-500"
                             } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
@@ -1407,7 +1379,7 @@ const ProfilePage = () => {
                                             setSelectedDate(e.target.value)
                                         }
                                         className={`${
-                                            darkMode
+                                            isDarkMode
                                                 ? "bg-gray-700 text-white border-gray-600"
                                                 : "bg-gray-100 border-gray-300"
                                         } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
@@ -1417,13 +1389,13 @@ const ProfilePage = () => {
                                             new Date()
                                                 .toISOString()
                                                 .split("T")[0] && (
-                                        <span className="text-xs text-blue-500">
-                                            Posting for:{" "}
-                                            {new Date(
-                                                selectedDate
-                                            ).toLocaleDateString()}
-                                        </span>
-                                    )}
+                                            <span className="text-xs text-blue-500">
+                                                Posting for:{" "}
+                                                {new Date(
+                                                    selectedDate
+                                                ).toLocaleDateString()}
+                                            </span>
+                                        )}
                                 </div>
                             </div>
 
@@ -1445,7 +1417,9 @@ const ProfilePage = () => {
 
                                 <button
                                     onClick={handleCreatePost}
-                                    disabled={!postContent.trim() && !filePreview}
+                                    disabled={
+                                        !postContent.trim() && !filePreview
+                                    }
                                     className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
                                         postContent.trim() || filePreview
                                             ? "bg-blue-500 hover:bg-blue-600 text-white"
@@ -1467,7 +1441,9 @@ const ProfilePage = () => {
                         ) : posts.length === 0 ? (
                             <div
                                 className={`text-center py-8 ${
-                                    darkMode ? "text-gray-400" : "text-gray-500"
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
                                 }`}
                             >
                                 <p>You haven't posted anything yet.</p>
@@ -1484,7 +1460,7 @@ const ProfilePage = () => {
                                     <div
                                         key={post._id}
                                         className={`${
-                                            darkMode
+                                            isDarkMode
                                                 ? "bg-gray-800 border-gray-700"
                                                 : "bg-white border-gray-200"
                                         } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
@@ -1524,7 +1500,7 @@ const ProfilePage = () => {
                                         {/* Post Content */}
                                         <p
                                             className={`mb-3 sm:mb-4 ${
-                                                darkMode
+                                                isDarkMode
                                                     ? "text-gray-300"
                                                     : "text-gray-700"
                                             } text-sm sm:text-base`}
@@ -1540,8 +1516,12 @@ const ProfilePage = () => {
                                                     alt="Post"
                                                     className="max-h-96 max-w-full object-contain cursor-pointer"
                                                     onClick={() => {
-                                                        setPreviewImage(post.image);
-                                                        setShowImagePreview(true);
+                                                        setPreviewImage(
+                                                            post.image
+                                                        );
+                                                        setShowImagePreview(
+                                                            true
+                                                        );
                                                     }}
                                                     onError={(e) => {
                                                         e.target.style.display =
@@ -1553,21 +1533,27 @@ const ProfilePage = () => {
                                         {/* Post Actions */}
                                         <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
                                             <motion.button
-                                                onClick={(e) => toggleLike(post._id, e)}
+                                                onClick={(e) =>
+                                                    toggleLike(post._id, e)
+                                                }
                                                 whileTap={{ scale: 0.9 }}
                                                 className={`flex items-center gap-1 ${
                                                     post.isLiked
                                                         ? "text-red-500 hover:text-red-600"
-                                                        : darkMode
+                                                        : isDarkMode
                                                         ? "text-gray-400 hover:text-gray-300"
                                                         : "text-gray-500 hover:text-gray-700"
                                                 } transition-colors cursor-pointer text-xs sm:text-sm relative overflow-hidden`}
                                             >
                                                 <motion.div
                                                     animate={{
-                                                        scale: post.isLiked ? [1, 1.2, 1] : 1,
+                                                        scale: post.isLiked
+                                                            ? [1, 1.2, 1]
+                                                            : 1,
                                                     }}
-                                                    transition={{ duration: 0.3 }}
+                                                    transition={{
+                                                        duration: 0.3,
+                                                    }}
                                                 >
                                                     {post.isLiked ? (
                                                         <FaHeart className="text-red-500" />
@@ -1578,8 +1564,12 @@ const ProfilePage = () => {
                                                 <motion.span
                                                     key={post.likes}
                                                     initial={{ scale: 1 }}
-                                                    animate={{ scale: [1.2, 1] }}
-                                                    transition={{ duration: 0.2 }}
+                                                    animate={{
+                                                        scale: [1.2, 1],
+                                                    }}
+                                                    transition={{
+                                                        duration: 0.2,
+                                                    }}
                                                 >
                                                     {post.likes || 0}
                                                 </motion.span>
@@ -1587,11 +1577,13 @@ const ProfilePage = () => {
 
                                             <button
                                                 onClick={() =>
-                                                    toggleCommentDropdown(post._id)
+                                                    toggleCommentDropdown(
+                                                        post._id
+                                                    )
                                                 }
                                                 disabled={isFetchingComments}
                                                 className={`flex items-center gap-1 ${
-                                                    darkMode
+                                                    isDarkMode
                                                         ? "text-gray-400 hover:text-gray-300"
                                                         : "text-gray-500 hover:text-gray-700"
                                                 } transition-colors cursor-pointer text-xs sm:text-sm`}
@@ -1618,16 +1610,19 @@ const ProfilePage = () => {
                                                 ) : (
                                                     <>
                                                         {post.comments &&
-                                                        post.comments.length > 0 ? (
+                                                        post.comments.length >
+                                                            0 ? (
                                                             <div
                                                                 className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                                    darkMode
+                                                                    isDarkMode
                                                                         ? "bg-gray-700"
                                                                         : "bg-gray-100"
                                                                 }`}
                                                             >
                                                                 {post.comments.map(
-                                                                    (comment) => (
+                                                                    (
+                                                                        comment
+                                                                    ) => (
                                                                         <div
                                                                             key={
                                                                                 comment._id
@@ -1698,7 +1693,7 @@ const ProfilePage = () => {
                                                                                     </span>
                                                                                     <span
                                                                                         className={`text-xs ${
-                                                                                            darkMode
+                                                                                            isDarkMode
                                                                                                 ? "text-gray-400"
                                                                                                 : "text-gray-500"
                                                                                         }`}
@@ -1758,8 +1753,8 @@ const ProfilePage = () => {
                                                             </div>
                                                         ) : (
                                                             <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                                                                No comments yet. Be
-                                                                the first to
+                                                                No comments yet.
+                                                                Be the first to
                                                                 comment!
                                                             </div>
                                                         )}
@@ -1780,17 +1775,20 @@ const ProfilePage = () => {
                                                                 <input
                                                                     type="text"
                                                                     className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                                                        darkMode
+                                                                        isDarkMode
                                                                             ? "bg-gray-700 border-gray-600"
                                                                             : "bg-white border-gray-300"
                                                                     } focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                                                     placeholder="Write a comment..."
                                                                     value={
                                                                         commentContent[
-                                                                            post._id
+                                                                            post
+                                                                                ._id
                                                                         ] || ""
                                                                     }
-                                                                    onChange={(e) =>
+                                                                    onChange={(
+                                                                        e
+                                                                    ) =>
                                                                         setCommentContent(
                                                                             {
                                                                                 ...commentContent,
@@ -1817,7 +1815,8 @@ const ProfilePage = () => {
                                                                 <button
                                                                     className={`px-3 py-1 rounded-full text-sm ${
                                                                         !commentContent[
-                                                                            post._id
+                                                                            post
+                                                                                ._id
                                                                         ]?.trim() ||
                                                                         isAddingComment
                                                                             ? "bg-blue-300 cursor-not-allowed"
@@ -1830,7 +1829,8 @@ const ProfilePage = () => {
                                                                     }
                                                                     disabled={
                                                                         !commentContent[
-                                                                            post._id
+                                                                            post
+                                                                                ._id
                                                                         ]?.trim() ||
                                                                         isAddingComment
                                                                     }
