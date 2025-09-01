@@ -1089,23 +1089,22 @@ const ProfilePage = () => {
             return;
         }
 
-        // Get current date in Indian timezone for comparison
+        // ✅ Utility: Get current IST Date
         const getIndianDate = () => {
             const now = new Date();
-            const offset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
-            return new Date(now.getTime() + offset);
+            return new Date(
+                now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
         };
 
+        // ✅ Validate: block future dates
         const todayIndian = getIndianDate();
         todayIndian.setHours(23, 59, 59, 999);
 
-        // Parse selected date in Indian timezone
         let selectedDateObj;
         if (selectedDate) {
-            // Parse the selected date in Indian timezone (UTC+5:30)
-            const [year, month, day] = selectedDate.split("-");
-            selectedDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-            selectedDateObj.setMinutes(selectedDateObj.getMinutes() + 330); // Add 5:30 hours
+            const [year, month, day] = selectedDate.split("-").map(Number);
+            selectedDateObj = new Date(year, month - 1, day);
         } else {
             selectedDateObj = getIndianDate();
         }
@@ -1119,36 +1118,32 @@ const ProfilePage = () => {
         try {
             const token = localStorage.getItem("token");
 
-            // Format date correctly for Indian timezone
+            // ✅ Decide final date
             let formattedDate;
             if (selectedDate) {
-                // Use the selected date with current Indian time
                 const nowIndian = getIndianDate();
-                const [year, month, day] = selectedDate.split("-");
+                const [year, month, day] = selectedDate.split("-").map(Number);
                 formattedDate = new Date(
-                    Date.UTC(
-                        year,
-                        month - 1,
-                        day,
-                        nowIndian.getHours(),
-                        nowIndian.getMinutes(),
-                        nowIndian.getSeconds()
-                    )
+                    year,
+                    month - 1,
+                    day,
+                    nowIndian.getHours(),
+                    nowIndian.getMinutes(),
+                    nowIndian.getSeconds()
                 );
             } else {
-                // Use current Indian time
                 formattedDate = getIndianDate();
             }
 
-            // Convert image to base64 if selected
+            // ✅ Always send UTC to backend
+            const finalDate = formattedDate.toISOString();
+
+            // ✅ Convert image to base64 if selected
             let imageData = null;
             if (selectedFile) {
                 imageData = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = () => {
-                        const dataURL = reader.result;
-                        resolve(dataURL);
-                    };
+                    reader.onload = () => resolve(reader.result);
                     reader.onerror = (error) => reject(error);
                     reader.readAsDataURL(selectedFile);
                 });
@@ -1156,8 +1151,8 @@ const ProfilePage = () => {
 
             const postData = {
                 content: postContent,
-                createdAt: formattedDate.toISOString(),
-                date: formattedDate.toISOString(),
+                createdAt: finalDate, // UTC
+                date: finalDate, // UTC
                 image: imageData,
             };
 
@@ -1180,7 +1175,7 @@ const ProfilePage = () => {
             const newPost = {
                 _id: result._id || Date.now().toString(),
                 content: postContent,
-                createdAt: formattedDate.toISOString(),
+                createdAt: finalDate, // keep UTC in state too
                 isLiked: false,
                 likes: 0,
                 comments: [],
@@ -1195,7 +1190,7 @@ const ProfilePage = () => {
                 },
             };
 
-            // Update the posts state immediately
+            // ✅ Update local state
             setPosts([newPost, ...posts]);
             setStats((prev) => ({ ...prev, posts: prev.posts + 1 }));
 
@@ -1339,27 +1334,52 @@ const ProfilePage = () => {
     };
 
     const formatDate = (dateString) => {
-        if (!dateString) return "Just now";
-
         try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return "Invalid Date";
+            // Convert UTC string to IST date
+            const utcDate = new Date(dateString);
+            const istDate = new Date(
+                utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
 
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
-
-            if (diffInSeconds < 60) {
+            if (isNaN(istDate.getTime())) {
                 return "Just now";
             }
 
-            return date.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-            });
+            // Current IST time
+            const now = new Date(
+                new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
+
+            const diffInSeconds = Math.floor((now - istDate) / 1000);
+
+            // Handle future dates
+            if (diffInSeconds < 0) {
+                return "Just now";
+            }
+
+            if (diffInSeconds < 10) {
+                return "Just now";
+            }
+            if (diffInSeconds < 60) {
+                return `${diffInSeconds}s ago`;
+            } else if (diffInSeconds < 3600) {
+                const minutes = Math.floor(diffInSeconds / 60);
+                return `${minutes}m ago`;
+            } else if (diffInSeconds < 86400) {
+                const hours = Math.floor(diffInSeconds / 3600);
+                return `${hours}h ago`;
+            } else if (diffInSeconds < 604800) {
+                const days = Math.floor(diffInSeconds / 86400);
+                return `${days}d ago`;
+            } else {
+                return istDate.toLocaleDateString("en-IN", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                });
+            }
         } catch (e) {
-            console.error("Error formatting date:", e);
-            return "Invalid Date";
+            return "Just now";
         }
     };
 
@@ -1371,1121 +1391,1133 @@ const ProfilePage = () => {
     }, [darkMode]);
 
     return (
-    <ErrorBoundary>
-        <div
-            className={`min-h-screen bg-gray-50 transition-colors duration-300 ${
-                isDarkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-800"
-            }`}
-        >
-            {/* Floating Hearts Animation */}
-            <FloatingHearts />
-
-            {/* Toast Container */}
-            <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme={isDarkMode ? "dark" : "light"}
-            />
-
-            {/* Image Preview Modal */}
-            {showImagePreview && (
-                <div
-                    className="fixed inset-0 bg-transparent backdrop-blur bg-opacity-10 flex items-center justify-center z-[9999] p-4"
-                    onClick={() => setShowImagePreview(false)}
-                >
-                    <div
-                        className="relative max-w-full max-h-full flex items-center justify-center"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <img
-                            ref={imagePreviewRef}
-                            src={previewImage}
-                            alt="Preview"
-                            className="max-w-full max-h-full object-contain rounded-lg"
-                            onLoad={handleImageLoad}
-                            style={getImagePreviewStyle()}
-                        />
-                        <button
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors cursor-pointer z-[10000]"
-                            onClick={() => setShowImagePreview(false)}
-                        >
-                            <FaTimes className="text-lg" />
-                        </button>
-                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
-                            @{username}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Navigation Bar */}
-            <Navbar onDarkModeChange={handleDarkModeChange} />
-
-            {/* Mobile Menu */}
-            {showMobileMenu && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    ref={mobileMenuRef}
-                    className={`md:hidden fixed top-16 right-4 z-50 w-48 ${
-                        isDarkMode ? "bg-gray-800" : "bg-white"
-                    } rounded-lg shadow-xl border ${
-                        isDarkMode ? "border-gray-700" : "border-gray-200"
-                    }`}
-                >
-                    <div className="flex flex-col p-4 gap-3">
-                        <button
-                            onClick={navigateToMain}
-                            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-lg justify-center"
-                        >
-                            <FaPlusCircle />
-                            <span>Create Post</span>
-                        </button>
-
-                        <button
-                            onClick={() => setDarkMode(!isDarkMode)}
-                            className={`flex items-center gap-2 p-2 rounded-lg ${
-                                isDarkMode
-                                    ? "bg-gray-700 hover:bg-gray-600 text-white"
-                                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                            } justify-center`}
-                        >
-                            {isDarkMode ? <FaSun /> : <FaMoon />}
-                            <span>
-                                {isDarkMode ? "Light Mode" : "Dark Mode"}
-                            </span>
-                        </button>
-
-                        <button
-                            onClick={handleLogout}
-                            className="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold py-2"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </motion.div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer"
-                    onClick={() => setError(null)}
-                >
-                    <div className="flex items-center">
-                        <span>{error}</span>
-                        <button className="ml-2 text-red-700 font-bold">
-                            ×
-                        </button>
-                    </div>
-                </motion.div>
-            )}
-
-            {/* Main Content */}
+        <ErrorBoundary>
             <div
-                className={`pt-4 sm:pt-6 pb-12 ${
+                className={`min-h-screen bg-gray-50 transition-colors duration-300 ${
                     isDarkMode
-                        ? "bg-gray-900"
-                        : "bg-gradient-to-r from-gray-100 to-gray-300"
+                        ? "bg-gray-900 text-gray-100"
+                        : "bg-gray-50 text-gray-800"
                 }`}
             >
-                {/* Profile Section */}
-                <div
-                    className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
-                        isDarkMode
-                            ? "bg-gray-800 border-gray-700 text-gray-100"
-                            : "bg-white border-gray-200 text-gray-800"
-                    } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}
-                >
-                    <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 mb-4 sm:mb-6">
-                        <div className="relative group self-center sm:self-auto">
-                            <input
-                                type="file"
-                                id="profilePicUpload"
-                                ref={profilePicInputRef}
-                                onChange={(e) =>
-                                    handleProfilePicUpload(
-                                        e.target.files[0]
-                                    )
-                                }
-                                className="hidden"
-                                accept="image/*"
+                {/* Floating Hearts Animation */}
+                <FloatingHearts />
+
+                {/* Toast Container */}
+                <ToastContainer
+                    position="top-right"
+                    autoClose={3000}
+                    hideProgressBar={false}
+                    newestOnTop={false}
+                    closeOnClick
+                    rtl={false}
+                    pauseOnFocusLoss
+                    draggable
+                    pauseOnHover
+                    theme={isDarkMode ? "dark" : "light"}
+                />
+
+                {/* Image Preview Modal */}
+                {showImagePreview && (
+                    <div
+                        className="fixed inset-0 bg-transparent backdrop-blur bg-opacity-10 flex items-center justify-center z-[9999] p-4"
+                        onClick={() => setShowImagePreview(false)}
+                    >
+                        <div
+                            className="relative max-w-full max-h-full flex items-center justify-center"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <img
+                                ref={imagePreviewRef}
+                                src={previewImage}
+                                alt="Preview"
+                                className="max-w-full max-h-full object-contain rounded-lg"
+                                onLoad={handleImageLoad}
+                                style={getImagePreviewStyle()}
                             />
-                            <label
-                                htmlFor="profilePicUpload"
-                                className="cursor-pointer block"
+                            <button
+                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors cursor-pointer z-[10000]"
+                                onClick={() => setShowImagePreview(false)}
                             >
-                                <div className="relative">
-                                    <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg">
-                                        {profilePic &&
-                                        profilePic !==
-                                            "https://ui-avatars.com/api/?name=User&background=random" ? (
-                                            <img
-                                                src={profilePic}
-                                                alt="Profile"
-                                                className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
-                                                    uploadingProfilePic
-                                                        ? "opacity-50"
-                                                        : ""
-                                                }`}
-                                                onError={(e) => {
-                                                    e.target.style.display =
-                                                        "none";
-                                                    e.target.nextSibling.style.display =
-                                                        "flex";
-                                                }}
-                                            />
-                                        ) : null}
-                                        <span
-                                            className="flex items-center justify-center w-full h-full text-white font-semibold text-4xl"
-                                            style={
-                                                profilePic &&
-                                                profilePic !==
-                                                    "https://ui-avatars.com/api/?name=User&background=random"
-                                                    ? { display: "none" }
-                                                    : {}
-                                            }
-                                        >
-                                            {username
-                                                ?.charAt(0)
-                                                .toUpperCase() || "U"}
-                                        </span>
-                                        {uploadingProfilePic && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                                            </div>
-                                        )}
-                                        <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md">
-                                            <FaCamera className="text-sm" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </label>
+                                <FaTimes className="text-lg" />
+                            </button>
+                            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm z-[10000]">
+                                @{username}
+                            </div>
                         </div>
+                    </div>
+                )}
 
-                        <div className="flex-1 w-full">
-                            <div className="text-center sm:text-left w-full">
-                                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold break-all">
-                                    {username}
-                                </h2>
-                                <p className={`text-base sm:text-lg md:text-xl font-semibold mt-1 ${
-                                    isDarkMode ? "text-gray-300" : "text-gray-600"
-                                }`}>
-                                    @{realName}
-                                </p>
-                            </div>
+                {/* Navigation Bar */}
+                <Navbar onDarkModeChange={handleDarkModeChange} />
 
-                            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                {editingBio ? (
-                                    <div className="flex-1 flex flex-col gap-2">
-                                        <textarea
-                                            value={newBio}
-                                            onChange={(e) =>
-                                                setNewBio(e.target.value)
-                                            }
-                                            className={`w-full p-2 rounded-lg ${
-                                                isDarkMode
-                                                    ? "bg-gray-700 text-white"
-                                                    : "bg-gray-100 text-gray-800"
-                                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                                            rows="2"
-                                            maxLength="200"
-                                            placeholder="Tell us about yourself..."
-                                        />
-                                        <div className="flex gap-2 justify-start">
-                                            <button
-                                                onClick={handleBioUpdate}
-                                                disabled={updatingBio}
-                                                className={`px-3 py-1 rounded-lg font-medium ${
-                                                    updatingBio
-                                                        ? "bg-blue-400"
-                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                } text-white transition-colors`}
+                {/* Mobile Menu */}
+                {showMobileMenu && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        ref={mobileMenuRef}
+                        className={`md:hidden fixed top-16 right-4 z-50 w-48 ${
+                            isDarkMode ? "bg-gray-800" : "bg-white"
+                        } rounded-lg shadow-xl border ${
+                            isDarkMode ? "border-gray-700" : "border-gray-200"
+                        }`}
+                    >
+                        <div className="flex flex-col p-4 gap-3">
+                            <button
+                                onClick={navigateToMain}
+                                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-lg justify-center"
+                            >
+                                <FaPlusCircle />
+                                <span>Create Post</span>
+                            </button>
+
+                            <button
+                                onClick={() => setDarkMode(!isDarkMode)}
+                                className={`flex items-center gap-2 p-2 rounded-lg ${
+                                    isDarkMode
+                                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                                        : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                                } justify-center`}
+                            >
+                                {isDarkMode ? <FaSun /> : <FaMoon />}
+                                <span>
+                                    {isDarkMode ? "Light Mode" : "Dark Mode"}
+                                </span>
+                            </button>
+
+                            <button
+                                onClick={handleLogout}
+                                className="text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold py-2"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer"
+                        onClick={() => setError(null)}
+                    >
+                        <div className="flex items-center">
+                            <span>{error}</span>
+                            <button className="ml-2 text-red-700 font-bold">
+                                ×
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Main Content */}
+                <div
+                    className={`pt-4 sm:pt-6 pb-12 ${
+                        isDarkMode
+                            ? "bg-gray-900"
+                            : "bg-gradient-to-r from-gray-100 to-gray-300"
+                    }`}
+                >
+                    {/* Profile Section */}
+                    <div
+                        className={`max-w-4xl mx-auto mb-6 sm:mb-8 ${
+                            isDarkMode
+                                ? "bg-gray-800 border-gray-700 text-gray-100"
+                                : "bg-white border-gray-200 text-gray-800"
+                        } border rounded-xl sm:rounded-3xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8 transition-all hover:shadow-2xl`}
+                    >
+                        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6 mb-4 sm:mb-6">
+                            <div className="relative group self-center sm:self-auto">
+                                <input
+                                    type="file"
+                                    id="profilePicUpload"
+                                    ref={profilePicInputRef}
+                                    onChange={(e) =>
+                                        handleProfilePicUpload(
+                                            e.target.files[0]
+                                        )
+                                    }
+                                    className="hidden"
+                                    accept="image/*"
+                                />
+                                <label
+                                    htmlFor="profilePicUpload"
+                                    className="cursor-pointer block"
+                                >
+                                    <div className="relative">
+                                        <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg">
+                                            {profilePic &&
+                                            profilePic !==
+                                                "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                                <img
+                                                    src={profilePic}
+                                                    alt="Profile"
+                                                    className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
+                                                        uploadingProfilePic
+                                                            ? "opacity-50"
+                                                            : ""
+                                                    }`}
+                                                    onError={(e) => {
+                                                        e.target.style.display =
+                                                            "none";
+                                                        e.target.nextSibling.style.display =
+                                                            "flex";
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <span
+                                                className="flex items-center justify-center w-full h-full text-white font-semibold text-4xl"
+                                                style={
+                                                    profilePic &&
+                                                    profilePic !==
+                                                        "https://ui-avatars.com/api/?name=User&background=random"
+                                                        ? { display: "none" }
+                                                        : {}
+                                                }
                                             >
-                                                {updatingBio
-                                                    ? "Saving..."
-                                                    : "Save"}
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setEditingBio(false);
-                                                    setNewBio(bio);
-                                                }}
-                                                className={`px-3 py-1 rounded-lg font-medium ${
-                                                    updatingBio
-                                                        ? "bg-red-400"
-                                                        : "bg-red-500 hover:bg-red-600"
-                                                } text-white transition-colors`}
-                                            >
-                                                Cancel
-                                            </button>
+                                                {username
+                                                    ?.charAt(0)
+                                                    .toUpperCase() || "U"}
+                                            </span>
+                                            {uploadingProfilePic && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                                </div>
+                                            )}
+                                            <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md">
+                                                <FaCamera className="text-sm" />
+                                            </div>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-row items-center">
-                                        <p className={`text-center sm:text-left flex-1 ${
-                                            isDarkMode ? "text-gray-300" : "text-gray-600"
-                                        }`}>
-                                            {bio ||
-                                                "No bio yet. Click the edit button to add one."}
-                                        </p>
-                                        <button
-                                            onClick={() =>
-                                                setEditingBio(!editingBio)
-                                            }
-                                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                                            aria-label="Edit bio"
-                                        >
-                                            <FaEdit className="text-lg" />
-                                        </button>
-                                    </div>
-                                )}
+                                </label>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
-                                <div
-                                    className={`flex items-center gap-1 sm:gap-2 ${
-                                        isDarkMode
-                                            ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
-                                            : "bg-gray-100 hover:bg-gray-200 text-gray-800"
-                                    } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
-                                >
-                                    <div className="flex items-center">
-                                        <FaCalendar className="mr-1" />
-                                        <span>Joined {joinedDate}</span>
-                                    </div>
+                            <div className="flex-1 w-full">
+                                <div className="text-center sm:text-left w-full">
+                                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold break-all">
+                                        {username}
+                                    </h2>
+                                    <p
+                                        className={`text-base sm:text-lg md:text-xl font-semibold mt-1 ${
+                                            isDarkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-600"
+                                        }`}
+                                    >
+                                        @{realName}
+                                    </p>
                                 </div>
-                                <div
-                                    className={`flex items-center gap-1 sm:gap-2 ${
-                                        isDarkMode
-                                            ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
-                                            : "bg-gray-100 hover:bg-gray-200 text-gray-800"
-                                    } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
-                                >
-                                    <span className="text-blue-500">
-                                        📊
-                                    </span>
-                                    <span>{posts.length} Posts</span>
+
+                                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                    {editingBio ? (
+                                        <div className="flex-1 flex flex-col gap-2">
+                                            <textarea
+                                                value={newBio}
+                                                onChange={(e) =>
+                                                    setNewBio(e.target.value)
+                                                }
+                                                className={`w-full p-2 rounded-lg ${
+                                                    isDarkMode
+                                                        ? "bg-gray-700 text-white"
+                                                        : "bg-gray-100 text-gray-800"
+                                                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                                rows="2"
+                                                maxLength="200"
+                                                placeholder="Tell us about yourself..."
+                                            />
+                                            <div className="flex gap-2 justify-start">
+                                                <button
+                                                    onClick={handleBioUpdate}
+                                                    disabled={updatingBio}
+                                                    className={`px-3 py-1 rounded-lg font-medium ${
+                                                        updatingBio
+                                                            ? "bg-blue-400"
+                                                            : "bg-blue-500 hover:bg-blue-600"
+                                                    } text-white transition-colors`}
+                                                >
+                                                    {updatingBio
+                                                        ? "Saving..."
+                                                        : "Save"}
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingBio(false);
+                                                        setNewBio(bio);
+                                                    }}
+                                                    className={`px-3 py-1 rounded-lg font-medium ${
+                                                        updatingBio
+                                                            ? "bg-red-400"
+                                                            : "bg-red-500 hover:bg-red-600"
+                                                    } text-white transition-colors`}
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-row items-center">
+                                            <p
+                                                className={`text-center sm:text-left flex-1 ${
+                                                    isDarkMode
+                                                        ? "text-gray-300"
+                                                        : "text-gray-600"
+                                                }`}
+                                            >
+                                                {bio ||
+                                                    "No bio yet. Click the edit button to add one."}
+                                            </p>
+                                            <button
+                                                onClick={() =>
+                                                    setEditingBio(!editingBio)
+                                                }
+                                                className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                                                aria-label="Edit bio"
+                                            >
+                                                <FaEdit className="text-lg" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
+                                    <div
+                                        className={`flex items-center gap-1 sm:gap-2 ${
+                                            isDarkMode
+                                                ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
+                                                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                                        } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                                    >
+                                        <div className="flex items-center">
+                                            <FaCalendar className="mr-1" />
+                                            <span>Joined {joinedDate}</span>
+                                        </div>
+                                    </div>
+                                    <div
+                                        className={`flex items-center gap-1 sm:gap-2 ${
+                                            isDarkMode
+                                                ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
+                                                : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                                        } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                                    >
+                                        <span className="text-blue-500">
+                                            📊
+                                        </span>
+                                        <span>{posts.length} Posts</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Create Post Section */}
-                <div
-                    className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
-                        isDarkMode
-                            ? "bg-gray-800 border-gray-700 text-gray-100"
-                            : "bg-white border-gray-200 text-gray-800"
-                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
-                >
-                    <div className="flex items-center gap-3 mb-3 sm:mb-4">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
-                            {profilePic &&
-                            profilePic !==
-                                "https://ui-avatars.com/api/?name=User&background=random" ? (
-                                <img
-                                    src={profilePic}
-                                    alt={username}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.style.display = "none";
-                                        e.target.nextSibling.style.display =
-                                            "flex";
-                                    }}
+                    {/* Create Post Section */}
+                    <div
+                        className={`max-w-2xl mx-auto mb-6 sm:mb-8 ${
+                            isDarkMode
+                                ? "bg-gray-800 border-gray-700 text-gray-100"
+                                : "bg-white border-gray-200 text-gray-800"
+                        } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md`}
+                    >
+                        <div className="flex items-center gap-3 mb-3 sm:mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
+                                {profilePic &&
+                                profilePic !==
+                                    "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                    <img
+                                        src={profilePic}
+                                        alt={username}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            e.target.style.display = "none";
+                                            e.target.nextSibling.style.display =
+                                                "flex";
+                                        }}
+                                        onClick={() =>
+                                            navigateToUserProfile(
+                                                currentUserProfile?._id
+                                            )
+                                        }
+                                    />
+                                ) : null}
+                                <span
+                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
+                                    style={
+                                        profilePic &&
+                                        profilePic !==
+                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                            ? { display: "none" }
+                                            : {}
+                                    }
+                                >
+                                    {username?.charAt(0).toUpperCase() || "U"}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col">
+                                <span
+                                    className="font-semibold cursor-pointer hover:text-blue-500 text-sm sm:text-base"
                                     onClick={() =>
                                         navigateToUserProfile(
                                             currentUserProfile?._id
                                         )
                                     }
-                                />
-                            ) : null}
-                            <span
-                                className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
-                                style={
-                                    profilePic &&
-                                    profilePic !==
-                                        "https://ui-avatars.com/api/?name=User&background=random"
-                                        ? { display: "none" }
-                                        : {}
-                                }
-                            >
-                                {username?.charAt(0).toUpperCase() || "U"}
-                            </span>
-                        </div>
-
-                        <div className="flex flex-col">
-                            <span
-                                className="font-semibold cursor-pointer hover:text-blue-500 text-sm sm:text-base"
-                                onClick={() =>
-                                    navigateToUserProfile(
-                                        currentUserProfile?._id
-                                    )
-                                }
-                            >
-                                {realName || username}
-                            </span>
-                            <span
-                                className={`text-xs cursor-pointer hover:text-blue-500 ${
-                                    isDarkMode ? "text-gray-400" : "text-gray-500"
-                                }`}
-                                onClick={() =>
-                                    navigateToUserProfile(
-                                        currentUserProfile?._id
-                                    )
-                                }
-                            >
-                                @{username}
-                            </span>
-                        </div>
-                    </div>
-
-                    <textarea
-                        value={postContent}
-                        onChange={(e) => setPostContent(e.target.value)}
-                        placeholder="What's on your mind?"
-                        className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
-                            isDarkMode
-                                ? "bg-gray-700 text-white placeholder-gray-400"
-                                : "bg-gray-100 text-gray-800 placeholder-gray-500"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
-                        rows="3"
-                    ></textarea>
-
-                    {filePreview && (
-                        <div className="relative mb-3">
-                            <img
-                                src={filePreview}
-                                alt="Preview"
-                                className="w-full h-48 object-cover rounded-lg cursor-pointer"
-                                onClick={() => {
-                                    setPreviewImage(filePreview);
-                                    setShowImagePreview(true);
-                                }}
-                            />
-                            <button
-                                onClick={removeFile}
-                                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-                            >
-                                <FaTimes />
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
-                        <div className="flex flex-wrap gap-2">
-                            <div className="flex items-center gap-1 sm:gap-2">
-                                <input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={(e) =>
-                                        setSelectedDate(e.target.value)
-                                    }
-                                    className={`${
+                                >
+                                    {realName || username}
+                                </span>
+                                <span
+                                    className={`text-xs cursor-pointer hover:text-blue-500 ${
                                         isDarkMode
-                                            ? "bg-gray-700 text-white border-gray-600"
-                                            : "bg-gray-100 text-gray-800 border-gray-300"
-                                    } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
-                                />
-                                {selectedDate &&
-                                    selectedDate !==
-                                        new Date()
-                                            .toISOString()
-                                            .split("T")[0] && (
-                                    <span className="text-xs text-blue-500">
-                                        Posting for:{" "}
-                                        {new Date(
-                                            selectedDate
-                                        ).toLocaleDateString()}
-                                    </span>
-                                )}
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                    onClick={() =>
+                                        navigateToUserProfile(
+                                            currentUserProfile?._id
+                                        )
+                                    }
+                                >
+                                    @{username}
+                                </span>
                             </div>
                         </div>
 
-                        <div className="flex gap-1 sm:gap-2 self-end">
-                            <button
-                                onClick={() => fileInputRef.current.click()}
-                                className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                                title="Attach file"
-                            >
-                                <FaPaperclip className="text-xs sm:text-sm" />
-                            </button>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                className="hidden"
-                                accept="image/*"
-                            />
+                        <textarea
+                            value={postContent}
+                            onChange={(e) => setPostContent(e.target.value)}
+                            placeholder="What's on your mind?"
+                            className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
+                                isDarkMode
+                                    ? "bg-gray-700 text-white placeholder-gray-400"
+                                    : "bg-gray-100 text-gray-800 placeholder-gray-500"
+                            } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base`}
+                            rows="3"
+                        ></textarea>
 
-                            <button
-                                onClick={handleCreatePost}
-                                disabled={
-                                    !postContent.trim() && !filePreview
-                                }
-                                className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
-                                    postContent.trim() || filePreview
-                                        ? "bg-blue-500 hover:bg-blue-600 text-white"
-                                        : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-                                } transition-colors cursor-pointer text-sm sm:text-base`}
-                            >
-                                Post
-                            </button>
+                        {filePreview && (
+                            <div className="relative mb-3">
+                                <img
+                                    src={filePreview}
+                                    alt="Preview"
+                                    className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                                    onClick={() => {
+                                        setPreviewImage(filePreview);
+                                        setShowImagePreview(true);
+                                    }}
+                                />
+                                <button
+                                    onClick={removeFile}
+                                    className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
+                                >
+                                    <FaTimes />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+                            <div className="flex flex-wrap gap-2">
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) =>
+                                            setSelectedDate(e.target.value)
+                                        }
+                                        className={`${
+                                            isDarkMode
+                                                ? "bg-gray-700 text-white border-gray-600"
+                                                : "bg-gray-100 text-gray-800 border-gray-300"
+                                        } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
+                                    />
+                                    {selectedDate &&
+                                        selectedDate !==
+                                            new Date()
+                                                .toISOString()
+                                                .split("T")[0] && (
+                                            <span className="text-xs text-blue-500">
+                                                Posting for:{" "}
+                                                {new Date(
+                                                    selectedDate
+                                                ).toLocaleDateString()}
+                                            </span>
+                                        )}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-1 sm:gap-2 self-end">
+                                <button
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                                    title="Attach file"
+                                >
+                                    <FaPaperclip className="text-xs sm:text-sm" />
+                                </button>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    accept="image/*"
+                                />
+
+                                <button
+                                    onClick={handleCreatePost}
+                                    disabled={
+                                        !postContent.trim() && !filePreview
+                                    }
+                                    className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+                                        postContent.trim() || filePreview
+                                            ? "bg-blue-500 hover:bg-blue-600 text-white"
+                                            : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                                    } transition-colors cursor-pointer text-sm sm:text-base`}
+                                >
+                                    Post
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Posts Section */}
-                <section className="max-w-2xl mx-auto px-3 sm:px-4">
-                    {loading ? (
-                        <div className="text-center py-8">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                        </div>
-                    ) : posts.length === 0 ? (
-                        <div
-                            className={`text-center py-8 ${
-                                isDarkMode
-                                    ? "text-gray-400"
-                                    : "text-gray-500"
-                            }`}
-                        >
-                            <p>You haven't posted anything yet.</p>
-                            <button
-                                onClick={navigateToMain}
-                                className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer text-sm sm:text-base"
+                    {/* Posts Section */}
+                    <section className="max-w-2xl mx-auto px-3 sm:px-4">
+                        {loading ? (
+                            <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                            </div>
+                        ) : posts.length === 0 ? (
+                            <div
+                                className={`text-center py-8 ${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
                             >
-                                Create Your First Post
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
-                            {posts.map((post) => (
-                                <div
-                                    key={post._id}
-                                    className={`${
-                                        isDarkMode
-                                            ? "bg-gray-800 border-gray-700 text-gray-100"
-                                            : "bg-white border-gray-200 text-gray-800"
-                                    } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
+                                <p>You haven't posted anything yet.</p>
+                                <button
+                                    onClick={navigateToMain}
+                                    className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer text-sm sm:text-base"
                                 >
-                                    {/* Post Header */}
-                                    <div className="flex items-start justify-between mb-3 sm:mb-4">
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                {post.userId?.profilePic ? (
-                                                    <img
-                                                        src={
-                                                            post.userId
-                                                                .profilePic
-                                                        }
-                                                        alt={
-                                                            post.userId
-                                                                .username
-                                                        }
-                                                        className="w-10 h-10 object-cover"
-                                                        onError={(e) => {
-                                                            e.target.style.display =
-                                                                "none";
-                                                            e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
-                                                                post.userId.username
-                                                                    ?.charAt(
-                                                                        0
-                                                                    )
-                                                                    .toUpperCase() ||
-                                                                "U"
-                                                            }</span>`;
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
-                                                        {post.userId?.username
-                                                            ?.charAt(0)
-                                                            .toUpperCase() ||
-                                                            "U"}
-                                                    </span>
-                                                )}
-                                            </div>
+                                    Create Your First Post
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
+                                {posts.map((post) => (
+                                    <div
+                                        key={post._id}
+                                        className={`${
+                                            isDarkMode
+                                                ? "bg-gray-800 border-gray-700 text-gray-100"
+                                                : "bg-white border-gray-200 text-gray-800"
+                                        } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5`}
+                                    >
+                                        {/* Post Header */}
+                                        <div className="flex items-start justify-between mb-3 sm:mb-4">
+                                            <div className="flex items-center gap-2 sm:gap-3">
+                                                <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                    {post.userId?.profilePic ? (
+                                                        <img
+                                                            src={
+                                                                post.userId
+                                                                    .profilePic
+                                                            }
+                                                            alt={
+                                                                post.userId
+                                                                    .username
+                                                            }
+                                                            className="w-10 h-10 object-cover"
+                                                            onError={(e) => {
+                                                                e.target.style.display =
+                                                                    "none";
+                                                                e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
+                                                                    post.userId.username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                    "U"
+                                                                }</span>`;
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
+                                                            {post.userId?.username
+                                                                ?.charAt(0)
+                                                                .toUpperCase() ||
+                                                                "U"}
+                                                        </span>
+                                                    )}
+                                                </div>
 
-                                            <div>
-                                                <h3
-                                                    className="text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer"
-                                                    onClick={() =>
-                                                        navigateToUserProfile(
-                                                            post.userId?._id
-                                                        )
-                                                    }
-                                                >
-                                                    {post.userId
-                                                        ?.realname ||
-                                                        post.userId
+                                                <div>
+                                                    <h3
+                                                        className="text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer"
+                                                        onClick={() =>
+                                                            navigateToUserProfile(
+                                                                post.userId?._id
+                                                            )
+                                                        }
+                                                    >
+                                                        {post.userId
+                                                            ?.realname ||
+                                                            post.userId
+                                                                ?.username ||
+                                                            "Unknown User"}
+                                                    </h3>
+                                                    <p
+                                                        className={`text-xs ${
+                                                            isDarkMode
+                                                                ? "text-gray-400"
+                                                                : "text-gray-500"
+                                                        }`}
+                                                    >
+                                                        @
+                                                        {post.userId
                                                             ?.username ||
-                                                        "Unknown User"}
-                                                </h3>
-                                                <p
-                                                    className={`text-xs ${
-                                                        isDarkMode
-                                                            ? "text-gray-400"
-                                                            : "text-gray-500"
-                                                    }`}
-                                                >
-                                                    @
-                                                    {post.userId
-                                                        ?.username ||
-                                                        "unknown"}{" "}
-                                                    ·{" "}
-                                                    {formatDate(
-                                                        post.createdAt
-                                                    )}
-                                                </p>
+                                                            "unknown"}{" "}
+                                                        ·{" "}
+                                                        {formatDate(
+                                                            post.createdAt
+                                                        )}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {/* Edit/Delete buttons - positioned at top right */}
-                                        {post.userId?._id ===
-                                            currentUserProfile?._id && (
-                                            <div className="flex items-center space-x-2">
-                                                <button
-                                                    onClick={() =>
-                                                        startEditPost(
-                                                            post._id
-                                                        )
-                                                    }
-                                                    className={`p-1 rounded-full ${
-                                                        isDarkMode
-                                                            ? "hover:bg-gray-700"
-                                                            : "hover:bg-gray-100"
-                                                    }`}
-                                                    title="Edit post"
-                                                >
-                                                    <FaEdit className="text-blue-500 text-sm" />
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        handleDeletePost(
-                                                            post._id
-                                                        )
-                                                    }
-                                                    className={`p-1 rounded-full ${
-                                                        isDarkMode
-                                                            ? "hover:bg-gray-700"
-                                                            : "hover:bg-gray-100"
-                                                    }`}
-                                                    title="Delete post"
-                                                    disabled={
-                                                        isDeletingPost
-                                                    }
-                                                >
-                                                    <FaTrashAlt className="text-red-500 text-sm" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {/* Post Content - Add edit mode */}
-                                    {editingPostId === post._id ? (
-                                        <div className="mb-3 sm:mb-4">
-                                            <textarea
-                                                value={editContent}
-                                                onChange={(e) =>
-                                                    setEditContent(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                className={`w-full p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                                    isDarkMode
-                                                        ? "bg-gray-700 text-white border-gray-600"
-                                                        : "bg-gray-100 text-gray-800 border-gray-300"
-                                                }`}
-                                                rows={3}
-                                            />
-                                            {/* Edit Files Preview */}
-                                            {editFiles.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {editFiles.map(
-                                                        (file, index) => (
-                                                            <div
-                                                                key={index}
-                                                            >
-                                                                {renderImagePreview(
-                                                                    file,
-                                                                    true
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    )}
-                                                </div>
-                                            )}
-                                            {post.image && (
-                                                <div className="mt-2">
-                                                    {renderExistingImagePreview(
-                                                        post.image
-                                                    )}
-                                                </div>
-                                            )}
-                                            <div className="flex items-center justify-between mt-2">
-                                                <label
-                                                    className={`p-1 rounded-full cursor-pointer ${
-                                                        isDarkMode
-                                                            ? "hover:bg-gray-700"
-                                                            : "hover:bg-gray-100"
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="file"
-                                                        className="hidden"
-                                                        onChange={
-                                                            handleEditFileSelect
-                                                        }
-                                                        accept="image/*,application/pdf,video/mp4,text/plain"
-                                                    />
-                                                    <FaPaperclip className="text-gray-500 text-sm" />
-                                                </label>
-                                                <div className="flex space-x-2">
+                                            {/* Edit/Delete buttons - positioned at top right */}
+                                            {post.userId?._id ===
+                                                currentUserProfile?._id && (
+                                                <div className="flex items-center space-x-2">
                                                     <button
                                                         onClick={() =>
-                                                            handleUpdatePost(
+                                                            startEditPost(
                                                                 post._id
                                                             )
                                                         }
-                                                        disabled={
-                                                            isUpdatingPost
-                                                        }
-                                                        className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                                            isUpdatingPost
-                                                                ? "bg-gray-400 cursor-not-allowed"
-                                                                : "bg-green-500 hover:bg-green-600 text-white"
+                                                        className={`p-1 rounded-full ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
                                                         }`}
+                                                        title="Edit post"
                                                     >
-                                                        {isUpdatingPost
-                                                            ? "Saving..."
-                                                            : "Save"}
+                                                        <FaEdit className="text-blue-500 text-sm" />
                                                     </button>
                                                     <button
-                                                        onClick={
-                                                            cancelEditPost
+                                                        onClick={() =>
+                                                            handleDeletePost(
+                                                                post._id
+                                                            )
                                                         }
-                                                        className="px-3 py-1 rounded-lg text-sm font-medium bg-gray-500 hover:bg-gray-600 text-white"
+                                                        className={`p-1 rounded-full ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
+                                                        }`}
+                                                        title="Delete post"
+                                                        disabled={
+                                                            isDeletingPost
+                                                        }
                                                     >
-                                                        Cancel
+                                                        <FaTrashAlt className="text-red-500 text-sm" />
                                                     </button>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <p
-                                                className={`mb-3 sm:mb-4 ${
-                                                    isDarkMode
-                                                        ? "text-gray-300"
-                                                        : "text-gray-700"
-                                                } text-sm sm:text-base`}
-                                            >
-                                                {post.content}
-                                            </p>
-                                            {post.image && (
-                                                <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                                                    <img
-                                                        src={post.image}
-                                                        alt="Post"
-                                                        className="max-h-96 max-w-full object-contain cursor-pointer"
-                                                        onClick={() => {
-                                                            setPreviewImage(
-                                                                post.image
-                                                            );
-                                                            setShowImagePreview(
-                                                                true
-                                                            );
-                                                        }}
-                                                        onError={(e) => {
-                                                            e.target.style.display =
-                                                                "none";
-                                                        }}
-                                                    />
-                                                </div>
                                             )}
-                                        </>
-                                    )}
-
-                                    {/* Post Actions */}
-                                    <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
-                                        <motion.button
-                                            onClick={(e) =>
-                                                toggleLike(post._id, e)
-                                            }
-                                            whileTap={{ scale: 0.9 }}
-                                            className={`flex items-center gap-1 ${
-                                                post.isLiked
-                                                    ? "text-red-500 hover:text-red-600"
-                                                    : isDarkMode
-                                                    ? "text-gray-400 hover:text-gray-300"
-                                                    : "text-gray-500 hover:text-gray-700"
-                                            } transition-colors cursor-pointer text-xs sm:text-sm relative overflow-hidden`}
-                                        >
-                                            <motion.div
-                                                animate={{
-                                                    scale: post.isLiked
-                                                        ? [1, 1.2, 1]
-                                                        : 1,
-                                                }}
-                                                transition={{
-                                                    duration: 0.3,
-                                                }}
-                                            >
-                                                {post.isLiked ? (
-                                                    <FaHeart className="text-red-500" />
-                                                ) : (
-                                                    <FaRegHeart />
+                                        </div>
+                                        {/* Post Content - Add edit mode */}
+                                        {editingPostId === post._id ? (
+                                            <div className="mb-3 sm:mb-4">
+                                                <textarea
+                                                    value={editContent}
+                                                    onChange={(e) =>
+                                                        setEditContent(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    className={`w-full p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                                        isDarkMode
+                                                            ? "bg-gray-700 text-white border-gray-600"
+                                                            : "bg-gray-100 text-gray-800 border-gray-300"
+                                                    }`}
+                                                    rows={3}
+                                                />
+                                                {/* Edit Files Preview */}
+                                                {editFiles.length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {editFiles.map(
+                                                            (file, index) => (
+                                                                <div
+                                                                    key={index}
+                                                                >
+                                                                    {renderImagePreview(
+                                                                        file,
+                                                                        true
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        )}
+                                                    </div>
                                                 )}
-                                            </motion.div>
-                                            <motion.span
-                                                key={post.likes}
-                                                initial={{ scale: 1 }}
-                                                animate={{
-                                                    scale: [1.2, 1],
-                                                }}
-                                                transition={{
-                                                    duration: 0.2,
-                                                }}
-                                            >
-                                                {post.likes || 0}
-                                            </motion.span>
-                                        </motion.button>
-
-                                        <button
-                                            onClick={() =>
-                                                toggleCommentDropdown(
-                                                    post._id
-                                                )
-                                            }
-                                            disabled={isFetchingComments}
-                                            className={`flex items-center gap-1 ${
-                                                isDarkMode
-                                                    ? "text-gray-400 hover:text-gray-300"
-                                                    : "text-gray-500 hover:text-gray-700"
-                                            } transition-colors cursor-pointer text-xs sm:text-sm`}
-                                        >
-                                            <FaComment />
-                                            <span>
-                                                {post.commentCount ||
-                                                    post.comments?.length ||
-                                                    0}
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    {/* Comments Section */}
-                                    {activeCommentPostId === post._id && (
-                                        <div className="mt-4">
-                                            {isFetchingComments ? (
-                                                <div className="text-center py-4">
-                                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                    <p className="text-sm mt-2">
-                                                        Loading comments...
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {post.comments &&
-                                                    post.comments.length >
-                                                        0 ? (
-                                                        <div
-                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                                isDarkMode
-                                                                    ? "bg-gray-700"
-                                                                    : "bg-gray-100"
+                                                {post.image && (
+                                                    <div className="mt-2">
+                                                        {renderExistingImagePreview(
+                                                            post.image
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <label
+                                                        className={`p-1 rounded-full cursor-pointer ${
+                                                            isDarkMode
+                                                                ? "hover:bg-gray-700"
+                                                                : "hover:bg-gray-100"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            onChange={
+                                                                handleEditFileSelect
+                                                            }
+                                                            accept="image/*,application/pdf,video/mp4,text/plain"
+                                                        />
+                                                        <FaPaperclip className="text-gray-500 text-sm" />
+                                                    </label>
+                                                    <div className="flex space-x-2">
+                                                        <button
+                                                            onClick={() =>
+                                                                handleUpdatePost(
+                                                                    post._id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                isUpdatingPost
+                                                            }
+                                                            className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                                                                isUpdatingPost
+                                                                    ? "bg-gray-400 cursor-not-allowed"
+                                                                    : "bg-green-500 hover:bg-green-600 text-white"
                                                             }`}
                                                         >
-                                                            {post.comments.map(
-                                                                (
-                                                                    comment
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            comment._id
-                                                                        }
-                                                                        className="flex items-start space-x-2"
-                                                                    >
-                                                                        <img
-                                                                            src={
-                                                                                comment
-                                                                                    .userId
-                                                                                    ?.profilePic ||
-                                                                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                                                                    comment
-                                                                                        .userId
-                                                                                        ?.realname ||
-                                                                                        "User"
-                                                                                )}&background=random`
+                                                            {isUpdatingPost
+                                                                ? "Saving..."
+                                                                : "Save"}
+                                                        </button>
+                                                        <button
+                                                            onClick={
+                                                                cancelEditPost
+                                                            }
+                                                            className="px-3 py-1 rounded-lg text-sm font-medium bg-gray-500 hover:bg-gray-600 text-white"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p
+                                                    className={`mb-3 sm:mb-4 ${
+                                                        isDarkMode
+                                                            ? "text-gray-300"
+                                                            : "text-gray-700"
+                                                    } text-sm sm:text-base`}
+                                                >
+                                                    {post.content}
+                                                </p>
+                                                {post.image && (
+                                                    <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                                                        <img
+                                                            src={post.image}
+                                                            alt="Post"
+                                                            className="max-h-96 max-w-full object-contain cursor-pointer"
+                                                            onClick={() => {
+                                                                setPreviewImage(
+                                                                    post.image
+                                                                );
+                                                                setShowImagePreview(
+                                                                    true
+                                                                );
+                                                            }}
+                                                            onError={(e) => {
+                                                                e.target.style.display =
+                                                                    "none";
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {/* Post Actions */}
+                                        <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
+                                            <motion.button
+                                                onClick={(e) =>
+                                                    toggleLike(post._id, e)
+                                                }
+                                                whileTap={{ scale: 0.9 }}
+                                                className={`flex items-center gap-1 ${
+                                                    post.isLiked
+                                                        ? "text-red-500 hover:text-red-600"
+                                                        : isDarkMode
+                                                        ? "text-gray-400 hover:text-gray-300"
+                                                        : "text-gray-500 hover:text-gray-700"
+                                                } transition-colors cursor-pointer text-xs sm:text-sm relative overflow-hidden`}
+                                            >
+                                                <motion.div
+                                                    animate={{
+                                                        scale: post.isLiked
+                                                            ? [1, 1.2, 1]
+                                                            : 1,
+                                                    }}
+                                                    transition={{
+                                                        duration: 0.3,
+                                                    }}
+                                                >
+                                                    {post.isLiked ? (
+                                                        <FaHeart className="text-red-500" />
+                                                    ) : (
+                                                        <FaRegHeart />
+                                                    )}
+                                                </motion.div>
+                                                <motion.span
+                                                    key={post.likes}
+                                                    initial={{ scale: 1 }}
+                                                    animate={{
+                                                        scale: [1.2, 1],
+                                                    }}
+                                                    transition={{
+                                                        duration: 0.2,
+                                                    }}
+                                                >
+                                                    {post.likes || 0}
+                                                </motion.span>
+                                            </motion.button>
+
+                                            <button
+                                                onClick={() =>
+                                                    toggleCommentDropdown(
+                                                        post._id
+                                                    )
+                                                }
+                                                disabled={isFetchingComments}
+                                                className={`flex items-center gap-1 ${
+                                                    isDarkMode
+                                                        ? "text-gray-400 hover:text-gray-300"
+                                                        : "text-gray-500 hover:text-gray-700"
+                                                } transition-colors cursor-pointer text-xs sm:text-sm`}
+                                            >
+                                                <FaComment />
+                                                <span>
+                                                    {post.commentCount ||
+                                                        post.comments?.length ||
+                                                        0}
+                                                </span>
+                                            </button>
+                                        </div>
+
+                                        {/* Comments Section */}
+                                        {activeCommentPostId === post._id && (
+                                            <div className="mt-4">
+                                                {isFetchingComments ? (
+                                                    <div className="text-center py-4">
+                                                        <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                        <p className="text-sm mt-2">
+                                                            Loading comments...
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        {post.comments &&
+                                                        post.comments.length >
+                                                            0 ? (
+                                                            <div
+                                                                className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                                                    isDarkMode
+                                                                        ? "bg-gray-700"
+                                                                        : "bg-gray-100"
+                                                                }`}
+                                                            >
+                                                                {post.comments.map(
+                                                                    (
+                                                                        comment
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                comment._id
                                                                             }
-                                                                            alt={
-                                                                                comment
-                                                                                    .userId
-                                                                                    ?.realname
-                                                                            }
-                                                                            className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                                                                            onError={(
-                                                                                e
-                                                                            ) => {
-                                                                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                                                            className="flex items-start space-x-2"
+                                                                        >
+                                                                            <img
+                                                                                src={
                                                                                     comment
                                                                                         .userId
-                                                                                        ?.realname ||
-                                                                                        "User"
-                                                                                )}&background=random`;
-                                                                            }}
-                                                                            onClick={(
-                                                                                e
-                                                                            ) => {
-                                                                                e.stopPropagation();
-                                                                                navigateToUserProfile(
-                                                                                    comment
-                                                                                        .userId
-                                                                                        ?._id
-                                                                                );
-                                                                            }}
-                                                                        />
-                                                                        <div className="flex-1">
-                                                                            <div className="flex items-center space-x-2">
-                                                                                <span
-                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                                    onClick={(
-                                                                                        e
-                                                                                    ) => {
-                                                                                        e.stopPropagation();
-                                                                                        navigateToUserProfile(
-                                                                                            comment
-                                                                                                .userId
-                                                                                                ?._id
-                                                                                        );
-                                                                                    }}
-                                                                                >
-                                                                                    {comment
-                                                                                        .userId
-                                                                                        ?.realname ||
+                                                                                        ?.profilePic ||
+                                                                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                                                                         comment
                                                                                             .userId
-                                                                                            ?.username ||
-                                                                                        "Unknown User"}
-                                                                                </span>
-                                                                                <span
-                                                                                    className={`text-xs ${
-                                                                                        isDarkMode
-                                                                                            ? "text-gray-400"
-                                                                                            : "text-gray-500"
-                                                                                    }`}
-                                                                                >
-                                                                                    {formatDate(
-                                                                                        comment.createdAt
-                                                                                    )}
-                                                                                </span>
-                                                                            </div>
-                                                                            <p className="text-sm whitespace-pre-line mt-1">
-                                                                                {
-                                                                                    comment.content
+                                                                                            ?.realname ||
+                                                                                            "User"
+                                                                                    )}&background=random`
                                                                                 }
-                                                                            </p>
-                                                                            {/* Delete button for user's own comments OR post owner */}
-                                                                            {(comment
-                                                                                .userId
-                                                                                ?._id ===
-                                                                                currentUserProfile?._id ||
-                                                                                comment
-                                                                                    .userId
-                                                                                    ?.username ===
-                                                                                    username ||
-                                                                                post
+                                                                                alt={
+                                                                                    comment
+                                                                                        .userId
+                                                                                        ?.realname
+                                                                                }
+                                                                                className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                                                                                onError={(
+                                                                                    e
+                                                                                ) => {
+                                                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                                                                        comment
+                                                                                            .userId
+                                                                                            ?.realname ||
+                                                                                            "User"
+                                                                                    )}&background=random`;
+                                                                                }}
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) => {
+                                                                                    e.stopPropagation();
+                                                                                    navigateToUserProfile(
+                                                                                        comment
+                                                                                            .userId
+                                                                                            ?._id
+                                                                                    );
+                                                                                }}
+                                                                            />
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center space-x-2">
+                                                                                    <span
+                                                                                        className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                        onClick={(
+                                                                                            e
+                                                                                        ) => {
+                                                                                            e.stopPropagation();
+                                                                                            navigateToUserProfile(
+                                                                                                comment
+                                                                                                    .userId
+                                                                                                    ?._id
+                                                                                            );
+                                                                                        }}
+                                                                                    >
+                                                                                        {comment
+                                                                                            .userId
+                                                                                            ?.realname ||
+                                                                                            comment
+                                                                                                .userId
+                                                                                                ?.username ||
+                                                                                            "Unknown User"}
+                                                                                    </span>
+                                                                                    <span
+                                                                                        className={`text-xs ${
+                                                                                            isDarkMode
+                                                                                                ? "text-gray-400"
+                                                                                                : "text-gray-500"
+                                                                                        }`}
+                                                                                    >
+                                                                                        {formatDate(
+                                                                                            comment.createdAt
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p className="text-sm whitespace-pre-line mt-1">
+                                                                                    {
+                                                                                        comment.content
+                                                                                    }
+                                                                                </p>
+                                                                                {/* Delete button for user's own comments OR post owner */}
+                                                                                {(comment
                                                                                     .userId
                                                                                     ?._id ===
                                                                                     currentUserProfile?._id ||
-                                                                                post.username ===
-                                                                                    username) && (
-                                                                                <div className="mt-1 flex justify-end">
-                                                                                    <button
-                                                                                        onClick={() =>
-                                                                                            handleDeleteComment(
-                                                                                                comment._id,
-                                                                                                post._id
-                                                                                            )
-                                                                                        }
-                                                                                        disabled={
-                                                                                            isDeletingComment
-                                                                                        }
-                                                                                        className="text-red-500 hover:text-red-700 text-xs flex items-center"
-                                                                                        title="Delete comment"
-                                                                                    >
-                                                                                        {isDeletingComment ? (
-                                                                                            <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
-                                                                                        ) : (
-                                                                                            <FaTrashAlt className="mr-1" />
-                                                                                        )}
-                                                                                        Delete
-                                                                                    </button>
-                                                                                </div>
-                                                                            )}
+                                                                                    comment
+                                                                                        .userId
+                                                                                        ?.username ===
+                                                                                        username ||
+                                                                                    post
+                                                                                        .userId
+                                                                                        ?._id ===
+                                                                                        currentUserProfile?._id ||
+                                                                                    post.username ===
+                                                                                        username) && (
+                                                                                    <div className="mt-1 flex justify-end">
+                                                                                        <button
+                                                                                            onClick={() =>
+                                                                                                handleDeleteComment(
+                                                                                                    comment._id,
+                                                                                                    post._id
+                                                                                                )
+                                                                                            }
+                                                                                            disabled={
+                                                                                                isDeletingComment
+                                                                                            }
+                                                                                            className="text-red-500 hover:text-red-700 text-xs flex items-center"
+                                                                                            title="Delete comment"
+                                                                                        >
+                                                                                            {isDeletingComment ? (
+                                                                                                <span className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-1"></span>
+                                                                                            ) : (
+                                                                                                <FaTrashAlt className="mr-1" />
+                                                                                            )}
+                                                                                            Delete
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                                                            No comments yet.
-                                                            Be the first to
-                                                            comment!
-                                                        </div>
-                                                    )}
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                                                No comments yet.
+                                                                Be the first to
+                                                                comment!
+                                                            </div>
+                                                        )}
 
-                                                    {/* Add Comment Input */}
-                                                    <div className="flex items-center space-x-2">
-                                                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border border-gray-200 dark:border-gray-600 cursor-pointer">
-                                                            {profilePic &&
-                                                            profilePic !==
-                                                                "https://ui-avatars.com/api/?name=User&background=random" ? (
-                                                                <img
-                                                                    src={
-                                                                        profilePic
+                                                        {/* Add Comment Input */}
+                                                        <div className="flex items-center space-x-2">
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border border-gray-200 dark:border-gray-600 cursor-pointer">
+                                                                {profilePic &&
+                                                                profilePic !==
+                                                                    "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                                                    <img
+                                                                        src={
+                                                                            profilePic
+                                                                        }
+                                                                        alt={
+                                                                            username
+                                                                        }
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(
+                                                                            e
+                                                                        ) => {
+                                                                            e.target.style.display =
+                                                                                "none";
+                                                                            e.target.nextSibling.style.display =
+                                                                                "flex";
+                                                                        }}
+                                                                        onClick={() =>
+                                                                            navigateToUserProfile(
+                                                                                currentUserProfile?._id
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                ) : null}
+                                                                <span
+                                                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
+                                                                    style={
+                                                                        profilePic &&
+                                                                        profilePic !==
+                                                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                                                            ? {
+                                                                                  display:
+                                                                                      "none",
+                                                                              }
+                                                                            : {}
                                                                     }
-                                                                    alt={
-                                                                        username
-                                                                    }
-                                                                    className="w-full h-full object-cover"
-                                                                    onError={(
-                                                                        e
-                                                                    ) => {
-                                                                        e.target.style.display =
-                                                                            "none";
-                                                                        e.target.nextSibling.style.display =
-                                                                            "flex";
-                                                                    }}
                                                                     onClick={() =>
                                                                         navigateToUserProfile(
                                                                             currentUserProfile?._id
                                                                         )
                                                                     }
-                                                                />
-                                                            ) : null}
-                                                            <span
-                                                                className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
-                                                                style={
-                                                                    profilePic &&
-                                                                    profilePic !==
-                                                                        "https://ui-avatars.com/api/?name=User&background=random"
-                                                                        ? {
-                                                                              display:
-                                                                                  "none",
-                                                                          }
-                                                                        : {}
-                                                                }
-                                                                onClick={() =>
-                                                                    navigateToUserProfile(
-                                                                        currentUserProfile?._id
-                                                                    )
-                                                                }
-                                                            >
-                                                                {username
-                                                                    ?.charAt(
-                                                                        0
-                                                                    )
-                                                                    .toUpperCase() ||
-                                                                    "U"}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex-1 flex space-x-2">
-                                                            <input
-                                                                type="text"
-                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                                                    isDarkMode
-                                                                        ? "bg-gray-700 border-gray-600 text-white"
-                                                                        : "bg-white border-gray-300 text-gray-800"
-                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                placeholder="Write a comment..."
-                                                                value={
-                                                                    commentContent[
-                                                                        post
-                                                                            ._id
-                                                                    ] || ""
-                                                                }
-                                                                onChange={(
-                                                                    e
-                                                                ) =>
-                                                                    setCommentContent(
-                                                                        {
-                                                                            ...commentContent,
-                                                                            [post._id]:
-                                                                                e
-                                                                                    .target
-                                                                                    .value,
+                                                                >
+                                                                    {username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                        "U"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex-1 flex space-x-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                                        isDarkMode
+                                                                            ? "bg-gray-700 border-gray-600 text-white"
+                                                                            : "bg-white border-gray-300 text-gray-800"
+                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                    placeholder="Write a comment..."
+                                                                    value={
+                                                                        commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ] || ""
+                                                                    }
+                                                                    onChange={(
+                                                                        e
+                                                                    ) =>
+                                                                        setCommentContent(
+                                                                            {
+                                                                                ...commentContent,
+                                                                                [post._id]:
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                            }
+                                                                        )
+                                                                    }
+                                                                    onKeyPress={(
+                                                                        e
+                                                                    ) => {
+                                                                        if (
+                                                                            e.key ===
+                                                                            "Enter"
+                                                                        ) {
+                                                                            handleAddComment(
+                                                                                post._id
+                                                                            );
                                                                         }
-                                                                    )
-                                                                }
-                                                                onKeyPress={(
-                                                                    e
-                                                                ) => {
-                                                                    if (
-                                                                        e.key ===
-                                                                        "Enter"
-                                                                    ) {
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    className={`px-3 py-1 rounded-full text-sm ${
+                                                                        !commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ]?.trim() ||
+                                                                        isAddingComment
+                                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                                            : "bg-blue-500 hover:bg-blue-600"
+                                                                    } text-white transition-colors`}
+                                                                    onClick={() =>
                                                                         handleAddComment(
                                                                             post._id
-                                                                        );
+                                                                        )
                                                                     }
-                                                                }}
-                                                            />
-                                                            <button
-                                                                className={`px-3 py-1 rounded-full text-sm ${
-                                                                    !commentContent[
-                                                                        post
-                                                                            ._id
-                                                                    ]?.trim() ||
-                                                                    isAddingComment
-                                                                        ? "bg-blue-300 cursor-not-allowed"
-                                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                                } text-white transition-colors`}
-                                                                onClick={() =>
-                                                                    handleAddComment(
-                                                                        post._id
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    !commentContent[
-                                                                        post
-                                                                            ._id
-                                                                    ]?.trim() ||
-                                                                    isAddingComment
-                                                                }
-                                                            >
-                                                                {isAddingComment ? (
-                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                                ) : (
-                                                                    "Post"
-                                                                )}
-                                                            </button>
+                                                                    disabled={
+                                                                        !commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ]?.trim() ||
+                                                                        isAddingComment
+                                                                    }
+                                                                >
+                                                                    {isAddingComment ? (
+                                                                        <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                    ) : (
+                                                                        "Post"
+                                                                    )}
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                </div>
             </div>
-        </div>
-    </ErrorBoundary>
-);
+        </ErrorBoundary>
+    );
 };
 
 export default ProfilePage;
