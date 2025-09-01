@@ -165,7 +165,8 @@ const MainFeed = () => {
                             day: "numeric",
                         }
                     );
-
+// Store both ISO string and formatted version
+                    localStorage.setItem("joinedDateFormatted", formattedDate);
                    
                 }
             }
