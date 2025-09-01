@@ -11,6 +11,8 @@ import {
     FaRegHeart,
     FaCommentDots,
     FaTimes,
+    FaTrashAlt,
+    FaComment,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
@@ -30,6 +32,11 @@ const UserProfile = () => {
     const [isCommenting, setIsCommenting] = useState({});
     const [commentContent, setCommentContent] = useState({});
     const [loadingComments, setLoadingComments] = useState({});
+    const [isLikingComment, setIsLikingComment] = useState({});
+    const [isDeletingComment, setIsDeletingComment] = useState({});
+    const [currentUserProfile, setCurrentUserProfile] = useState(null);
+    const [successMessage, setSuccessMessage] = useState(null);
+    const [posts, setPosts] = useState([]);
 
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
@@ -95,6 +102,7 @@ const UserProfile = () => {
 
     useEffect(() => {
         if (token) {
+            fetchCurrentUserProfile();
             fetchUserProfile();
         } else {
             navigate("/login");
@@ -213,15 +221,46 @@ const UserProfile = () => {
             const responseData = await response.json();
             const comments = responseData.comments || [];
 
+            // Get stored comment likes from localStorage
+            const storedCommentLikes = getStoredCommentLikes();
+
+            const commentsWithLikes = comments.map((comment) => {
+                // Get likes from storage or API
+                const commentLikes =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+
+                // Check if current user has liked this comment
+                const hasUserLiked = commentLikes.includes(user._id);
+
+                return {
+                    ...comment,
+                    likes: commentLikes,
+                    hasUserLiked: hasUserLiked,
+                };
+            });
+
             setUserPosts((posts) =>
                 posts.map((post) =>
                     post._id === postId
                         ? {
                               ...post,
-                              comments: comments,
+                              comments: commentsWithLikes,
+                              commentCount: commentsWithLikes.length,
                           }
                         : post
                 )
+            );
+
+            // Update localStorage with current comment likes
+            const likesByComment = {};
+            comments.forEach((comment) => {
+                likesByComment[comment._id] =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+            });
+
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(likesByComment)
             );
         } catch (err) {
             setError(err.message);
@@ -230,7 +269,93 @@ const UserProfile = () => {
             setLoadingComments((prev) => ({ ...prev, [postId]: false }));
         }
     };
+    const handleDeleteComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+
+        if (!post || !comment) {
+            setError("Comment not found");
+            return;
+        }
+
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to delete this comment?")) {
+            return;
+        }
+
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        const originalPosts = [...userPosts]; // userPosts use करें
+
+        try {
+            setUserPosts(
+                // setUserPosts use करें
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments =
+                            post.comments?.filter(
+                                (comment) => comment._id !== commentId
+                            ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                            commentCount: updatedComments.length,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            // Remove comment likes from localStorage when comment is deleted
+            const storedCommentLikes = getStoredCommentLikes();
+            delete storedCommentLikes[commentId];
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(storedCommentLikes)
+            );
+
+            const response = await fetch(
+                `${config.apiUrl}/posts/comments/${commentId}`,
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ postId }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.message || "Failed to delete comment"
+                );
+            }
+
+            setSuccessMessage("Comment deleted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error deleting comment:", err);
+            setError(err.message);
+
+            setUserPosts(originalPosts); // userPosts को revert करें
+        } finally {
+            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
     const handleLike = async (postId, e) => {
         if (e) {
             e.stopPropagation();
@@ -324,8 +449,100 @@ const UserProfile = () => {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
     };
+    const handleLikeComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    const toggleCommentDropdown = async (postId) => {
+        if (!username || !user?._id) {
+            setError("You must be logged in to like comments");
+            return;
+        }
+
+        setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        try {
+            // Optimistic UI update - userPosts use करें
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const isLiked = comment.hasUserLiked;
+                                    let updatedLikes;
+
+                                    if (isLiked) {
+                                        // Remove user ID
+                                        updatedLikes = comment.likes.filter(
+                                            (likeUserId) =>
+                                                likeUserId !== user._id
+                                        );
+                                    } else {
+                                        // Add user ID
+                                        updatedLikes = [
+                                            ...(comment.likes || []),
+                                            user._id,
+                                        ];
+                                    }
+
+                                    // Update localStorage
+                                    updateStoredCommentLikes(
+                                        commentId,
+                                        updatedLikes
+                                    );
+
+                                    return {
+                                        ...comment,
+                                        likes: updatedLikes,
+                                        hasUserLiked: !isLiked,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return { ...post, comments: updatedComments };
+                    }
+                    return post;
+                })
+            );
+
+            const response = await fetch(
+                `${config.apiUrl}/posts/comments/${commentId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        userId: user._id,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to like comment");
+            }
+
+            await fetchComments(postId);
+        } catch (err) {
+            console.error("Error liking comment:", err);
+            setError(err.message);
+            await fetchComments(postId);
+        } finally {
+            setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
+    const toggleCommentDropdown = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
         if (activeCommentPostId !== postId) {
             await fetchComments(postId);
         }
@@ -337,7 +554,9 @@ const UserProfile = () => {
         }));
     };
 
-    const handleCommentSubmit = async (postId) => {
+    const handleCommentSubmit = async (postId, e) => {
+        if (e) e.preventDefault();
+
         const content = commentContent[postId] || "";
 
         if (!content.trim()) {
@@ -355,25 +574,6 @@ const UserProfile = () => {
         setError(null);
 
         try {
-            const newComment = {
-                userId: username,
-                username: username,
-                content: content,
-                likes: [],
-                isLiked: false,
-            };
-
-            setUserPosts((posts) =>
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: [...(post.comments || []), newComment],
-                          }
-                        : post
-                )
-            );
-
             const response = await fetch(
                 `${config.apiUrl}/posts/${postId}/comments`,
                 {
@@ -401,11 +601,27 @@ const UserProfile = () => {
                     post._id === postId
                         ? {
                               ...post,
-                              comments: post.comments?.map((comment) =>
-                                  comment.content === newComment.content
-                                      ? { ...createdComment, isLiked: false }
-                                      : comment
-                              ) || [createdComment],
+                              comments: [
+                                  ...(post.comments || []),
+                                  {
+                                      ...createdComment,
+                                      isLiked: false,
+                                      userId: {
+                                          _id:
+                                              currentUserProfile?._id ||
+                                              user?._id ||
+                                              username,
+                                          username: username,
+                                          realname:
+                                              currentUserProfile?.realname ||
+                                              user?.realname ||
+                                              username,
+                                          profilePic:
+                                              currentUserProfile?.profilePic ||
+                                              user?.profilePic,
+                                      },
+                                  },
+                              ],
                           }
                         : post
                 )
@@ -415,19 +631,6 @@ const UserProfile = () => {
         } catch (err) {
             console.error("Error posting comment:", err);
             setError(err.message);
-            setUserPosts((posts) =>
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments:
-                                  post.comments?.filter(
-                                      (comment) => comment.content !== content
-                                  ) || [],
-                          }
-                        : post
-                )
-            );
         } finally {
             setIsCommenting((prev) => ({ ...prev, [postId]: false }));
         }
@@ -448,7 +651,41 @@ const UserProfile = () => {
             height: img.naturalHeight,
         });
     };
+    // Helper functions for comment likes
+    const getStoredCommentLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("commentLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored comment likes:", error);
+            return {};
+        }
+    };
 
+    const updateStoredCommentLikes = (commentId, likes) => {
+        const storedCommentLikes = getStoredCommentLikes();
+        storedCommentLikes[commentId] = likes;
+        localStorage.setItem(
+            "commentLikes",
+            JSON.stringify(storedCommentLikes)
+        );
+    };
+    const fetchCurrentUserProfile = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`${config.apiUrl}/user/me`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const userData = await response.json();
+                setCurrentUserProfile(userData);
+            }
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        }
+    };
     // Calculate the appropriate size for the image preview
     const getImagePreviewStyle = () => {
         const maxWidth = window.innerWidth * 0.9;
@@ -478,16 +715,27 @@ const UserProfile = () => {
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) {
-                return "";
+                return "Just now";
             }
 
-            return date.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-            });
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+
+            if (diffInSeconds < 60) {
+                return "Just now";
+            } else if (diffInSeconds < 3600) {
+                return `${Math.floor(diffInSeconds / 60)}m ago`;
+            } else if (diffInSeconds < 86400) {
+                return `${Math.floor(diffInSeconds / 3600)}h ago`;
+            } else {
+                return date.toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                });
+            }
         } catch (e) {
-            return "";
+            return "Just now";
         }
     };
 
@@ -570,6 +818,31 @@ const UserProfile = () => {
                 </div>
             )}
             <Navbar onDarkModeChange={handleDarkModeChange} />
+            {/* Error Message */}
+            {error && (
+                <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
+                    {error}
+                    <button
+                        onClick={() => setError(null)}
+                        className="ml-2 text-red-700 font-bold cursor-pointer"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+
+            {/* Success Message */}
+            {successMessage && (
+                <div className="fixed top-4 right-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
+                    {successMessage}
+                    <button
+                        onClick={() => setSuccessMessage(null)}
+                        className="ml-2 text-green-700 font-bold cursor-pointer"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
             {/* Header */}
             {/* <header className="bg-white shadow-sm px-6 py-4 flex items-center">
                 <button
@@ -785,12 +1058,16 @@ const UserProfile = () => {
 
                                         <button
                                             className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
-                                            onClick={() =>
-                                                toggleCommentDropdown(post._id)
-                                            }
+                                            onClick={(e) =>
+                                                toggleCommentDropdown(
+                                                    post._id,
+                                                    e
+                                                )
+                                            } // e parameter जोड़ें
                                             disabled={loadingComments[post._id]}
                                         >
-                                            <FaCommentDots />
+                                            <FaComment />{" "}
+                                            {/* FaCommentDots के बजाय FaComment use करें */}
                                             <span className="text-sm">
                                                 {post.comments?.length || 0}
                                             </span>
@@ -802,93 +1079,335 @@ const UserProfile = () => {
 
                                     {/* Comment Section */}
                                     {activeCommentPostId === post._id && (
-                                        <div className="mt-3 pt-3 border-t border-gray-200">
-                                            <h4 className="font-medium mb-2">
-                                                Comments
-                                            </h4>
-
+                                        <div className="mt-4">
+                                            {/* Show loading state when fetching */}
                                             {loadingComments[post._id] ? (
-                                                <div className="flex justify-center py-4">
+                                                <div className="text-center py-4">
                                                     <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                </div>
-                                            ) : post.comments?.length > 0 ? (
-                                                <div className="mb-3 max-h-40 overflow-y-auto">
-                                                    {post.comments.map(
-                                                        (comment, index) => (
-                                                            <div
-                                                                key={
-                                                                    comment._id ||
-                                                                    index
-                                                                }
-                                                                className="mb-3 p-2 rounded-lg bg-gray-50"
-                                                            >
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="font-semibold text-sm">
-                                                                        {comment
-                                                                            .userId
-                                                                            ?.username ||
-                                                                            comment.username ||
-                                                                            "Unknown"}
-                                                                    </span>
-                                                                    {comment.createdAt && (
-                                                                        <span className="text-xs text-gray-500">
-                                                                            {formatDate(
-                                                                                comment.createdAt
-                                                                            )}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <p className="text-sm mb-1">
-                                                                    {comment.content ||
-                                                                        ""}
-                                                                </p>
-                                                            </div>
-                                                        )
-                                                    )}
+                                                    <p className="text-sm mt-2">
+                                                        Loading comments...
+                                                    </p>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm mb-3 text-gray-700">
-                                                    No comments yet
-                                                </p>
+                                                <>
+                                                    {/* Show comments if they exist */}
+                                                    {post.comments &&
+                                                    post.comments.length > 0 ? (
+                                                        <div
+                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                                                isDarkMode
+                                                                    ? "bg-gray-700"
+                                                                    : "bg-gray-100"
+                                                            }`}
+                                                        >
+                                                            {post.comments.map(
+                                                                (comment) => (
+                                                                    <div
+                                                                        key={
+                                                                            comment._id
+                                                                        }
+                                                                        className="flex items-start space-x-2"
+                                                                    >
+                                                                        <div
+                                                                            className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                                                                            onClick={() => {
+                                                                                if (
+                                                                                    comment
+                                                                                        .userId
+                                                                                        ?._id ===
+                                                                                    currentUserProfile?._id
+                                                                                ) {
+                                                                                    navigate(
+                                                                                        "/profile"
+                                                                                    );
+                                                                                } else {
+                                                                                    navigate(
+                                                                                        `/user/${comment.userId?._id}`
+                                                                                    );
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {comment
+                                                                                .userId
+                                                                                ?.profilePic ? (
+                                                                                <img
+                                                                                    src={
+                                                                                        comment
+                                                                                            .userId
+                                                                                            .profilePic
+                                                                                    }
+                                                                                    alt={
+                                                                                        comment
+                                                                                            .userId
+                                                                                            .username
+                                                                                    }
+                                                                                    className="w-full h-full object-cover"
+                                                                                    onError={(
+                                                                                        e
+                                                                                    ) => {
+                                                                                        e.target.style.display =
+                                                                                            "none";
+                                                                                        e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
+                                                                                            comment.userId.username
+                                                                                                ?.charAt(
+                                                                                                    0
+                                                                                                )
+                                                                                                .toUpperCase() ||
+                                                                                            "U"
+                                                                                        }</span>`;
+                                                                                    }}
+                                                                                />
+                                                                            ) : (
+                                                                                <span className="text-xs font-semibold text-gray-700">
+                                                                                    {comment.userId?.username
+                                                                                        ?.charAt(
+                                                                                            0
+                                                                                        )
+                                                                                        .toUpperCase() ||
+                                                                                        "U"}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <span
+                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                    onClick={() => {
+                                                                                        if (
+                                                                                            comment
+                                                                                                .userId
+                                                                                                ?._id ===
+                                                                                            currentUserProfile?._id
+                                                                                        ) {
+                                                                                            navigate(
+                                                                                                "/profile"
+                                                                                            );
+                                                                                        } else {
+                                                                                            navigate(
+                                                                                                `/user/${comment.userId?._id}`
+                                                                                            );
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    {comment
+                                                                                        .userId
+                                                                                        ?.username ||
+                                                                                        "Unknown"}
+                                                                                </span>
+                                                                                <span
+                                                                                    className={`text-xs ${
+                                                                                        isDarkMode
+                                                                                            ? "text-gray-400"
+                                                                                            : "text-gray-500"
+                                                                                    }`}
+                                                                                >
+                                                                                    {formatDate(
+                                                                                        comment.createdAt
+                                                                                    )}
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className="text-sm whitespace-pre-line mt-1">
+                                                                                {
+                                                                                    comment.content
+                                                                                }
+                                                                            </p>
+                                                                            <div className="mt-1 flex items-center justify-between">
+                                                                                <button
+                                                                                    className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                                    onClick={(
+                                                                                        e
+                                                                                    ) =>
+                                                                                        handleLikeComment(
+                                                                                            comment._id,
+                                                                                            post._id,
+                                                                                            e
+                                                                                        )
+                                                                                    }
+                                                                                    disabled={
+                                                                                        isLikingComment[
+                                                                                            comment
+                                                                                                ._id
+                                                                                        ]
+                                                                                    }
+                                                                                >
+                                                                                    {isLikingComment[
+                                                                                        comment
+                                                                                            ._id
+                                                                                    ] ? (
+                                                                                        <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                    ) : comment.hasUserLiked ? (
+                                                                                        <FaHeart className="text-xs text-red-500" />
+                                                                                    ) : (
+                                                                                        <FaRegHeart className="text-xs" />
+                                                                                    )}
+                                                                                    <span className="text-xs">
+                                                                                        {comment
+                                                                                            .likes
+                                                                                            ?.length ||
+                                                                                            0}
+                                                                                    </span>
+                                                                                </button>
+
+                                                                                {/* Delete button condition for both comment owner AND post owner */}
+                                                                                {(comment
+                                                                                    .userId
+                                                                                    ?.username ===
+                                                                                    username ||
+                                                                                    post
+                                                                                        .userId
+                                                                                        ?.username ===
+                                                                                        username) && (
+                                                                                    <button
+                                                                                        className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                                                                        onClick={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            handleDeleteComment(
+                                                                                                comment._id,
+                                                                                                post._id,
+                                                                                                e
+                                                                                            )
+                                                                                        }
+                                                                                        disabled={
+                                                                                            isDeletingComment[
+                                                                                                comment
+                                                                                                    ._id
+                                                                                            ]
+                                                                                        }
+                                                                                        title="Delete comment"
+                                                                                    >
+                                                                                        {isDeletingComment[
+                                                                                            comment
+                                                                                                ._id
+                                                                                        ] ? (
+                                                                                            <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                        ) : (
+                                                                                            <FaTrashAlt />
+                                                                                        )}
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                                                            No comments yet. Be
+                                                            the first to
+                                                            comment!
+                                                        </div>
+                                                    )}
+
+                                                    {/* Add Comment Input */}
+                                                    <form
+                                                        onSubmit={(e) => {
+                                                            e.preventDefault();
+                                                            handleCommentSubmit(
+                                                                post._id,
+                                                                e
+                                                            );
+                                                        }}
+                                                        className="flex items-center space-x-2"
+                                                    >
+                                                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                            {currentUserProfile?.profilePic ||
+                                                            user?.profilePic ? (
+                                                                <img
+                                                                    src={
+                                                                        currentUserProfile?.profilePic ||
+                                                                        user?.profilePic
+                                                                    }
+                                                                    alt={
+                                                                        username
+                                                                    }
+                                                                    className="w-full h-full object-cover"
+                                                                    onError={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.target.style.display =
+                                                                            "none";
+                                                                        e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
+                                                                            username
+                                                                                ?.charAt(
+                                                                                    0
+                                                                                )
+                                                                                .toUpperCase() ||
+                                                                            "U"
+                                                                        }</span>`;
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <span className="text-xs font-semibold text-gray-700">
+                                                                    {username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                        "U"}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 flex space-x-2">
+                                                            <input
+                                                                type="text"
+                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                                    isDarkMode
+                                                                        ? "bg-gray-700 border-gray-600 text-white"
+                                                                        : "bg-white border-gray-300"
+                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                placeholder="Write a comment..."
+                                                                value={
+                                                                    commentContent[
+                                                                        post._id
+                                                                    ] || ""
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setCommentContent(
+                                                                        {
+                                                                            ...commentContent,
+                                                                            [post._id]:
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                        }
+                                                                    )
+                                                                }
+                                                            />
+                                                            <button
+                                                                type="submit"
+                                                                className={`px-3 py-1 rounded-full text-sm ${
+                                                                    !commentContent[
+                                                                        post._id
+                                                                    ]?.trim() ||
+                                                                    isCommenting[
+                                                                        post._id
+                                                                    ]
+                                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                                } text-white transition-colors`}
+                                                                disabled={
+                                                                    !commentContent[
+                                                                        post._id
+                                                                    ]?.trim() ||
+                                                                    isCommenting[
+                                                                        post._id
+                                                                    ]
+                                                                }
+                                                            >
+                                                                {isCommenting[
+                                                                    post._id
+                                                                ] ? (
+                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                ) : (
+                                                                    "Post"
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </>
                                             )}
-
-                                            <div className="mt-3">
-                                                <textarea
-                                                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    rows="2"
-                                                    placeholder="Write your comment..."
-                                                    value={
-                                                        commentContent[
-                                                            post._id
-                                                        ] || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                        setCommentContent({
-                                                            ...commentContent,
-                                                            [post._id]:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                />
-
-                                                <button
-                                                    className="mt-2 px-3 py-1 text-sm rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors cursor-pointer flex items-center justify-center w-full"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleCommentSubmit(
-                                                            post._id
-                                                        );
-                                                    }}
-                                                    disabled={
-                                                        isCommenting[post._id]
-                                                    }
-                                                >
-                                                    {isCommenting[post._id] ? (
-                                                        <div className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                    ) : null}
-                                                    Post Comment
-                                                </button>
-                                            </div>
                                         </div>
                                     )}
                                 </div>

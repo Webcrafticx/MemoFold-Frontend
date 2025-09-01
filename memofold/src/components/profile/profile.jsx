@@ -15,6 +15,7 @@ import {
     FaEdit,
     FaExclamationTriangle,
     FaCamera,
+    FaCalendar,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { ToastContainer, toast } from "react-toastify";
@@ -127,6 +128,7 @@ const ProfilePage = () => {
     const [editFiles, setEditFiles] = useState([]);
     const [isUpdatingPost, setIsUpdatingPost] = useState(false);
     const [isDeletingPost, setIsDeletingPost] = useState(false);
+    const joinedDate = localStorage.getItem("joinedDateFormatted");
 
     const startEditPost = (postId) => {
         const postToEdit = posts.find((post) => post._id === postId);
@@ -144,6 +146,13 @@ const ProfilePage = () => {
         setEditingPostId(null);
         setEditContent("");
         setEditFiles([]);
+
+        const token = localStorage.getItem("token");
+        const storedUsername = localStorage.getItem("username");
+
+        if (token && storedUsername) {
+            fetchUserPosts(token, storedUsername); // ye function already defined hai
+        }
     };
 
     const handleUpdatePost = async (postId) => {
@@ -414,10 +423,22 @@ const ProfilePage = () => {
                 />
                 <button
                     onClick={() => {
-                        setEditFiles([]);
-                        setEditContent((prev) => prev + " [Image removed]");
+                        if (
+                            window.confirm(
+                                "Are you sure you want to remove this image?"
+                            )
+                        ) {
+                            setPosts(
+                                posts.map((post) =>
+                                    post._id === editingPostId
+                                        ? { ...post, image: null }
+                                        : post
+                                )
+                            );
+                        }
                     }}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 cursor-pointer"
+                    title="Remove image"
                 >
                     <FaTimes />
                 </button>
@@ -1068,11 +1089,28 @@ const ProfilePage = () => {
             return;
         }
 
-        const selectedDateObj = new Date(selectedDate);
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
+        // Get current date in Indian timezone for comparison
+        const getIndianDate = () => {
+            const now = new Date();
+            const offset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+            return new Date(now.getTime() + offset);
+        };
 
-        if (selectedDateObj > today) {
+        const todayIndian = getIndianDate();
+        todayIndian.setHours(23, 59, 59, 999);
+
+        // Parse selected date in Indian timezone
+        let selectedDateObj;
+        if (selectedDate) {
+            // Parse the selected date in Indian timezone (UTC+5:30)
+            const [year, month, day] = selectedDate.split("-");
+            selectedDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+            selectedDateObj.setMinutes(selectedDateObj.getMinutes() + 330); // Add 5:30 hours
+        } else {
+            selectedDateObj = getIndianDate();
+        }
+
+        if (selectedDateObj > todayIndian) {
             setError("Cannot create posts with future dates");
             toast.error("Cannot create posts with future dates");
             return;
@@ -1081,9 +1119,26 @@ const ProfilePage = () => {
         try {
             const token = localStorage.getItem("token");
 
-            const formattedDate = selectedDate
-                ? new Date(selectedDate + "T12:00:00").toISOString()
-                : new Date().toISOString();
+            // Format date correctly for Indian timezone
+            let formattedDate;
+            if (selectedDate) {
+                // Use the selected date with current Indian time
+                const nowIndian = getIndianDate();
+                const [year, month, day] = selectedDate.split("-");
+                formattedDate = new Date(
+                    Date.UTC(
+                        year,
+                        month - 1,
+                        day,
+                        nowIndian.getHours(),
+                        nowIndian.getMinutes(),
+                        nowIndian.getSeconds()
+                    )
+                );
+            } else {
+                // Use current Indian time
+                formattedDate = getIndianDate();
+            }
 
             // Convert image to base64 if selected
             let imageData = null;
@@ -1101,8 +1156,8 @@ const ProfilePage = () => {
 
             const postData = {
                 content: postContent,
-                createdAt: formattedDate,
-                date: formattedDate,
+                createdAt: formattedDate.toISOString(),
+                date: formattedDate.toISOString(),
                 image: imageData,
             };
 
@@ -1125,9 +1180,9 @@ const ProfilePage = () => {
             const newPost = {
                 _id: result._id || Date.now().toString(),
                 content: postContent,
-                createdAt: formattedDate,
-                isLiked: false, // Initialize as not liked
-                likes: 0, // Initialize with 0 likes
+                createdAt: formattedDate.toISOString(),
+                isLiked: false,
+                likes: 0,
                 comments: [],
                 commentCount: 0,
                 profilePic: profilePic,
@@ -1531,7 +1586,7 @@ const ProfilePage = () => {
 
                                 <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                                     {editingBio ? (
-                                        <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                                        <div className="flex-1 flex flex-col gap-2">
                                             <textarea
                                                 value={newBio}
                                                 onChange={(e) =>
@@ -1546,7 +1601,7 @@ const ProfilePage = () => {
                                                 maxLength="200"
                                                 placeholder="Tell us about yourself..."
                                             />
-                                            <div className="flex gap-2 justify-center sm:justify-start">
+                                            <div className="flex gap-2 justify-start">
                                                 <button
                                                     onClick={handleBioUpdate}
                                                     disabled={updatingBio}
@@ -1565,14 +1620,18 @@ const ProfilePage = () => {
                                                         setEditingBio(false);
                                                         setNewBio(bio);
                                                     }}
-                                                    className="px-3 py-1 rounded-lg font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                                                    className={`px-3 py-1 rounded-lg font-medium ${
+                                                        updatingBio
+                                                            ? "bg-red-400"
+                                                            : "bg-red-500 hover:bg-red-600"
+                                                    } text-white transition-colors`}
                                                 >
                                                     Cancel
                                                 </button>
                                             </div>
                                         </div>
                                     ) : (
-                                        <>
+                                        <div className="flex flex-row items-center">
                                             <p className="text-gray-600 dark:text-gray-300 text-center sm:text-left flex-1">
                                                 {bio ||
                                                     "No bio yet. Click the edit button to add one."}
@@ -1586,11 +1645,23 @@ const ProfilePage = () => {
                                             >
                                                 <FaEdit className="text-lg" />
                                             </button>
-                                        </>
+                                        </div>
                                     )}
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
+                                    <div
+                                        className={`flex items-center gap-1 sm:gap-2 ${
+                                            isDarkMode
+                                                ? "bg-gray-700 hover:bg-gray-600"
+                                                : "bg-gray-100 hover:bg-gray-200"
+                                        } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
+                                    >
+                                        <div className="flex items-center">
+                                            <FaCalendar className="mr-1" />
+                                            <span>Joined {joinedDate}</span>
+                                        </div>
+                                    </div>
                                     <div
                                         className={`flex items-center gap-1 sm:gap-2 ${
                                             isDarkMode
