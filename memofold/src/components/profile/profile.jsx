@@ -1633,7 +1633,7 @@ const ProfilePage = () => {
                                                 <button
                                                     onClick={handleBioUpdate}
                                                     disabled={updatingBio}
-                                                    className={`px-3 py-1 rounded-lg font-medium ${
+                                                    className={`px-3 py-1 rounded-lg font-medium cursor-pointer ${
                                                         updatingBio
                                                             ? "bg-blue-400"
                                                             : "bg-blue-500 hover:bg-blue-600"
@@ -1648,7 +1648,7 @@ const ProfilePage = () => {
                                                         setEditingBio(false);
                                                         setNewBio(bio);
                                                     }}
-                                                    className={`px-3 py-1 rounded-lg font-medium ${
+                                                    className={`px-3 py-1 rounded-lg font-medium cursor-pointer ${
                                                         updatingBio
                                                             ? "bg-red-400"
                                                             : "bg-red-500 hover:bg-red-600"
