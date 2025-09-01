@@ -166,8 +166,7 @@ const MainFeed = () => {
                         }
                     );
 
-                    // Store both ISO string and formatted version
-                    localStorage.setItem("joinedDateFormatted", formattedDate);
+                   
                 }
             }
         } catch (error) {
