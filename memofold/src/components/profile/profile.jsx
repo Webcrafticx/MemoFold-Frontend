@@ -1602,7 +1602,7 @@ const ProfilePage = () => {
                         <div className="flex-1 w-full">
                             <div className="text-center sm:text-left w-full">
                                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold break-all cursor-default">
-                                    {username}
+                                    {realName}
                                 </h2>
                                 <p
                                     className={`text-base sm:text-lg md:text-xl font-semibold mt-1 ${
@@ -1611,7 +1611,7 @@ const ProfilePage = () => {
                                             : "text-gray-600"
                                     } cursor-default`}
                                 >
-                                    @{realName}
+                                    @{username}
                                 </p>
                             </div>
 
