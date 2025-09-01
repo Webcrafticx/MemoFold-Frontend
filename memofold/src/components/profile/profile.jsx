@@ -81,6 +81,20 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+// Utility function to get current Indian date in YYYY-MM-DD format
+const getIndianDateString = () => {
+    const now = new Date();
+    const indianDate = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    
+    const year = indianDate.getFullYear();
+    const month = String(indianDate.getMonth() + 1).padStart(2, '0');
+    const day = String(indianDate.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+};
+
 // ProfilePage Component with Error Boundary
 const ProfilePage = () => {
     const [profilePic, setProfilePic] = useState(
@@ -93,7 +107,7 @@ const ProfilePage = () => {
     const [posts, setPosts] = useState([]);
     const [darkMode, setDarkMode] = useState(false);
     const [postContent, setPostContent] = useState("");
-    const [selectedDate, setSelectedDate] = useState("");
+    const [selectedDate, setSelectedDate] = useState(getIndianDateString()); // Set to current Indian date
     const [stats, setStats] = useState({
         posts: 0,
         followers: 0,
@@ -152,7 +166,7 @@ const ProfilePage = () => {
         const storedUsername = localStorage.getItem("username");
 
         if (token && storedUsername) {
-            fetchUserPosts(token, storedUsername); // ye function already defined hai
+            fetchUserPosts(token, storedUsername);
         }
     };
 
@@ -497,7 +511,8 @@ const ProfilePage = () => {
         };
 
         fetchData();
-        setSelectedDate(new Date().toISOString().split("T")[0]);
+        // Set to current Indian date instead of system date
+        setSelectedDate(getIndianDateString());
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
@@ -1084,7 +1099,7 @@ const ProfilePage = () => {
     };
 
     const handleCreatePost = async () => {
-            setIsCreatingPost(true);
+        setIsCreatingPost(true);
         if (!postContent.trim() && !selectedFile) {
             setError("Post content or image cannot be empty");
             toast.error("Post content or image cannot be empty");
@@ -1200,7 +1215,8 @@ const ProfilePage = () => {
             removeFile();
             setError(null);
 
-            setSelectedDate(new Date().toISOString().split("T")[0]);
+            // Reset to current Indian date after posting
+            setSelectedDate(getIndianDateString());
 
             toast.success("Post created successfully!");
 
@@ -1210,7 +1226,7 @@ const ProfilePage = () => {
             setError(error.message || "Failed to create post");
             toast.error(error.message || "Failed to create post");
         }
-            setIsCreatingPost(false);
+        setIsCreatingPost(false);
     };
 
     const handleClickOutside = (e) => {
@@ -1840,10 +1856,7 @@ const ProfilePage = () => {
                                     } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
                                 />
                                 {selectedDate &&
-                                    selectedDate !==
-                                        new Date()
-                                            .toISOString()
-                                            .split("T")[0] && (
+                                    selectedDate !== getIndianDateString() && (
                                     <span className="text-xs text-blue-500 cursor-default">
                                         Posting for:{" "}
                                         {new Date(
@@ -2214,7 +2227,7 @@ const ProfilePage = () => {
                                                 isFetchingComments
                                                     ? "cursor-not-allowed"
                                                     : "cursor-pointer"
-                                            } text-xs sm:text-sm`}
+                                            } text-xs sm:text-base`}
                                         >
                                             <FaComment />
                                             <span>
@@ -2244,7 +2257,7 @@ const ProfilePage = () => {
                                                             className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
                                                                 isDarkMode
                                                                     ? "bg-gray-700"
-                                                                    : "bg-gray-100"
+																	: "bg-gray-100"
                                                             } cursor-default`}
                                                         >
                                                             {post.comments.map(
