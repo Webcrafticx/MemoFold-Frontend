@@ -726,22 +726,44 @@ const UserProfile = () => {
 
     const formatDate = (dateString) => {
         try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) {
+            // Convert UTC string to IST date
+            const utcDate = new Date(dateString);
+            const istDate = new Date(
+                utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
+
+            if (isNaN(istDate.getTime())) {
                 return "Just now";
             }
 
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
+            // Current IST time
+            const now = new Date(
+                new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+            );
 
-            if (diffInSeconds < 60) {
+            const diffInSeconds = Math.floor((now - istDate) / 1000);
+
+            // Handle future dates
+            if (diffInSeconds < 0) {
                 return "Just now";
+            }
+
+            if (diffInSeconds < 10) {
+                return "Just now";
+            }
+            if (diffInSeconds < 60) {
+                return `${diffInSeconds}s ago`;
             } else if (diffInSeconds < 3600) {
-                return `${Math.floor(diffInSeconds / 60)}m ago`;
+                const minutes = Math.floor(diffInSeconds / 60);
+                return `${minutes}m ago`;
             } else if (diffInSeconds < 86400) {
-                return `${Math.floor(diffInSeconds / 3600)}h ago`;
+                const hours = Math.floor(diffInSeconds / 3600);
+                return `${hours}h ago`;
+            } else if (diffInSeconds < 604800) {
+                const days = Math.floor(diffInSeconds / 86400);
+                return `${days}d ago`;
             } else {
-                return date.toLocaleDateString(undefined, {
+                return istDate.toLocaleDateString("en-IN", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
@@ -754,10 +776,20 @@ const UserProfile = () => {
 
     if (isLoading) {
         return (
-            <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"} flex items-center justify-center`}>
+            <div
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
+            >
                 <div className="text-center">
                     <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Loading profile...</p>
+                    <p
+                        className={`mt-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
+                    >
+                        Loading profile...
+                    </p>
                 </div>
             </div>
         );
@@ -765,7 +797,11 @@ const UserProfile = () => {
 
     if (error) {
         return (
-            <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"} flex items-center justify-center`}>
+            <div
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
+            >
                 <div className="text-center">
                     <p className="text-red-500">Error: {error}</p>
                     <button
@@ -781,9 +817,19 @@ const UserProfile = () => {
 
     if (!userData) {
         return (
-            <div className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"} flex items-center justify-center`}>
+            <div
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
+            >
                 <div className="text-center">
-                    <p className={`${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>User not found</p>
+                    <p
+                        className={`${
+                            isDarkMode ? "text-gray-400" : "text-gray-500"
+                        }`}
+                    >
+                        User not found
+                    </p>
                     <button
                         onClick={() => navigate(-1)}
                         className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -796,7 +842,11 @@ const UserProfile = () => {
     }
 
     return (
-        <div className={`min-h-screen ${isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"}`}>
+        <div
+            className={`min-h-screen ${
+                isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"
+            }`}
+        >
             {/* Floating Hearts Animation */}
             <FloatingHearts />
 
@@ -831,7 +881,7 @@ const UserProfile = () => {
                 </div>
             )}
             <Navbar onDarkModeChange={handleDarkModeChange} />
-            
+
             {/* Error Message */}
             {error && (
                 <div className="fixed top-4 right-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
@@ -860,7 +910,11 @@ const UserProfile = () => {
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 {/* Profile Info */}
-                <div className={`w-full max-w-4xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white"}`}>
+                <div
+                    className={`w-full max-w-4xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
+                        isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white"
+                    }`}
+                >
                     <div className="flex flex-col items-center md:flex-row md:items-start">
                         <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 mb-4 md:mb-0 md:mr-6">
                             {userData.profilePic ? (
@@ -885,21 +939,43 @@ const UserProfile = () => {
                         </div>
 
                         <div className="flex-1 text-center md:text-left">
-                            <h2 className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                            <h2
+                                className={`text-2xl font-bold ${
+                                    isDarkMode ? "text-white" : "text-gray-900"
+                                }`}
+                            >
                                 {userData.realname || userData.username}
                             </h2>
-                            <p className={`${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                            <p
+                                className={`${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
+                            >
                                 @{userData.username}
                             </p>
 
                             {/* display user description  */}
                             {userDescription && (
-                                <p className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                                <p
+                                    className={`mt-2 ${
+                                        isDarkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-700"
+                                    }`}
+                                >
                                     {userDescription}
                                 </p>
                             )}
 
-                            <div className={`mt-4 flex flex-wrap gap-4 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                            <div
+                                className={`mt-4 flex flex-wrap gap-4 text-sm ${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
+                            >
                                 {userData.location && (
                                     <div className="flex items-center">
                                         <FaMapMarker className="mr-1" />
@@ -940,19 +1016,47 @@ const UserProfile = () => {
 
                 {/* Posts */}
                 <div className="w-full max-w-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default">
-                    <h3 className={`text-xl font-semibold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"}`}>Posts</h3>
+                    <h3
+                        className={`text-xl font-semibold mb-4 ${
+                            isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
+                    >
+                        Posts
+                    </h3>
 
                     {userPosts.length === 0 ? (
-                        <div className={`rounded-lg p-6 text-center ${isDarkMode ? "bg-gray-800" : "bg-white"}`}>
-                            <FaUser className={`text-4xl mx-auto mb-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"}`} />
-                            <p className={`${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>No posts yet</p>
+                        <div
+                            className={`rounded-lg p-6 text-center ${
+                                isDarkMode ? "bg-gray-800" : "bg-white"
+                            }`}
+                        >
+                            <FaUser
+                                className={`text-4xl mx-auto mb-4 ${
+                                    isDarkMode
+                                        ? "text-gray-500"
+                                        : "text-gray-400"
+                                }`}
+                            />
+                            <p
+                                className={`${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
+                            >
+                                No posts yet
+                            </p>
                         </div>
                     ) : (
                         <div className="grid gap-4">
                             {userPosts.map((post) => (
                                 <div
                                     key={post._id}
-                                    className={`rounded-lg p-4 shadow-sm ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"}`}
+                                    className={`rounded-lg p-4 shadow-sm ${
+                                        isDarkMode
+                                            ? "bg-gray-800 text-gray-100"
+                                            : "bg-white text-gray-900"
+                                    }`}
                                 >
                                     <div className="flex items-center gap-3 mb-3">
                                         <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
@@ -979,11 +1083,23 @@ const UserProfile = () => {
                                         </div>
 
                                         <div>
-                                            <h3 className={`text-base font-semibold ${isDarkMode ? "text-white" : "text-gray-800"}`}>
+                                            <h3
+                                                className={`text-base font-semibold ${
+                                                    isDarkMode
+                                                        ? "text-white"
+                                                        : "text-gray-800"
+                                                }`}
+                                            >
                                                 {userData.realname ||
                                                     userData.username}
                                             </h3>
-                                            <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                            <p
+                                                className={`text-xs ${
+                                                    isDarkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
                                                 @{userData.username}{" "}
                                                 {post.createdAt &&
                                                     `· ${formatDate(
@@ -993,7 +1109,13 @@ const UserProfile = () => {
                                         </div>
                                     </div>
 
-                                    <p className={`leading-relaxed mb-3 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>
+                                    <p
+                                        className={`leading-relaxed mb-3 ${
+                                            isDarkMode
+                                                ? "text-gray-200"
+                                                : "text-gray-700"
+                                        }`}
+                                    >
                                         {post.content}
                                     </p>
 
@@ -1016,7 +1138,13 @@ const UserProfile = () => {
                                         </div>
                                     )}
 
-                                    <div className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+                                    <div
+                                        className={`flex items-center justify-between border-t pt-3 ${
+                                            isDarkMode
+                                                ? "border-gray-700"
+                                                : "border-gray-200"
+                                        }`}
+                                    >
                                         <motion.button
                                             whileTap={{ scale: 0.9 }}
                                             onClick={(e) =>
@@ -1037,7 +1165,13 @@ const UserProfile = () => {
                                                 <FaHeart className="text-xl text-red-500" />
                                             ) : (
                                                 // When not liked -> outlined heart
-                                                <FaRegHeart className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
+                                                <FaRegHeart
+                                                    className={`text-xl ${
+                                                        isDarkMode
+                                                            ? "text-gray-400"
+                                                            : "text-gray-500"
+                                                    }`}
+                                                />
                                             )}
                                             <motion.span
                                                 key={post.likes?.length || 0}
@@ -1047,7 +1181,9 @@ const UserProfile = () => {
                                                 className={`text-sm font-medium ${
                                                     post.hasUserLiked
                                                         ? "text-red-500"
-                                                        : isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                        : isDarkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
                                                 }`}
                                             >
                                                 {post.likes?.length || 0}
@@ -1055,7 +1191,11 @@ const UserProfile = () => {
                                         </motion.button>
 
                                         <button
-                                            className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                                            className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${
+                                                isDarkMode
+                                                    ? "text-gray-400"
+                                                    : "text-gray-600"
+                                            }`}
                                             onClick={(e) =>
                                                 toggleCommentDropdown(
                                                     post._id,
@@ -1081,7 +1221,13 @@ const UserProfile = () => {
                                             {loadingComments[post._id] ? (
                                                 <div className="text-center py-4">
                                                     <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                    <p className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                                                    <p
+                                                        className={`text-sm mt-2 ${
+                                                            isDarkMode
+                                                                ? "text-gray-400"
+                                                                : "text-gray-600"
+                                                        }`}
+                                                    >
                                                         Loading comments...
                                                     </p>
                                                 </div>
@@ -1203,7 +1349,13 @@ const UserProfile = () => {
                                                                                     )}
                                                                                 </span>
                                                                             </div>
-                                                                            <p className={`text-sm whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>
+                                                                            <p
+                                                                                className={`text-sm whitespace-pre-line mt-1 ${
+                                                                                    isDarkMode
+                                                                                        ? "text-gray-200"
+                                                                                        : "text-gray-700"
+                                                                                }`}
+                                                                            >
                                                                                 {
                                                                                     comment.content
                                                                                 }
@@ -1235,9 +1387,21 @@ const UserProfile = () => {
                                                                                     ) : comment.hasUserLiked ? (
                                                                                         <FaHeart className="text-xs text-red-500" />
                                                                                     ) : (
-                                                                                        <FaRegHeart className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
+                                                                                        <FaRegHeart
+                                                                                            className={`text-xs ${
+                                                                                                isDarkMode
+                                                                                                    ? "text-gray-400"
+                                                                                                    : "text-gray-500"
+                                                                                            }`}
+                                                                                        />
                                                                                     )}
-                                                                                    <span className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                                                                                    <span
+                                                                                        className={`text-xs ${
+                                                                                            isDarkMode
+                                                                                                ? "text-gray-400"
+                                                                                                : "text-gray-600"
+                                                                                        }`}
+                                                                                    >
                                                                                         {comment
                                                                                             .likes
                                                                                             ?.length ||
@@ -1290,7 +1454,13 @@ const UserProfile = () => {
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <div className={`text-center py-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                                        <div
+                                                            className={`text-center py-4 ${
+                                                                isDarkMode
+                                                                    ? "text-gray-400"
+                                                                    : "text-gray-500"
+                                                            }`}
+                                                        >
                                                             No comments yet. Be
                                                             the first to
                                                             comment!
