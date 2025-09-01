@@ -142,6 +142,7 @@ const MainFeed = () => {
 
     const fetchCurrentUserProfile = async () => {
         try {
+            const token = localStorage.getItem("token");
             const response = await fetch(`${config.apiUrl}/user/me`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -151,6 +152,28 @@ const MainFeed = () => {
             if (response.ok) {
                 const userData = await response.json();
                 setCurrentUserProfile(userData);
+
+                // Store joined date in localStorage
+                if (userData.createdAt) {
+                    // Format the date for better readability (optional)
+                    const joinedDate = new Date(userData.createdAt);
+                    const formattedDate = joinedDate.toLocaleDateString(
+                        "en-IN",
+                        {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                        }
+                    );
+
+                    // Store both ISO string and formatted version
+                    localStorage.setItem("joinedDateFormatted", formattedDate);
+
+                    console.log(
+                        "Joined date saved to localStorage:",
+                        formattedDate
+                    );
+                }
             }
         } catch (error) {
             console.error("Error fetching user profile:", error);
@@ -852,8 +875,10 @@ const MainFeed = () => {
                     posts.map((post) => (
                         <div
                             key={post._id}
-                            className={`w-full max-w-2xl bg-white rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
-                                isDarkMode ? "dark:bg-gray-800" : ""
+                            className={`w-full max-w-2xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
+                                isDarkMode
+                                    ? "bg-gray-800 text-gray-100"
+                                    : "bg-white text-gray-900"
                             }`}
                         >
                             <div
@@ -887,11 +912,18 @@ const MainFeed = () => {
                                 </div>
 
                                 <div>
-                                    <h3 className="text-base font-semibold text-gray-800 dark:text-white hover:text-blue-500 transition-colors">
+                                    <h3
+                                        className={`text-base font-semibold hover:text-blue-500 transition-colors ${
+                                            isDarkMode
+                                                ? "text-white"
+                                                : "text-gray-800"
+                                        }`}
+                                    >
                                         {post.userId.realname ||
                                             post.userId.username ||
                                             "Unknown User"}
                                     </h3>
+
                                     <p
                                         className={`text-xs ${
                                             isDarkMode
@@ -906,7 +938,13 @@ const MainFeed = () => {
                             </div>
 
                             {/* Text content appears first */}
-                            <p className="text-gray-700 leading-relaxed mb-3 dark:text-gray-300">
+                            <p
+                                className={`leading-relaxed mb-3 ${
+                                    isDarkMode
+                                        ? "text-gray-200"
+                                        : "text-gray-700"
+                                }`}
+                            >
                                 {post.content || ""}
                             </p>
 
@@ -1001,8 +1039,8 @@ const MainFeed = () => {
                                                 <div
                                                     className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
                                                         isDarkMode
-                                                            ? "bg-gray-700"
-                                                            : "bg-gray-100"
+                                                            ? "bg-gray-700 text-gray-200"
+                                                            : "bg-gray-100 text-gray-800"
                                                     }`}
                                                 >
                                                     {post.comments.map(
@@ -1099,11 +1137,18 @@ const MainFeed = () => {
                                                                             )}
                                                                         </span>
                                                                     </div>
-                                                                    <p className="text-sm whitespace-pre-line mt-1">
+                                                                    <p
+                                                                        className={`text-sm whitespace-pre-line mt-1 ${
+                                                                            isDarkMode
+                                                                                ? "text-gray-200"
+                                                                                : "text-gray-700"
+                                                                        }`}
+                                                                    >
                                                                         {
                                                                             comment.content
                                                                         }
                                                                     </p>
+
                                                                     <div className="mt-1 flex items-center justify-between">
                                                                         <button
                                                                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
