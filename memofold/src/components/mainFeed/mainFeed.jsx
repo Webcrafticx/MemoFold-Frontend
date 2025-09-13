@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../Navbar";
+import Navbar from "../navbar";
 import PostCard from "./PostCard";
 import FloatingHearts from "./FloatingHearts";
 import ImagePreviewModal from "./ImagePreviewModal";
