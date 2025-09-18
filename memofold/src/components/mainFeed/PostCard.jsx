@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
+import { useState } from "react";
+import LikesModal from "./LikesModal";
 
 const PostCard = ({
   post,
@@ -18,21 +20,77 @@ const PostCard = ({
   likeCooldown,
   isLikingComment,
   isDeletingComment,
+  activeReplies,
+  replyContent,
+  isReplying,
+  isLikingReply,
+  isDeletingReply,
   onLike,
   onToggleCommentDropdown,
   onCommentSubmit,
   onSetCommentContent,
   onLikeComment,
   onDeleteComment,
+  onToggleReplies,
+  onToggleReplyInput,
+  onAddReply,
+  onLikeReply,
+  onDeleteReply,
+  onSetReplyContent,
   navigateToUserProfile,
   onImagePreview,
+  token,
 }) => {
+  const [showLikesModal, setShowLikesModal] = useState(false);
+
+  // Get the list of users who liked the post
+  const getLikedUsers = () => {
+    // Check if we have likesPreview from API
+    if (post.likesPreview && post.likesPreview.length > 0) {
+      return post.likesPreview;
+    }
+    
+    // Fallback to stored likes (for compatibility)
+    if (post.likes && post.likes.length > 0) {
+      // If we have user objects, use them
+      if (typeof post.likes[0] === 'object') {
+        return post.likes;
+      }
+      // If we have just usernames, convert to objects
+      return post.likes.map(username => ({ username }));
+    }
+    
+    return [];
+  };
+
+  const likedUsers = getLikedUsers();
+  // Use likesCount from post, fallback to likedUsers length
+  const totalLikes = post.likesCount || likedUsers.length || 0;
+
+  const handleShowAllLikes = (e) => {
+    e.stopPropagation();
+    setShowLikesModal(true);
+  };
+
+  const handleHideAllLikes = () => {
+    setShowLikesModal(false);
+  };
+
   return (
     <div
       className={`w-full max-w-2xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
         isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
       }`}
     >
+      {/* Likes Modal */}
+      <LikesModal
+        postId={post._id}
+        isOpen={showLikesModal}
+        onClose={handleHideAllLikes}
+        token={token}
+        isDarkMode={isDarkMode}
+      />
+
       <div
         className="flex items-center gap-3 mb-3 cursor-pointer"
         onClick={(e) => navigateToUserProfile(post.userId._id, e)}
@@ -98,6 +156,33 @@ const PostCard = ({
         </div>
       )}
 
+      {/* Likes preview section */}
+      {totalLikes > 0 && (
+        <div className="mb-3 text-sm">
+          <div className="flex items-center flex-wrap">
+            <span className={`mr-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Liked by
+            </span>
+            
+            {likedUsers.slice(0, 2).map((user, index) => (
+              <span key={index} className="font-medium mr-1">
+                @{user.username}
+                {index < Math.min(2, likedUsers.length - 1) ? ',' : ''}
+              </span>
+            ))}
+            
+            {totalLikes > 2 && (
+              <button 
+                onClick={handleShowAllLikes}
+                className={`font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-500'} hover:underline`}
+              >
+                and {totalLikes - 2} others
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between border-t border-gray-200 pt-3">
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -117,7 +202,7 @@ const PostCard = ({
             <FaRegHeart className="text-xl text-gray-400" />
           )}
           <motion.span
-            key={post.likes?.length || 0}
+            key={post.likesCount || post.likes?.length || 0}
             initial={{ scale: 1 }}
             animate={{ scale: [1.2, 1] }}
             transition={{ duration: 0.2 }}
@@ -125,7 +210,7 @@ const PostCard = ({
               post.hasUserLiked ? "text-red-500" : "text-gray-400"
             }`}
           >
-            {post.likes?.length || 0}
+            {post.likesCount || post.likes?.length || 0}
           </motion.span>
         </motion.button>
 
@@ -154,11 +239,22 @@ const PostCard = ({
         isCommenting={isCommenting}
         isLikingComment={isLikingComment}
         isDeletingComment={isDeletingComment}
+        activeReplies={activeReplies}
+        replyContent={replyContent}
+        isReplying={isReplying}
+        isLikingReply={isLikingReply}
+        isDeletingReply={isDeletingReply}
         onToggleCommentDropdown={onToggleCommentDropdown}
         onCommentSubmit={onCommentSubmit}
         onSetCommentContent={onSetCommentContent}
         onLikeComment={onLikeComment}
         onDeleteComment={onDeleteComment}
+        onToggleReplies={onToggleReplies}
+        onToggleReplyInput={onToggleReplyInput}
+        onAddReply={onAddReply}
+        onLikeReply={onLikeReply}
+        onDeleteReply={onDeleteReply}
+        onSetReplyContent={onSetReplyContent}
         navigateToUserProfile={navigateToUserProfile}
       />
     </div>

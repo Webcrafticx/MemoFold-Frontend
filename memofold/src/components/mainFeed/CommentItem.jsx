@@ -1,6 +1,7 @@
 // src/components/mainFeed/CommentItem.jsx
-import { FaHeart, FaRegHeart, FaTrashAlt } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaTrashAlt, FaReply, FaCaretDown, FaCaretRight } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
+import ReplyItem from "./ReplyItem";
 
 const CommentItem = ({
   comment,
@@ -10,10 +11,24 @@ const CommentItem = ({
   isDarkMode,
   onLikeComment,
   onDeleteComment,
+  onToggleReplyInput,
+  onLikeReply,
+  onDeleteReply,
+  onToggleReplies,
+  onAddReply,
   isLikingComment,
   isDeletingComment,
+  isLikingReply,
+  isDeletingReply,
+  replyContent,
+  setReplyContent,
+  isReplying,
+  activeReplies,
   navigateToUserProfile,
 }) => {
+  const hasReplies = comment.replies && comment.replies.length > 0;
+  const isRepliesVisible = activeReplies[comment._id];
+
   return (
     <div className="flex items-start space-x-2">
       <div
@@ -80,21 +95,108 @@ const CommentItem = ({
             </span>
           </button>
 
-          {(comment.userId?.username === username || postOwner === username) && (
+          <div className="flex space-x-2">
             <button
-              className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-              onClick={(e) => onDeleteComment(comment._id, postId, e)}
-              disabled={isDeletingComment[comment._id]}
-              title="Delete comment"
+              className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+              onClick={(e) => onToggleReplyInput(comment._id, null, e)}
+              title="Reply to comment"
             >
-              {isDeletingComment[comment._id] ? (
-                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <FaTrashAlt />
-              )}
+              <FaReply />
             </button>
-          )}
+
+            {(comment.userId?.username === username || postOwner === username) && (
+              <button
+                className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                onClick={(e) => onDeleteComment(comment._id, postId, e)}
+                disabled={isDeletingComment[comment._id]}
+                title="Delete comment"
+              >
+                {isDeletingComment[comment._id] ? (
+                  <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <FaTrashAlt />
+                )}
+              </button>
+            )}
+
+            {hasReplies && (
+              <button
+                className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs"
+                onClick={(e) => onToggleReplies(comment._id, e)}
+                title={isRepliesVisible ? "Hide replies" : "Show replies"}
+              >
+                {isRepliesVisible ? <FaCaretDown /> : <FaCaretRight />}
+                <span className="ml-1">{comment.replies.length}</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Reply input */}
+        {comment.showReplyInput && (
+          <div className="mt-2 flex items-center space-x-2">
+            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+              {username?.charAt(0).toUpperCase() || "U"}
+            </div>
+            <div className="flex-1 flex space-x-2">
+              <input
+                type="text"
+                className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                  isDarkMode
+                    ? "bg-gray-700 border-gray-600 text-white"
+                    : "bg-white border-gray-300 text-gray-900"
+                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                placeholder="Write a reply..."
+                value={replyContent[comment._id] || ""}
+                onChange={(e) =>
+                  setReplyContent({
+                    ...replyContent,
+                    [comment._id]: e.target.value,
+                  })
+                }
+              />
+              <button
+                className={`px-2 py-1 rounded-full text-xs ${
+                  !replyContent[comment._id]?.trim() || isReplying[comment._id]
+                    ? "bg-blue-300 cursor-not-allowed"
+                    : "bg-blue-500 hover:bg-blue-600"
+                } text-white transition-colors`}
+                onClick={(e) => onAddReply(comment._id, postId, e)}
+                disabled={
+                  !replyContent[comment._id]?.trim() || isReplying[comment._id]
+                }
+              >
+                {isReplying[comment._id] ? (
+                  <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                ) : (
+                  "Reply"
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Replies section */}
+        {isRepliesVisible && comment.replies && comment.replies.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {comment.replies.map((reply) => (
+              <ReplyItem
+                key={reply._id}
+                reply={reply}
+                commentId={comment._id}
+                username={username}
+                commentOwner={comment.userId?.username}
+                isDarkMode={isDarkMode}
+                onLikeReply={onLikeReply}
+                onDeleteReply={onDeleteReply}
+                onToggleReplyInput={onToggleReplyInput}
+                isLikingReply={isLikingReply}
+                isDeletingReply={isDeletingReply}
+                navigateToUserProfile={navigateToUserProfile}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

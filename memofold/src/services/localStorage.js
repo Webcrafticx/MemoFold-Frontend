@@ -16,6 +16,38 @@ export const localStorageService = {
     localStorage.setItem("postLikes", JSON.stringify(storedLikes));
   },
 
+  // Post likes preview
+  getStoredLikesPreview: () => {
+    try {
+      return JSON.parse(localStorage.getItem("postLikesPreview") || "{}");
+    } catch (error) {
+      console.error("Error parsing stored likes preview:", error);
+      return {};
+    }
+  },
+
+  updateStoredLikesPreview: (postId, likesPreview) => {
+    const storedLikesPreview = localStorageService.getStoredLikesPreview();
+    storedLikesPreview[postId] = likesPreview;
+    localStorage.setItem("postLikesPreview", JSON.stringify(storedLikesPreview));
+  },
+
+  // Post likes count
+  getStoredLikesCount: () => {
+    try {
+      return JSON.parse(localStorage.getItem("postLikesCount") || "{}");
+    } catch (error) {
+      console.error("Error parsing stored likes count:", error);
+      return {};
+    }
+  },
+
+  updateStoredLikesCount: (postId, likesCount) => {
+    const storedLikesCount = localStorageService.getStoredLikesCount();
+    storedLikesCount[postId] = likesCount;
+    localStorage.setItem("postLikesCount", JSON.stringify(storedLikesCount));
+  },
+
   // Comment likes
   getStoredCommentLikes: () => {
     try {

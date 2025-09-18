@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../navbar";
+import Navbar from "../Navbar";
 import PostCard from "./PostCard";
 import FloatingHearts from "./FloatingHearts";
 import ImagePreviewModal from "./ImagePreviewModal";
@@ -37,6 +37,13 @@ const MainFeed = () => {
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState("");
 
+  // Reply functionality states
+  const [activeReplies, setActiveReplies] = useState({});
+  const [replyContent, setReplyContent] = useState({});
+  const [isReplying, setIsReplying] = useState({});
+  const [isLikingReply, setIsLikingReply] = useState({});
+  const [isDeletingReply, setIsDeletingReply] = useState({});
+
   useEffect(() => {
     if (!token) {
       navigate("/login");
@@ -63,55 +70,66 @@ const MainFeed = () => {
     }
   };
 
-  const fetchPosts = async () => {
-    setIsLoading(true);
-    setError(null);
+const fetchPosts = async () => {
+  setIsLoading(true);
+  setError(null);
 
-    try {
-      const data = await apiService.fetchPosts(token);
-      const postsData = Array.isArray(data) ? data : data.posts || [];
+  try {
+    const data = await apiService.fetchPosts(token);
+    const postsData = Array.isArray(data) ? data : data.posts || [];
 
-      // Get stored likes from localStorage
-      const storedLikes = localStorageService.getStoredLikes();
+    // Get stored data from localStorage
+    const storedLikes = localStorageService.getStoredLikes();
+    const storedLikesPreview = localStorageService.getStoredLikesPreview();
+    const storedLikesCount = localStorageService.getStoredLikesCount();
 
-      const postsWithLikes = postsData.map((post) => {
-        // Get likes from storage or API
-        const postLikes = storedLikes[post._id] || post.likes || [];
+    const postsWithLikes = postsData.map((post) => {
+      // Get data from storage or API - prioritize API data
+      const postLikes = post.likes || storedLikes[post._id] || [];
+      const postLikesPreview = post.likesPreview || storedLikesPreview[post._id] || [];
+      const postLikesCount = post.likesCount || storedLikesCount[post._id] || postLikes.length;
 
-        // Check if current user has liked this post (handles both user ID and username)
-        const hasUserLiked =
-          postLikes.includes(user._id) ||
-          postLikes.includes(username) ||
-          post.likes?.some((like) => like.userId === username);
+      // Check if current user has liked this post
+      const hasUserLiked =
+        postLikes.includes(user._id) ||
+        postLikes.includes(username) ||
+        (postLikesPreview && postLikesPreview.some(like => like.username === username));
 
-        return {
-          ...post,
-          likes: postLikes,
-          hasUserLiked: hasUserLiked,
-          createdAt: post.createdAt || new Date().toISOString(),
-          comments: post.comments || [],
-        };
-      });
+      return {
+        ...post,
+        likes: postLikes,
+        likesPreview: postLikesPreview,
+        likesCount: postLikesCount,
+        hasUserLiked: hasUserLiked,
+        createdAt: post.createdAt || new Date().toISOString(),
+        comments: post.comments || [],
+      };
+    });
 
-      setPosts(postsWithLikes);
+    setPosts(postsWithLikes);
 
-      // Update localStorage with current likes
-      const likesByPost = {};
-      postsData.forEach((post) => {
-        const storedPostLikes = storedLikes[post._id] || post.likes || [];
-        likesByPost[post._id] = storedPostLikes;
-      });
+    // Update localStorage with current data
+    const likesByPost = {};
+    const likesPreviewByPost = {};
+    const likesCountByPost = {};
 
-      localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-    } catch (err) {
-      console.error("Error fetching posts:", err);
-      setError(err.message);
-      setPosts([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    postsData.forEach((post) => {
+      likesByPost[post._id] = post.likes || storedLikes[post._id] || [];
+      likesPreviewByPost[post._id] = post.likesPreview || storedLikesPreview[post._id] || [];
+      likesCountByPost[post._id] = post.likesCount || storedLikesCount[post._id] || likesByPost[post._id].length;
+    });
 
+    localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+    localStorage.setItem("postLikesPreview", JSON.stringify(likesPreviewByPost));
+    localStorage.setItem("postLikesCount", JSON.stringify(likesCountByPost));
+  } catch (err) {
+    console.error("Error fetching posts:", err);
+    setError(err.message);
+    setPosts([]);
+  } finally {
+    setIsLoading(false);
+  }
+};
   const fetchComments = async (postId) => {
     setLoadingComments((prev) => ({ ...prev, [postId]: true }));
 
@@ -134,6 +152,8 @@ const MainFeed = () => {
           ...comment,
           likes: commentLikes,
           hasUserLiked: hasUserLiked,
+          replies: comment.replies || [],
+          showReplyInput: false,
         };
       });
 
@@ -296,89 +316,128 @@ const MainFeed = () => {
   };
 
   const handleLike = async (postId, e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
 
-    // Prevent multiple rapid likes
-    if (likeCooldown[postId]) return;
+  // Prevent multiple rapid likes
+  if (likeCooldown[postId]) return;
 
-    setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
+  setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
 
-    // Set a timeout to reset the cooldown after 500ms
-    setTimeout(() => {
-      setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
-    }, 500);
+  // Set a timeout to reset the cooldown after 500ms
+  setTimeout(() => {
+    setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
+  }, 500);
 
-    if (!username || !user?._id) {
-      console.error("User information not available");
-      setError("You must be logged in to like posts");
-      return;
-    }
+  if (!username || !user?._id) {
+    console.error("User information not available");
+    setError("You must be logged in to like posts");
+    return;
+  }
 
-    setIsLiking((prev) => ({ ...prev, [postId]: true }));
+  setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
-    try {
-      // Store the current state to check if we're adding a like (not removing)
-      const currentPost = posts.find((post) => post._id === postId);
-      const isAddingLike = !currentPost?.hasUserLiked;
+  try {
+    // Store the current state to check if we're adding a like (not removing)
+    const currentPost = posts.find((post) => post._id === postId);
+    const isAddingLike = !currentPost?.hasUserLiked;
 
-      setPosts(
-        posts.map((post) => {
-          if (post._id === postId) {
-            const isLiked = post.hasUserLiked;
-            let updatedLikes;
+    
+    setPosts(
+  posts.map((post) => {
+    if (post._id === postId) {
+      const isLiked = post.hasUserLiked;
+      let updatedLikes;
+      let updatedLikesCount;
+      let updatedLikesPreview;
 
-            if (isLiked) {
-              // Remove both user ID and username
-              updatedLikes = post.likes.filter(
-                (like) => like !== user._id && like !== username
-              );
-            } else {
-              // Add both user ID and username for compatibility
-              updatedLikes = [...post.likes, user._id]; // Store user ID
-            }
-
-            // Update localStorage with both formats
-            localStorageService.updateStoredLikes(postId, updatedLikes);
-
-            return {
-              ...post,
-              likes: updatedLikes,
-              hasUserLiked: !isLiked,
-            };
-          }
-          return post;
-        })
-      );
-
-      // Add floating hearts animation ONLY when adding a like (not removing)
-      if (isAddingLike && e) {
-        const rect = e.target.getBoundingClientRect();
-
-        // Add just one heart instead of multiple
-        setFloatingHearts((hearts) => [
-          ...hearts,
-          {
-            id: Date.now(),
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2,
-          },
-        ]);
+      if (isLiked) {
+        // Remove both user ID and username
+        updatedLikes = post.likes.filter(
+          (like) => like !== user._id && like !== username
+        );
+        updatedLikesCount = post.likesCount - 1;
+        
+        // Update likesPreview
+        updatedLikesPreview = post.likesPreview?.filter(
+          (likeUser) => likeUser.username !== username
+        ) || [];
+        
+        // Update localStorage
+        localStorageService.updateStoredLikes(postId, updatedLikes);
+        localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
+        localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
+        
+        return {
+          ...post,
+          likes: updatedLikes,
+          likesPreview: updatedLikesPreview,
+          likesCount: updatedLikesCount,
+          hasUserLiked: !isLiked,
+        };
+      } else {
+        // Add both user ID and username for compatibility
+        updatedLikes = [...post.likes, user._id]; // Store user ID
+        updatedLikesCount = post.likesCount + 1;
+        
+        // Update likesPreview
+        const newLikeUser = {
+          username: username,
+          realname: realname,
+          profilePic: currentUserProfile?.profilePic || user?.profilePic
+        };
+        
+        updatedLikesPreview = [
+          ...(post.likesPreview || []),
+          newLikeUser
+        ];
+        
+        // Update localStorage
+        localStorageService.updateStoredLikes(postId, updatedLikes);
+        localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
+        localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
+        
+        return {
+          ...post,
+          likes: updatedLikes,
+          likesPreview: updatedLikesPreview,
+          likesCount: updatedLikesCount,
+          hasUserLiked: !isLiked,
+        };
       }
-
-      await apiService.likePost(postId, user._id, token);
-    } catch (err) {
-      console.error("Error liking post:", err);
-      setError(err.message);
-
-      // Revert optimistic update on error
-      await fetchPosts();
-    } finally {
-      setIsLiking((prev) => ({ ...prev, [postId]: false }));
     }
-  };
+    return post;
+  })
+);
+
+    // Add floating hearts animation ONLY when adding a like (not removing)
+    if (isAddingLike && e) {
+      const rect = e.target.getBoundingClientRect();
+
+      // Add just one heart instead of multiple
+      setFloatingHearts((hearts) => [
+        ...hearts,
+        {
+          id: Date.now(),
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        },
+      ]);
+    }
+
+    await apiService.likePost(postId, user._id, token);
+  } catch (err) {
+    console.error("Error liking post:", err);
+    setError(err.message);
+
+    // Revert optimistic update on error
+    await fetchPosts();
+  } finally {
+    setIsLiking((prev) => ({ ...prev, [postId]: false }));
+  }
+};
 
   const toggleCommentDropdown = async (postId, e) => {
     if (e) {
@@ -442,6 +501,8 @@ const MainFeed = () => {
                       profilePic:
                         currentUserProfile?.profilePic || user?.profilePic,
                     },
+                    replies: [],
+                    showReplyInput: false,
                   },
                 ],
               }
@@ -455,6 +516,255 @@ const MainFeed = () => {
       setError(err.message);
     } finally {
       setIsCommenting((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  // Reply functionality
+  const toggleReplies = async (commentId, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // If we're opening replies and haven't loaded them yet, fetch them
+    if (!activeReplies[commentId]) {
+      try {
+        const responseData = await apiService.fetchCommentReplies(commentId, token);
+        const replies = responseData.replies || [];
+
+        setPosts(
+          posts.map((post) => ({
+            ...post,
+            comments: post.comments?.map((comment) =>
+              comment._id === commentId
+                ? { ...comment, replies }
+                : comment
+            ) || [],
+          }))
+        );
+      } catch (err) {
+        console.error("Error fetching replies:", err);
+        setError("Failed to load replies");
+      }
+    }
+
+    setActiveReplies((prev) => ({
+      ...prev,
+      [commentId]: !prev[commentId],
+    }));
+  };
+
+  const toggleReplyInput = (commentId, replyId = null, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    setPosts(
+      posts.map((post) => ({
+        ...post,
+        comments: post.comments?.map((comment) =>
+          comment._id === commentId
+            ? { ...comment, showReplyInput: !comment.showReplyInput }
+            : comment
+        ) || [],
+      }))
+    );
+
+    setReplyContent((prev) => ({
+      ...prev,
+      [commentId]: prev[commentId] || "",
+    }));
+  };
+
+  const handleAddReply = async (commentId, postId, e) => {
+    if (e) e.preventDefault();
+
+    const content = replyContent[commentId] || "";
+
+    if (!content.trim()) {
+      setError("Reply cannot be empty");
+      return;
+    }
+
+    if (!username) {
+      setError("You must be logged in to reply");
+      navigate("/login");
+      return;
+    }
+
+    setIsReplying((prev) => ({ ...prev, [commentId]: true }));
+    setError(null);
+
+    try {
+      const responseData = await apiService.addCommentReply(commentId, content, token);
+      const createdReply = responseData.reply || responseData;
+
+      setPosts(
+        posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                comments: post.comments?.map((comment) =>
+                  comment._id === commentId
+                    ? {
+                        ...comment,
+                        replies: [
+                          ...(comment.replies || []),
+                          {
+                            ...createdReply,
+                            isLiked: false,
+                            userId: {
+                              _id: currentUserProfile?._id || user?._id || username,
+                              username: username,
+                              realname:
+                                currentUserProfile?.realname || realname || username,
+                              profilePic:
+                                currentUserProfile?.profilePic || user?.profilePic,
+                            },
+                          },
+                        ],
+                        showReplyInput: false,
+                      }
+                    : comment
+                ) || [],
+              }
+            : post
+        )
+      );
+
+      setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
+      setSuccessMessage("Reply posted successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Error posting reply:", err);
+      setError(err.message);
+    } finally {
+      setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+  const handleLikeReply = async (replyId, commentId, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (!username || !user?._id) {
+      setError("You must be logged in to like replies");
+      return;
+    }
+
+    setIsLikingReply((prev) => ({ ...prev, [replyId]: true }));
+
+    try {
+      // Optimistic UI update for reply likes
+      setPosts(
+        posts.map((post) => ({
+          ...post,
+          comments: post.comments?.map((comment) =>
+            comment._id === commentId
+              ? {
+                  ...comment,
+                  replies: comment.replies?.map((reply) =>
+                    reply._id === replyId
+                      ? {
+                          ...reply,
+                          likes: reply.hasUserLiked
+                            ? reply.likes.filter((likeUserId) => likeUserId !== user._id)
+                            : [...(reply.likes || []), user._id],
+                          hasUserLiked: !reply.hasUserLiked,
+                        }
+                      : reply
+                  ) || [],
+                }
+              : comment
+          ) || [],
+        }))
+      );
+
+      await apiService.likeReply(replyId, user._id, token);
+    } catch (err) {
+      console.error("Error liking reply:", err);
+      setError(err.message);
+      // Re-fetch the comment to get accurate like data
+      const post = posts.find(p => p.comments?.some(c => c._id === commentId));
+      if (post) await fetchComments(post._id);
+    } finally {
+      setIsLikingReply((prev) => ({ ...prev, [replyId]: false }));
+    }
+  };
+
+  const handleDeleteReply = async (replyId, commentId, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Find the reply to check ownership
+    let replyOwner = "";
+    let postId = "";
+    
+    for (const post of posts) {
+      const comment = post.comments?.find((c) => c._id === commentId);
+      if (comment) {
+        const reply = comment.replies?.find((r) => r._id === replyId);
+        if (reply) {
+          replyOwner = reply.userId?.username;
+          postId = post._id;
+          break;
+        }
+      }
+    }
+
+    if (!replyOwner) {
+      setError("Reply not found");
+      return;
+    }
+
+    const isReplyOwner = replyOwner === username;
+
+    if (!isReplyOwner) {
+      setError("You don't have permission to delete this reply");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this reply?")) {
+      return;
+    }
+
+    setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+    try {
+      // Optimistic UI update
+      setPosts(
+        posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                comments: post.comments?.map((comment) =>
+                  comment._id === commentId
+                    ? {
+                        ...comment,
+                        replies: comment.replies?.filter((reply) => reply._id !== replyId) || [],
+                      }
+                    : comment
+                ) || [],
+              }
+            : post
+        )
+      );
+
+      await apiService.deleteReply(replyId, token);
+      setSuccessMessage("Reply deleted successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Error deleting reply:", err);
+      setError(err.message);
+      // Re-fetch the comment to get accurate data
+      if (postId) await fetchComments(postId);
+    } finally {
+      setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
     }
   };
 
@@ -484,13 +794,11 @@ const MainFeed = () => {
   };
 
   return (
-    <div
-      className={`min-h-screen ${
-        darkMode
-          ? "dark bg-gray-900 text-gray-100"
-          : "bg-[#fdfaf6] text-gray-900"
-      }`}
-    >
+    <div className={`min-h-screen ${
+      darkMode
+        ? "dark bg-gray-900 text-gray-100"
+        : "bg-[#fdfaf6] text-gray-900"
+    }`}>
       {/* Floating Hearts Animation */}
       <FloatingHearts hearts={floatingHearts} setHearts={setFloatingHearts} />
 
@@ -561,6 +869,7 @@ const MainFeed = () => {
               username={username}
               user={user}
               currentUserProfile={currentUserProfile}
+              token={token}
               activeCommentPostId={activeCommentPostId}
               loadingComments={loadingComments}
               commentContent={commentContent}
@@ -569,12 +878,23 @@ const MainFeed = () => {
               likeCooldown={likeCooldown}
               isLikingComment={isLikingComment}
               isDeletingComment={isDeletingComment}
+              activeReplies={activeReplies}
+              replyContent={replyContent}
+              isReplying={isReplying}
+              isLikingReply={isLikingReply}
+              isDeletingReply={isDeletingReply}
               onLike={handleLike}
               onToggleCommentDropdown={toggleCommentDropdown}
               onCommentSubmit={handleCommentSubmit}
               onSetCommentContent={setCommentContent}
               onLikeComment={handleLikeComment}
               onDeleteComment={handleDeleteComment}
+              onToggleReplies={toggleReplies}
+              onToggleReplyInput={toggleReplyInput}
+              onAddReply={handleAddReply}
+              onLikeReply={handleLikeReply}
+              onDeleteReply={handleDeleteReply}
+              onSetReplyContent={setReplyContent}
               navigateToUserProfile={navigateToUserProfile}
               onImagePreview={handleImagePreview}
             />
