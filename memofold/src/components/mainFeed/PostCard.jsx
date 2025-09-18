@@ -1,4 +1,3 @@
-// src/components/mainFeed/PostCard.jsx
 import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";

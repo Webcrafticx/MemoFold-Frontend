@@ -1,4 +1,3 @@
-// src/services/api.js
 import config from "../hooks/config";
 
 export const apiService = {
