@@ -1,5 +1,4 @@
 // src/components/mainFeed/CommentSection.jsx
-import { FaComment } from "react-icons/fa";
 import CommentItem from "./CommentItem";
 
 const CommentSection = ({
@@ -14,11 +13,22 @@ const CommentSection = ({
   isCommenting,
   isLikingComment,
   isDeletingComment,
+  activeReplies,
+  replyContent,
+  isReplying,
+  isLikingReply,
+  isDeletingReply,
   onToggleCommentDropdown,
   onCommentSubmit,
   onSetCommentContent,
   onLikeComment,
   onDeleteComment,
+  onToggleReplies,
+  onToggleReplyInput,
+  onAddReply,
+  onLikeReply,
+  onDeleteReply,
+  onSetReplyContent,
   navigateToUserProfile,
 }) => {
   if (activeCommentPostId !== post._id) return null;
@@ -48,8 +58,19 @@ const CommentSection = ({
                   isDarkMode={isDarkMode}
                   onLikeComment={onLikeComment}
                   onDeleteComment={onDeleteComment}
+                  onToggleReplyInput={onToggleReplyInput}
+                  onToggleReplies={onToggleReplies}
+                  onAddReply={onAddReply}
+                  onLikeReply={onLikeReply}
+                  onDeleteReply={onDeleteReply}
                   isLikingComment={isLikingComment}
                   isDeletingComment={isDeletingComment}
+                  isLikingReply={isLikingReply}
+                  isDeletingReply={isDeletingReply}
+                  isReplying={isReplying}
+                  replyContent={replyContent}
+                  setReplyContent={onSetReplyContent}
+                  activeReplies={activeReplies}
                   navigateToUserProfile={navigateToUserProfile}
                 />
               ))}
@@ -64,6 +85,7 @@ const CommentSection = ({
             </div>
           )}
 
+          {/* Add Comment Input */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
