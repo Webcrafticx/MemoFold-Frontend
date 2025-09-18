@@ -1,4 +1,3 @@
-// src/services/localStorage.js
 export const localStorageService = {
   // Post likes
   getStoredLikes: () => {

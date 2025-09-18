@@ -1,7 +1,7 @@
-// src/components/mainFeed/LikesModal.jsx
 import { useEffect, useState } from "react";
 import { apiService } from "../../services/api";
 import config from "../../hooks/config";
+import { motion, AnimatePresence } from "framer-motion";
 
 const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
   const [likes, setLikes] = useState([]);
@@ -19,8 +19,7 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
     setError(null);
     
     try {
-      // Use the existing API endpoint that returns likesPreview
-      const response = await fetch(`${config.apiUrl}/posts`, {
+      const response = await fetch(`${config.apiUrl}/posts/${postId}/likes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -31,11 +30,9 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
       }
       
       const data = await response.json();
-      const postsData = Array.isArray(data) ? data : data.posts || [];
-      const currentPost = postsData.find(post => post._id === postId);
       
-      if (currentPost && currentPost.likesPreview) {
-        setLikes(currentPost.likesPreview);
+      if (data.success && data.likes && data.likes.data) {
+        setLikes(data.likes.data);
       } else {
         setLikes([]);
       }
@@ -47,73 +44,143 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div 
-        className={`w-full max-w-md rounded-xl p-6 ${
-          isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Liked by</h3>
-          <button
-            onClick={onClose}
-            className={`text-2xl ${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"}`}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className={`w-full max-w-md max-h-[90vh] rounded-2xl shadow-2xl ${
+              isDarkMode 
+                ? "bg-gray-800 text-gray-100 border border-gray-700" 
+                : "bg-white text-gray-900 border border-gray-200"
+            }`}
+            onClick={(e) => e.stopPropagation()}
           >
-            &times;
-          </button>
-        </div>
-        
-        <div className="max-h-80 overflow-y-auto">
-          {isLoading ? (
-            <div className="text-center py-4">
-              <div className="inline-block h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-2">Loading likes...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-4 text-red-500">
-              <p>Error loading likes: {error}</p>
+            {/* Header */}
+            <div className={`flex justify-between items-center p-6 border-b ${
+              isDarkMode ? "border-gray-700" : "border-gray-200"
+            }`}>
+              <h3 className="text-xl font-bold">Likes</h3>
               <button
-                onClick={fetchAllLikes}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={onClose}
+                className={`p-2 rounded-full transition-all duration-200 ${
+                  isDarkMode 
+                    ? "hover:bg-gray-700 text-gray-300 hover:text-white" 
+                    : "hover:bg-gray-100 text-gray-500 hover:text-black"
+                }`}
               >
-                Retry
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-          ) : likes.length === 0 ? (
-            <p className="text-center py-4 text-gray-500">No likes yet</p>
-          ) : (
-            likes.map((user, index) => (
-              <div key={index} className="flex items-center py-3 border-b border-gray-200 last:border-b-0">
-                <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 mr-3">
-                  {user.profilePic ? (
-                    <img
-                      src={user.profilePic}
-                      alt={user.username}
-                      className="w-8 h-8 object-cover rounded-full"
-                    />
-                  ) : (
-                    <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold">
-                      {user.username?.charAt(0).toUpperCase() || "U"}
-                    </span>
-                  )}
+            
+            {/* Content */}
+            <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+                  />
+                  <p className="text-lg font-medium">Loading likes...</p>
+                  <p className="text-sm text-gray-500 mt-1">Please wait</p>
                 </div>
-                <div>
-                  <p className="font-medium">{user.realname || user.username}</p>
-                  <p className="text-sm text-gray-500">@{user.username}</p>
+              ) : error ? (
+                <div className="text-center py-12 px-4">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-medium text-red-600 mb-2">Error loading likes</p>
+                  <p className="text-gray-500 mb-4">{error}</p>
+                  <button
+                    onClick={fetchAllLikes}
+                    className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    Try Again
+                  </button>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+              ) : likes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-medium text-gray-500">No likes yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Be the first to like this post</p>
+                </div>
+              ) : (
+                <div className="p-4">
+                  {likes.map((user, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-center py-4 px-3 rounded-lg transition-colors hover:bg-opacity-50"
+                    >
+                      <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500 mr-4">
+                        {user.profilePic ? (
+                          <img
+                            src={user.profilePic}
+                            alt={user.username}
+                            className="w-10 h-10 object-cover rounded-full"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                              e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
+                                user.username?.charAt(0).toUpperCase() || "U"
+                              }</span>`;
+                            }}
+                          />
+                        ) : (
+                          <span className="flex items-center justify-center w-full h-full rounded-full text-white font-semibold text-lg">
+                            {user.username?.charAt(0).toUpperCase() || "U"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-base truncate">
+                          {user.username}
+                        </p>
+                        {user.realname && (
+                          <p className="text-sm text-gray-500 truncate">
+                            {user.realname}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className={`p-4 border-t ${
+              isDarkMode ? "border-gray-700" : "border-gray-200"
+            }`}>
+              <p className="text-center text-sm text-gray-500">
+                {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
