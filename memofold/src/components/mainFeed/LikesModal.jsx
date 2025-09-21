@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { apiService } from "../../services/api";
-import config from "../../hooks/config";
 import { motion, AnimatePresence } from "framer-motion";
 
 const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
@@ -19,26 +18,20 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
     setError(null);
     
     try {
-      const response = await fetch(`${config.apiUrl}/posts/${postId}/likes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const responseData = await apiService.fetchPostLikes(postId, token);
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch likes');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && data.likes && data.likes.data) {
-        setLikes(data.likes.data);
+      if (responseData.userIds) {
+        setLikes(responseData.userIds);
+      } else if (responseData.likes && responseData.likes.data) {
+        setLikes(responseData.likes.data);
+      } else if (Array.isArray(responseData)) {
+        setLikes(responseData);
       } else {
         setLikes([]);
       }
     } catch (err) {
       console.error("Error fetching all likes:", err);
-      setError(err.message);
+      setError(err.message || "Failed to fetch likes");
     } finally {
       setIsLoading(false);
     }
@@ -51,16 +44,16 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          transition={{ duration: 0.3 }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm md:backdrop-blur-md flex items-center justify-center z-50 p-4"
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className={`w-full max-w-md max-h-[90vh] rounded-2xl shadow-2xl ${
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className={`w-full max-w-md max-h-[80vh] rounded-2xl shadow-2xl ${
               isDarkMode 
                 ? "bg-gray-800 text-gray-100 border border-gray-700" 
                 : "bg-white text-gray-900 border border-gray-200"
@@ -74,7 +67,7 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
               <h3 className="text-xl font-bold">Likes</h3>
               <button
                 onClick={onClose}
-                className={`p-2 rounded-full transition-all duration-200 ${
+                className={`p-2 rounded-full cursor-pointer transition-all duration-200 ${
                   isDarkMode 
                     ? "hover:bg-gray-700 text-gray-300 hover:text-white" 
                     : "hover:bg-gray-100 text-gray-500 hover:text-black"
@@ -87,7 +80,7 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
             </div>
             
             {/* Content */}
-            <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+            <div className="max-h-[calc(80vh-120px)] overflow-y-auto">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <motion.div
@@ -128,7 +121,7 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
                 <div className="p-4">
                   {likes.map((user, index) => (
                     <motion.div
-                      key={index}
+                      key={user._id || index}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
