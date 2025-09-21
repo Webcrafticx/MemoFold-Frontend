@@ -35,7 +35,6 @@ export const useAuth = () => {
                 throw new Error(data.message || data.error || "Login failed");
             }
 
-            // Handle demo user specifically
             const isDemoUser = username.trim() === "demo@memofold.com";
             const userData = {
                 token: data.token,
@@ -59,7 +58,7 @@ export const useAuth = () => {
             setUserId(userData.userId);
             setProfilePic(userData.profilePic);
 
-            navigate("/dashboard");
+            navigate("/feed"); 
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -74,27 +73,64 @@ export const useAuth = () => {
         setError(null);
 
         try {
-            const response = await fetch(`${config.apiUrl}/auth/register`, {
+            // Step 1: Register the user
+            const registerResponse = await fetch(`${config.apiUrl}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ realname, username, email, password }),
                 credentials: "include",
             });
 
-            const data = await response.json();
+            const registerData = await registerResponse.json();
 
-            if (!response.ok) {
+            if (!registerResponse.ok) {
                 throw new Error(
-                    data.message || data.error || "Registration failed"
+                    registerData.message || registerData.error || "Registration failed"
                 );
             }
 
-            localStorage.setItem("username", username);
-            localStorage.setItem("realname", realname);
-            setUsername(username);
-            setRealname(realname);
+            // Step 2: Automatically log the user in after successful registration
+            const loginResponse = await fetch(`${config.apiUrl}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: username.trim(),
+                    password: password.trim(),
+                }),
+                credentials: "include",
+            });
 
-            navigate("/login");
+            const loginData = await loginResponse.json();
+
+            if (!loginResponse.ok) {
+                throw new Error(loginData.message || loginData.error || "Auto login failed");
+            }
+
+            // Store user data and token
+            const userData = {
+                token: loginData.token,
+                username: loginData.username || username,
+                realname: loginData.realname || realname,
+                userId: loginData.userId || loginData._id,
+                profilePic: loginData.profilePic || null,
+            };
+
+            localStorage.setItem("token", userData.token);
+            localStorage.setItem("username", userData.username);
+            localStorage.setItem("realname", userData.realname);
+            localStorage.setItem("userId", userData.userId);
+            if (userData.profilePic) {
+                localStorage.setItem("profilePic", userData.profilePic);
+            }
+
+            setToken(userData.token);
+            setUsername(userData.username);
+            setRealname(userData.realname);
+            setUserId(userData.userId);
+            setProfilePic(userData.profilePic);
+
+            // Redirect to feed page
+            navigate("/feed");
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -207,7 +243,6 @@ export const useAuth = () => {
         resetPassword,
         updateUserProfile,
         user: {
-            // Return a user object for convenience
             _id: userId,
             username,
             realname,

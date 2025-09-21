@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
@@ -14,8 +14,15 @@ const SignUp = () => {
     const [formErrors, setFormErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const { register, loading, error } = useAuth();
+    const { register, loading, error, token } = useAuth();
     const navigate = useNavigate();
+
+
+    useEffect(() => {
+        if (token) {
+            navigate("/feed");
+        }
+    }, [token, navigate]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -23,7 +30,6 @@ const SignUp = () => {
             ...prev,
             [name]: value,
         }));
-        // Clear error when user types
         if (formErrors[name]) {
             setFormErrors((prev) => ({ ...prev, [name]: "" }));
         }
@@ -40,16 +46,20 @@ const SignUp = () => {
     const validateForm = () => {
         const errors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
-        // Check if all fields are filled
         if (!formData.realname.trim()) {
             errors.realname = "Full name is required";
+        } else if (formData.realname.length < 2) {
+            errors.realname = "Full name must be at least 2 characters";
         }
 
         if (!formData.username.trim()) {
             errors.username = "Username is required";
         } else if (formData.username.length < 3) {
             errors.username = "Username must be at least 3 characters";
+        } else if (!usernameRegex.test(formData.username)) {
+            errors.username = "Username can only contain letters, numbers, and underscores";
         }
 
         if (!formData.email.trim()) {
@@ -62,6 +72,8 @@ const SignUp = () => {
             errors.password = "Password is required";
         } else if (formData.password.length < 6) {
             errors.password = "Password must be at least 6 characters";
+        } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+            errors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number";
         }
 
         if (!formData.confirmPassword) {
@@ -76,8 +88,6 @@ const SignUp = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Validate passwords match
         if (formData.password !== formData.confirmPassword) {
             setFormErrors((prev) => ({
                 ...prev,
@@ -88,17 +98,12 @@ const SignUp = () => {
 
         if (!validateForm()) return;
 
-        const result = await register(
+        await register(
             formData.realname,
             formData.username,
             formData.email,
             formData.password
         );
-
-        if (result.success) {
-            // Success message could be shown here or let the register function handle navigation
-            // navigate('/login'); // Already handled in useAuth
-        }
     };
 
     return (
@@ -129,7 +134,7 @@ const SignUp = () => {
                             value={formData.realname}
                             onChange={handleChange}
                             required
-                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
                                 formErrors.realname
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -157,7 +162,7 @@ const SignUp = () => {
                             value={formData.username}
                             onChange={handleChange}
                             required
-                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
                                 formErrors.username
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -186,7 +191,7 @@ const SignUp = () => {
                             onChange={handleChange}
                             required
                             placeholder="example@gmail.com"
-                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors ${
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
                                 formErrors.email
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -213,7 +218,7 @@ const SignUp = () => {
                             value={formData.password}
                             onChange={handleChange}
                             required
-                            className={`w-full px-3 py-2 border cursor-pointer rounded-lg focus:outline-none transition-colors pr-10 ${
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors pr-10 ${
                                 formErrors.password
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -223,7 +228,7 @@ const SignUp = () => {
                         <button
                             type="button"
                             onClick={togglePasswordVisibility}
-                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
                             aria-label={
                                 showPassword ? "Hide password" : "Show password"
                             }
@@ -255,7 +260,7 @@ const SignUp = () => {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             required
-                            className={`w-full px-3 py-2 cursor-pointer border rounded-lg focus:outline-none transition-colors pr-10 ${
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors pr-10 ${
                                 formErrors.confirmPassword
                                     ? "border-red-500"
                                     : "border-gray-300 focus:border-blue-500"
@@ -265,7 +270,7 @@ const SignUp = () => {
                         <button
                             type="button"
                             onClick={toggleConfirmPasswordVisibility}
-                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
                             aria-label={
                                 showConfirmPassword
                                     ? "Hide password"
@@ -288,7 +293,7 @@ const SignUp = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-gradient-to-r cursor-pointer from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <span className="flex items-center justify-center">
