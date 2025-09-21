@@ -42,20 +42,15 @@ const PostCard = ({
 }) => {
   const [showLikesModal, setShowLikesModal] = useState(false);
 
-  // Get the list of users who liked the post
   const getLikedUsers = () => {
-    // Check if we have likesPreview from API
     if (post.likesPreview && post.likesPreview.length > 0) {
       return post.likesPreview;
     }
     
-    // Fallback to stored likes (for compatibility)
     if (post.likes && post.likes.length > 0) {
-      // If we have user objects, use them
       if (typeof post.likes[0] === 'object') {
         return post.likes;
       }
-      // If we have just usernames, convert to objects
       return post.likes.map(username => ({ username }));
     }
     
@@ -63,7 +58,6 @@ const PostCard = ({
   };
 
   const likedUsers = getLikedUsers();
-  // Use likesCount from post, fallback to likedUsers length
   const totalLikes = post.likesCount || likedUsers.length || 0;
 
   const handleShowAllLikes = (e) => {
@@ -155,63 +149,65 @@ const PostCard = ({
         </div>
       )}
 
-      {/* Likes preview section */}
-      {totalLikes > 0 && (
-        <div className="mb-3 text-sm">
-          <div className="flex items-center flex-wrap">
-            <span className={`mr-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-              Liked by
-            </span>
-            
-            {likedUsers.slice(0, 2).map((user, index) => (
-              <span key={index} className="font-medium mr-1">
-                @{user.username}
-                {index < Math.min(2, likedUsers.length - 1) ? ',' : ''}
-              </span>
-            ))}
-            
-            {totalLikes > 2 && (
-              <button 
-                onClick={handleShowAllLikes}
-                className={`font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-500'} hover:underline`}
-              >
-                and {totalLikes - 2} others
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between border-t border-gray-200 pt-3">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => onLike(post._id, e)}
-          disabled={isLiking[post._id] || likeCooldown[post._id]}
-          className={`flex items-center gap-1 ${
-            isLiking[post._id] || likeCooldown[post._id]
-              ? "opacity-50 cursor-not-allowed"
-              : ""
-          } hover:text-red-500 transition-colors cursor-pointer`}
-        >
-          {isLiking[post._id] ? (
-            <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-          ) : post.hasUserLiked ? (
-            <FaHeart className="text-xl text-red-500" />
-          ) : (
-            <FaRegHeart className="text-xl text-gray-400" />
-          )}
-          <motion.span
-            key={post.likesCount || post.likes?.length || 0}
-            initial={{ scale: 1 }}
-            animate={{ scale: [1.2, 1] }}
-            transition={{ duration: 0.2 }}
-            className={`text-sm font-medium ${
-              post.hasUserLiked ? "text-red-500" : "text-gray-400"
-            }`}
+      <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => onLike(post._id, e)}
+            disabled={isLiking[post._id] || likeCooldown[post._id]}
+            className={`flex items-center gap-1 ${
+              isLiking[post._id] || likeCooldown[post._id]
+                ? "opacity-50 cursor-not-allowed"
+                : ""
+            } hover:text-red-500 transition-colors cursor-pointer`}
           >
-            {post.likesCount || post.likes?.length || 0}
-          </motion.span>
-        </motion.button>
+            {isLiking[post._id] ? (
+              <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            ) : post.hasUserLiked ? (
+              <FaHeart className="text-xl text-red-500" />
+            ) : (
+              <FaRegHeart className="text-xl text-gray-400" />
+            )}
+            <motion.span
+              key={post.likesCount || post.likes?.length || 0}
+              initial={{ scale: 1 }}
+              animate={{ scale: [1.2, 1] }}
+              transition={{ duration: 0.2 }}
+              className={`text-sm font-medium ${
+                post.hasUserLiked ? "text-red-500" : "text-gray-400"
+              }`}
+            >
+              {post.likesCount || post.likes?.length || 0}
+            </motion.span>
+          </motion.button>
+
+          {/* Liked by text - placed next to the heart */}
+          {totalLikes > 0 && (
+            <div className="text-sm">
+              <div className="flex items-center flex-wrap">
+                {/* <span className={`mr-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Liked by
+                </span> */}
+                
+                {likedUsers.slice(0, 2).map((user, index) => (
+                  <span key={index} className="font-medium mr-1">
+                    {user.username}
+                    {index < Math.min(2, likedUsers.length - 1) ? ',' : ''}
+                  </span>
+                ))}
+                
+                {totalLikes > 2 && (
+                  <button 
+                    onClick={handleShowAllLikes}
+                    className={`font-medium cursor-pointer ${isDarkMode ? 'text-blue-300' : 'text-blue-500'} hover:underline`}
+                  >
+                    and {totalLikes - 2} others
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"

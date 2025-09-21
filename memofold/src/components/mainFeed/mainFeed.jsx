@@ -69,66 +69,67 @@ const MainFeed = () => {
     }
   };
 
-const fetchPosts = async () => {
-  setIsLoading(true);
-  setError(null);
+  const fetchPosts = async () => {
+    setIsLoading(true);
+    setError(null);
 
-  try {
-    const data = await apiService.fetchPosts(token);
-    const postsData = Array.isArray(data) ? data : data.posts || [];
+    try {
+      const data = await apiService.fetchPosts(token);
+      const postsData = Array.isArray(data) ? data : data.posts || [];
 
-    // Get stored data from localStorage
-    const storedLikes = localStorageService.getStoredLikes();
-    const storedLikesPreview = localStorageService.getStoredLikesPreview();
-    const storedLikesCount = localStorageService.getStoredLikesCount();
+      // Get stored data from localStorage
+      const storedLikes = localStorageService.getStoredLikes();
+      const storedLikesPreview = localStorageService.getStoredLikesPreview();
+      const storedLikesCount = localStorageService.getStoredLikesCount();
 
-    const postsWithLikes = postsData.map((post) => {
-      // Get data from storage or API - prioritize API data
-      const postLikes = post.likes || storedLikes[post._id] || [];
-      const postLikesPreview = post.likesPreview || storedLikesPreview[post._id] || [];
-      const postLikesCount = post.likesCount || storedLikesCount[post._id] || postLikes.length;
+      const postsWithLikes = postsData.map((post) => {
+        // Get data from storage or API - prioritize API data
+        const postLikes = post.likes || storedLikes[post._id] || [];
+        const postLikesPreview = post.likesPreview || storedLikesPreview[post._id] || [];
+        const postLikesCount = post.likesCount || storedLikesCount[post._id] || postLikes.length;
 
-      // Check if current user has liked this post
-      const hasUserLiked =
-        postLikes.includes(user._id) ||
-        postLikes.includes(username) ||
-        (postLikesPreview && postLikesPreview.some(like => like.username === username));
+        // Check if current user has liked this post
+        const hasUserLiked =
+          postLikes.includes(user._id) ||
+          postLikes.includes(username) ||
+          (postLikesPreview && postLikesPreview.some(like => like.username === username));
 
-      return {
-        ...post,
-        likes: postLikes,
-        likesPreview: postLikesPreview,
-        likesCount: postLikesCount,
-        hasUserLiked: hasUserLiked,
-        createdAt: post.createdAt || new Date().toISOString(),
-        comments: post.comments || [],
-      };
-    });
+        return {
+          ...post,
+          likes: postLikes,
+          likesPreview: postLikesPreview,
+          likesCount: postLikesCount,
+          hasUserLiked: hasUserLiked,
+          createdAt: post.createdAt || new Date().toISOString(),
+          comments: post.comments || [],
+        };
+      });
 
-    setPosts(postsWithLikes);
+      setPosts(postsWithLikes);
 
-    // Update localStorage with current data
-    const likesByPost = {};
-    const likesPreviewByPost = {};
-    const likesCountByPost = {};
+      // Update localStorage with current data
+      const likesByPost = {};
+      const likesPreviewByPost = {};
+      const likesCountByPost = {};
 
-    postsData.forEach((post) => {
-      likesByPost[post._id] = post.likes || storedLikes[post._id] || [];
-      likesPreviewByPost[post._id] = post.likesPreview || storedLikesPreview[post._id] || [];
-      likesCountByPost[post._id] = post.likesCount || storedLikesCount[post._id] || likesByPost[post._id].length;
-    });
+      postsData.forEach((post) => {
+        likesByPost[post._id] = post.likes || storedLikes[post._id] || [];
+        likesPreviewByPost[post._id] = post.likesPreview || storedLikesPreview[post._id] || [];
+        likesCountByPost[post._id] = post.likesCount || storedLikesCount[post._id] || likesByPost[post._id].length;
+      });
 
-    localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-    localStorage.setItem("postLikesPreview", JSON.stringify(likesPreviewByPost));
-    localStorage.setItem("postLikesCount", JSON.stringify(likesCountByPost));
-  } catch (err) {
-    console.error("Error fetching posts:", err);
-    setError(err.message);
-    setPosts([]);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+      localStorage.setItem("postLikesPreview", JSON.stringify(likesPreviewByPost));
+      localStorage.setItem("postLikesCount", JSON.stringify(likesCountByPost));
+    } catch (err) {
+      console.error("Error fetching posts:", err);
+      setError(err.message);
+      setPosts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchComments = async (postId) => {
     setLoadingComments((prev) => ({ ...prev, [postId]: true }));
 
@@ -315,128 +316,127 @@ const fetchPosts = async () => {
   };
 
   const handleLike = async (postId, e) => {
-  if (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
-  // Prevent multiple rapid likes
-  if (likeCooldown[postId]) return;
+    // Prevent multiple rapid likes
+    if (likeCooldown[postId]) return;
 
-  setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
+    setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
 
-  // Set a timeout to reset the cooldown after 500ms
-  setTimeout(() => {
-    setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
-  }, 500);
+    // Set a timeout to reset the cooldown after 500ms
+    setTimeout(() => {
+      setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
+    }, 500);
 
-  if (!username || !user?._id) {
-    console.error("User information not available");
-    setError("You must be logged in to like posts");
-    return;
-  }
+    if (!username || !user?._id) {
+      console.error("User information not available");
+      setError("You must be logged in to like posts");
+      return;
+    }
 
-  setIsLiking((prev) => ({ ...prev, [postId]: true }));
+    setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
-  try {
-    // Store the current state to check if we're adding a like (not removing)
-    const currentPost = posts.find((post) => post._id === postId);
-    const isAddingLike = !currentPost?.hasUserLiked;
+    try {
+      // Store the current state to check if we're adding a like (not removing)
+      const currentPost = posts.find((post) => post._id === postId);
+      const isAddingLike = !currentPost?.hasUserLiked;
 
-    
-    setPosts(
-  posts.map((post) => {
-    if (post._id === postId) {
-      const isLiked = post.hasUserLiked;
-      let updatedLikes;
-      let updatedLikesCount;
-      let updatedLikesPreview;
+      setPosts(
+        posts.map((post) => {
+          if (post._id === postId) {
+            const isLiked = post.hasUserLiked;
+            let updatedLikes;
+            let updatedLikesCount;
+            let updatedLikesPreview;
 
-      if (isLiked) {
-        // Remove both user ID and username
-        updatedLikes = post.likes.filter(
-          (like) => like !== user._id && like !== username
-        );
-        updatedLikesCount = post.likesCount - 1;
-        
-        // Update likesPreview
-        updatedLikesPreview = post.likesPreview?.filter(
-          (likeUser) => likeUser.username !== username
-        ) || [];
-        
-        // Update localStorage
-        localStorageService.updateStoredLikes(postId, updatedLikes);
-        localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
-        localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
-        
-        return {
-          ...post,
-          likes: updatedLikes,
-          likesPreview: updatedLikesPreview,
-          likesCount: updatedLikesCount,
-          hasUserLiked: !isLiked,
-        };
-      } else {
-        // Add both user ID and username for compatibility
-        updatedLikes = [...post.likes, user._id]; // Store user ID
-        updatedLikesCount = post.likesCount + 1;
-        
-        // Update likesPreview
-        const newLikeUser = {
-          username: username,
-          realname: realname,
-          profilePic: currentUserProfile?.profilePic || user?.profilePic
-        };
-        
-        updatedLikesPreview = [
-          ...(post.likesPreview || []),
-          newLikeUser
-        ];
-        
-        // Update localStorage
-        localStorageService.updateStoredLikes(postId, updatedLikes);
-        localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
-        localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
-        
-        return {
-          ...post,
-          likes: updatedLikes,
-          likesPreview: updatedLikesPreview,
-          likesCount: updatedLikesCount,
-          hasUserLiked: !isLiked,
-        };
+            if (isLiked) {
+              // Remove both user ID and username
+              updatedLikes = post.likes.filter(
+                (like) => like !== user._id && like !== username
+              );
+              updatedLikesCount = post.likesCount - 1;
+              
+              // Update likesPreview
+              updatedLikesPreview = post.likesPreview?.filter(
+                (likeUser) => likeUser.username !== username
+              ) || [];
+              
+              // Update localStorage
+              localStorageService.updateStoredLikes(postId, updatedLikes);
+              localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
+              localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
+              
+              return {
+                ...post,
+                likes: updatedLikes,
+                likesPreview: updatedLikesPreview,
+                likesCount: updatedLikesCount,
+                hasUserLiked: !isLiked,
+              };
+            } else {
+              // Add both user ID and username for compatibility
+              updatedLikes = [...post.likes, user._id]; // Store user ID
+              updatedLikesCount = post.likesCount + 1;
+              
+              // Update likesPreview
+              const newLikeUser = {
+                username: username,
+                realname: realname,
+                profilePic: currentUserProfile?.profilePic || user?.profilePic
+              };
+              
+              updatedLikesPreview = [
+                ...(post.likesPreview || []),
+                newLikeUser
+              ];
+              
+              // Update localStorage
+              localStorageService.updateStoredLikes(postId, updatedLikes);
+              localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
+              localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
+              
+              return {
+                ...post,
+                likes: updatedLikes,
+                likesPreview: updatedLikesPreview,
+                likesCount: updatedLikesCount,
+                hasUserLiked: !isLiked,
+              };
+            }
+          }
+          return post;
+        })
+      );
+
+      // Add floating hearts animation ONLY when adding a like (not removing)
+      if (isAddingLike && e) {
+        const rect = e.target.getBoundingClientRect();
+
+        // Add just one heart instead of multiple
+        setFloatingHearts((hearts) => [
+          ...hearts,
+          {
+            id: Date.now(),
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          },
+        ]);
       }
+
+      await apiService.likePost(postId, user._id, token);
+    } catch (err) {
+      console.error("Error liking post:", err);
+      setError(err.message);
+
+      // Revert optimistic update on error
+      await fetchPosts();
+    } finally {
+      setIsLiking((prev) => ({ ...prev, [postId]: false }));
     }
-    return post;
-  })
-);
-
-    // Add floating hearts animation ONLY when adding a like (not removing)
-    if (isAddingLike && e) {
-      const rect = e.target.getBoundingClientRect();
-
-      // Add just one heart instead of multiple
-      setFloatingHearts((hearts) => [
-        ...hearts,
-        {
-          id: Date.now(),
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2,
-        },
-      ]);
-    }
-
-    await apiService.likePost(postId, user._id, token);
-  } catch (err) {
-    console.error("Error liking post:", err);
-    setError(err.message);
-
-    // Revert optimistic update on error
-    await fetchPosts();
-  } finally {
-    setIsLiking((prev) => ({ ...prev, [postId]: false }));
-  }
-};
+  };
 
   const toggleCommentDropdown = async (postId, e) => {
     if (e) {
