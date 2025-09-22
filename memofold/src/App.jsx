@@ -18,7 +18,7 @@ import PrivacyPolicy from "./components/privacy/privacy";
 import ProfilePage from "./components/profile/profile";
 import ResetPassword from "./components/resetPass/resetPass";
 import Survey from "./components/survey/survey";
-import MainDashboard from "./components/updMain/updMain";
+// import MainDashboard from "./components/updMain/updMain";
 import ApiDocumentation from "./components/ApiDocumentation";
 import TermsOfService from "./components/terms/terms";
 import { useAuth } from "./hooks/useAuth";
@@ -141,14 +141,14 @@ function App() {
                                 </ProtectedRoute>
                             }
                         />
-                        <Route
+                        {/* <Route
                             path="/dashboard"
                             element={
                                 <ProtectedRoute>
                                     <MainDashboard />
                                 </ProtectedRoute>
                             }
-                        />
+                        /> */}
                         <Route
                             path="/profile"
                             element={
@@ -162,21 +162,39 @@ function App() {
                         <Route
                             path="*"
                             element={
-                                <div className="flex items-center justify-center min-h-[60vh]">
-                                    <div className="text-center">
-                                        <h1 className="text-4xl font-bold mb-4">
+                                <div className="flex items-center justify-center min-h-[70vh] px-4">
+                                    <div className="text-center max-w-lg">
+                                        {/* Illustration / Emoji */}
+                                        <div className="mb-6">
+                                            <span className="text-7xl">🚧</span>
+                                        </div>
+
+                                        {/* Heading */}
+                                        <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800 mb-4">
                                             404 - Page Not Found
                                         </h1>
-                                        <p className="text-xl mb-6">
-                                            The page you're looking for doesn't
-                                            exist.
+
+                                        {/* Subtitle */}
+                                        <p className="text-lg sm:text-xl text-gray-600 mb-8">
+                                            Oops! Looks like this page wandered
+                                            off. Let’s get you back on track.
                                         </p>
-                                        <a
-                                            href="/dashboard"
-                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                        >
-                                            Return to Dashboard
-                                        </a>
+
+                                        {/* Buttons */}
+                                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                            <a
+                                                href="/feed"
+                                                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300"
+                                            >
+                                                Return to Feed
+                                            </a>
+                                            <a
+                                                href="/"
+                                                className="px-6 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 hover:scale-105 transition-all duration-300"
+                                            >
+                                                Go Home
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             }

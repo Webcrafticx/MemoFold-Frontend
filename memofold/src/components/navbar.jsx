@@ -54,7 +54,6 @@ const Navbar = ({ onDarkModeChange }) => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
-
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -65,7 +64,9 @@ const Navbar = ({ onDarkModeChange }) => {
                 });
 
                 if (response.ok) {
-                    const userData = await response.json();
+                    const result = await response.json();
+                    const userData = result.user; // Extract user data from the nested structure
+
                     setCurrentUserProfile(userData);
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
@@ -199,8 +200,8 @@ const Navbar = ({ onDarkModeChange }) => {
                     {showProfileDropdown && (
                         <div
                             className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
-                                darkMode 
-                                    ? "bg-gray-800 text-white" 
+                                darkMode
+                                    ? "bg-gray-800 text-white"
                                     : "bg-white text-gray-800"
                             } ring-1 ring-black ring-opacity-5 z-50 p-4`}
                         >
@@ -235,7 +236,13 @@ const Navbar = ({ onDarkModeChange }) => {
                                     <p className="text-sm font-semibold">
                                         {realname || username}
                                     </p>
-                                    <p className={`text-xs ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+                                    <p
+                                        className={`text-xs ${
+                                            darkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-600"
+                                        }`}
+                                    >
                                         @{username}
                                     </p>
                                 </div>
@@ -269,9 +276,11 @@ const Navbar = ({ onDarkModeChange }) => {
                             </div>
 
                             {/* Dark Mode Toggle */}
-                            <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${
-                                darkMode ? "bg-gray-700" : "bg-gray-100"
-                            } mb-4`}>
+                            <div
+                                className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                                    darkMode ? "bg-gray-700" : "bg-gray-100"
+                                } mb-4`}
+                            >
                                 <span className="text-sm">
                                     {darkMode ? "Light Mode" : "Dark Mode"}
                                 </span>
