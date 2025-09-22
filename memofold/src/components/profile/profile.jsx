@@ -143,7 +143,16 @@ const ProfilePage = () => {
     const [isUpdatingPost, setIsUpdatingPost] = useState(false);
     const [isDeletingPost, setIsDeletingPost] = useState(false);
     const [isCreatingPost, setIsCreatingPost] = useState(false);
-    const joinedDate = localStorage.getItem("joinedDateFormatted");
+    const joinedDate = localStorage.getItem("createdAt");
+
+    let formattedDate = "";
+    if (joinedDate) {
+        formattedDate = new Date(joinedDate).toLocaleDateString("en-IN", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
+    }
 
     const startEditPost = (postId) => {
         const postToEdit = posts.find((post) => post._id === postId);
@@ -1709,7 +1718,7 @@ const ProfilePage = () => {
                                     >
                                         <div className="flex items-center">
                                             <FaCalendar className="mr-1" />
-                                            <span>Joined {joinedDate}</span>
+                                            <span>Joined {formattedDate}</span>
                                         </div>
                                     </div>
                                     <div

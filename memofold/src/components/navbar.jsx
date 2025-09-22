@@ -65,9 +65,19 @@ const Navbar = ({ onDarkModeChange }) => {
 
                 if (response.ok) {
                     const result = await response.json();
-                    const userData = result.user; // Extract user data from the nested structure
+                    const userData = result.user; // extract user object
 
+                    // Update state
                     setCurrentUserProfile(userData);
+
+                    // Save only the needed fields with custom keys
+                    localStorage.setItem("userId", userData._id);
+                    localStorage.setItem("realname", userData.realname);
+                    localStorage.setItem("username", userData.username);
+                    localStorage.setItem("email", userData.email);
+                    localStorage.setItem("createdAt", userData.createdAt);
+                    localStorage.setItem("updatedAt", userData.updatedAt);
+
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
                         localStorage.setItem("profilePic", userData.profilePic);
