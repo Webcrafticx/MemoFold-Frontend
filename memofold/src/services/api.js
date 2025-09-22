@@ -9,7 +9,73 @@ export const apiService = {
     return response.json();
   },
 
-  // Post endpoints
+  // Profile-specific endpoints add karein
+  fetchUserPosts: async (token, username) => {
+    const response = await fetch(`${config.apiUrl}/posts/user/${username}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.json();
+  },
+
+  updateUserProfile: async (token, data) => {
+    const response = await fetch(`${config.apiUrl}/user/update`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  uploadProfilePic: async (token, formData) => {
+    const response = await fetch(`${config.apiUrl}/user/upload-profile-pic`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    return response.json();
+  },
+
+  createPost: async (token, postData) => {
+    const response = await fetch(`${config.apiUrl}/posts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(postData),
+    });
+    return response.json();
+  },
+
+  updatePost: async (token, postId, postData) => {
+    const response = await fetch(`${config.apiUrl}/posts/update/${postId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(postData),
+    });
+    return response.json();
+  },
+
+  deletePost: async (token, postId) => {
+    const response = await fetch(`${config.apiUrl}/posts/delete/${postId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
+
+  // Existing endpoints same rahenge
   fetchPosts: async (token) => {
     const response = await fetch(`${config.apiUrl}/posts`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -17,7 +83,6 @@ export const apiService = {
     return response.json();
   },
 
-  // Add this missing function for fetching post likes
   fetchPostLikes: async (postId, token) => {
     const response = await fetch(`${config.apiUrl}/posts/${postId}/likes`, {
       headers: {
