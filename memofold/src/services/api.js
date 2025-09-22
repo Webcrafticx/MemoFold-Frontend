@@ -17,6 +17,17 @@ export const apiService = {
     return response.json();
   },
 
+  // Add this missing function for fetching post likes
+  fetchPostLikes: async (postId, token) => {
+    const response = await fetch(`${config.apiUrl}/posts/${postId}/likes`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
+
   fetchComments: async (postId, token) => {
     const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
       headers: {
@@ -106,7 +117,7 @@ export const apiService = {
 
   likeReply: async (replyId, userId, token) => {
     const response = await fetch(
-      `${config.apiUrl}/posts/comments/${commentId}`,
+      `${config.apiUrl}/posts/replies/${replyId}/like`,
       {
         method: "POST",
         headers: {
@@ -121,7 +132,7 @@ export const apiService = {
 
   deleteReply: async (replyId, token) => {
     const response = await fetch(
-      `${config.apiUrl}/posts/comments/${commentId}`,
+      `${config.apiUrl}/posts/replies/${replyId}`,
       {
         method: "DELETE",
         headers: {
