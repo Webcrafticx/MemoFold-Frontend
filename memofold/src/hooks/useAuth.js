@@ -38,10 +38,11 @@ export const useAuth = () => {
             const isDemoUser = username.trim() === "demo@memofold.com";
             const userData = {
                 token: data.token,
-                username: data.username || username.trim(),
-                realname: data.realname || (isDemoUser ? "Demo User" : "User"),
-                userId: data.userId || data._id,
-                profilePic: data.profilePic || null,
+                username: data.user?.username || username.trim(),
+                realname:
+                    data.user?.realname || (isDemoUser ? "Demo User" : "User"),
+                userId: data.user?.id || data.user?._id,
+                profilePic: data.user?.profilePic || null,
             };
 
             localStorage.setItem("token", userData.token);
@@ -58,7 +59,7 @@ export const useAuth = () => {
             setUserId(userData.userId);
             setProfilePic(userData.profilePic);
 
-            navigate("/feed"); 
+            navigate("/feed");
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -74,18 +75,28 @@ export const useAuth = () => {
 
         try {
             // Step 1: Register the user
-            const registerResponse = await fetch(`${config.apiUrl}/auth/register`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ realname, username, email, password }),
-                credentials: "include",
-            });
+            const registerResponse = await fetch(
+                `${config.apiUrl}/auth/register`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        realname,
+                        username,
+                        email,
+                        password,
+                    }),
+                    credentials: "include",
+                }
+            );
 
             const registerData = await registerResponse.json();
 
             if (!registerResponse.ok) {
                 throw new Error(
-                    registerData.message || registerData.error || "Registration failed"
+                    registerData.message ||
+                        registerData.error ||
+                        "Registration failed"
                 );
             }
 
@@ -103,7 +114,9 @@ export const useAuth = () => {
             const loginData = await loginResponse.json();
 
             if (!loginResponse.ok) {
-                throw new Error(loginData.message || loginData.error || "Auto login failed");
+                throw new Error(
+                    loginData.message || loginData.error || "Auto login failed"
+                );
             }
 
             // Store user data and token

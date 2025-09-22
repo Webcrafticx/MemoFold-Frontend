@@ -1,108 +1,252 @@
 import React, { useState } from "react";
-import logo from "../../assets/logo.png";
+import config from "../../hooks/config";
 
-const ForgotPassword = () => {
+const PasswordResetSystem = () => {
     const [email, setEmail] = useState("");
+    const [code, setCode] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState("");
+    const [activeTab, setActiveTab] = useState("forgot"); // 'forgot' or 'reset'
 
-    const handleSubmit = async (e) => {
+    const handleForgotPassword = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         setMessage("");
 
         try {
             const response = await fetch(
-                "http://localhost:3000/api/auth/request-reset",
+                `${config.apiUrl}/auth/forgot-password`,
                 {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({ email: email.trim() }),
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: email.trim(),
+                    }),
                 }
             );
 
-            const result = await response.json();
-
             if (!response.ok) {
-                throw new Error(result.error || "Failed to send reset link.");
+                throw new Error("Failed to send verification code.");
             }
 
-            setMessage("✅ A reset link has been sent to your email.");
-            setEmail("");
+            setMessage("✅ Verification code sent to your email!");
+            setActiveTab("reset"); // Switch to reset tab after sending code
         } catch (error) {
-            setMessage(
-                error.message || "Server error. Please try again later."
+            setMessage(error.message || "Server error. Try again later.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setMessage("");
+
+        if (newPassword !== confirmPassword) {
+            setMessage("Passwords do not match.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (newPassword.length < 8) {
+            setMessage("Password must be at least 8 characters long.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/auth/reset-password`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: email.trim(),
+                        code: code.trim(),
+                        newPassword: newPassword.trim(),
+                    }),
+                }
             );
+
+            if (!response.ok) {
+                let errorMsg = "Failed to reset password";
+                try {
+                    const errorResult = await response.json();
+                    errorMsg = errorResult.error || errorMsg;
+                } catch (e) {
+                    errorMsg = `Server error: ${response.status}`;
+                }
+                throw new Error(errorMsg);
+            }
+
+            const result = await response.json();
+            setMessage("✅ Password reset successfully! You can now login.");
+            setEmail("");
+            setCode("");
+            setNewPassword("");
+            setConfirmPassword("");
+        } catch (error) {
+            setMessage(error.message || "Server error. Try again later.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 font-['Segoe_UI'] p-4">
-            <div className="bg-white rounded-2xl shadow-xl p-8 sm:p-10 w-full max-w-md transition-transform hover:-translate-y-1">
-                {/* Logo Section */}
-                <div className="flex items-center justify-center gap-3 mb-6">
-                    <img
-                        src={logo}
-                        alt="MemoFold Logo"
-                        className="w-16 h-16 sm:w-20 sm:h-20"
-                    />
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                        MemoFold
-                    </h2>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-4">
+            <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+                <div className="flex mb-6 border-b">
+                    <button
+                        className={`flex-1 py-3 font-medium text-center ${
+                            activeTab === "forgot"
+                                ? "text-blue-600 border-b-2 border-blue-600"
+                                : "text-gray-500"
+                        }`}
+                        onClick={() => setActiveTab("forgot")}
+                    >
+                        Forgot Password
+                    </button>
+                    <button
+                        className={`flex-1 py-3 font-medium text-center ${
+                            activeTab === "reset"
+                                ? "text-blue-600 border-b-2 border-blue-600"
+                                : "text-gray-500"
+                        }`}
+                        onClick={() => setActiveTab("reset")}
+                    >
+                        Reset Password
+                    </button>
                 </div>
 
-                {/* Title and Description */}
-                <h1 className="text-xl sm:text-2xl text-blue-600 font-semibold mb-3">
-                    Forgot your password?
+                <h1 className="text-2xl text-blue-600 font-semibold mb-3">
+                    {activeTab === "forgot"
+                        ? "Reset Your Password"
+                        : "Create New Password"}
                 </h1>
-                <p className="text-gray-600 text-sm sm:text-base mb-7 px-2 sm:px-0">
-                    Enter your email or username and we'll send you a link to
-                    reset your password.
+
+                <p className="text-gray-600 text-sm mb-6">
+                    {activeTab === "forgot"
+                        ? "Enter your email to receive a verification code."
+                        : "Enter the verification code and your new password."}
                 </p>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="mb-6">
-                    <div className="mb-5">
-                        <input
-                            type="text"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Email or Username"
-                            required
-                            className="w-full px-4 py-3 text-sm sm:text-base border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-300 transition-all"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-xl hover:from-cyan-500 hover:to-blue-600 active:scale-95 transition-all disabled:opacity-70"
-                    >
-                        {isSubmitting ? "Sending..." : "Send Reset Link"}
-                    </button>
-                </form>
+                {activeTab === "forgot" ? (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Enter your email"
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
 
-                {/* Message Display */}
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70"
+                        >
+                            {isSubmitting
+                                ? "Sending..."
+                                : "Send Verification Code"}
+                        </button>
+                    </form>
+                ) : (
+                    <form onSubmit={handleResetPassword} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Enter your email"
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Verification Code
+                            </label>
+                            <input
+                                type="text"
+                                value={code}
+                                onChange={(e) => setCode(e.target.value)}
+                                placeholder="Enter verification code"
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                New Password
+                            </label>
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Enter new password"
+                                required
+                                minLength={8}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Confirm Password
+                            </label>
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) =>
+                                    setConfirmPassword(e.target.value)
+                                }
+                                placeholder="Confirm new password"
+                                required
+                                minLength={8}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70"
+                        >
+                            {isSubmitting ? "Resetting..." : "Reset Password"}
+                        </button>
+                    </form>
+                )}
+
                 {message && (
                     <div
-                        className={`mb-6 text-center text-sm ${
+                        className={`mt-4 p-3 rounded-lg text-center ${
                             message.includes("✅")
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
                         }`}
                     >
                         {message}
                     </div>
                 )}
 
-                {/* Back Link */}
-                <div className="text-center">
+                <div className="mt-6 text-center">
                     <a
                         href="/login"
-                        className="inline-block px-6 py-3 bg-gray-100 text-gray-800 font-semibold rounded-full shadow-sm hover:bg-gray-200 hover:-translate-y-0.5 active:translate-y-0 transition-all text-sm sm:text-base"
+                        className="text-blue-600 hover:text-blue-800 font-medium"
                     >
                         Back to Login
                     </a>
@@ -112,4 +256,4 @@ const ForgotPassword = () => {
     );
 };
 
-export default ForgotPassword;
+export default PasswordResetSystem;

@@ -239,6 +239,17 @@ const LoginPage = () => {
                             </span>
                             <div className="flex-grow border-t border-gray-300"></div>
                         </div>
+
+                        <Link
+                            to="/forgot-password"
+                            className="text-sm text-blue-400 hover:text-blue-500 hover:underline cursor-pointer"
+                        >
+                            Forgot password?
+                        </Link>
+                    </div>
+
+                    {/* Signup Box */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 text-center shadow-lg">
                         <p className="text-sm sm:text-base">
                             Don't have an account?{" "}
                             <Link
@@ -248,19 +259,7 @@ const LoginPage = () => {
                                 Sign up
                             </Link>
                         </p>
-
-                        {/* <Link
-                            to="/forgot-password"
-                            className="text-sm text-blue-400 hover:text-blue-500 hover:underline cursor-pointer"
-                        >
-                            Forgot password?
-                        </Link> */}
                     </div>
-
-                    {/* Signup Box */}
-                    {/* <div className="bg-white border border-gray-200 rounded-xl p-5 text-center shadow-lg">
-                        
-                    </div> */}
                 </div>
             </main>
 
