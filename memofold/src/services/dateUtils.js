@@ -1,4 +1,17 @@
-// src/services/dateUtils.js
+// Utility function to get current Indian date in YYYY-MM-DD format
+export const getIndianDateString = () => {
+    const now = new Date();
+    const indianDate = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+
+    const year = indianDate.getFullYear();
+    const month = String(indianDate.getMonth() + 1).padStart(2, "0");
+    const day = String(indianDate.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+};
+
 export const formatDate = (dateString) => {
   try {
     const utcDate = new Date(dateString);
