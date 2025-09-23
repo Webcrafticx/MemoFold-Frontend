@@ -44,19 +44,10 @@ const PostCard = ({
 
     // Updated function to get liked users based on API response
     const getLikedUsers = () => {
-        // Priority 1: Use likesPreview from API
+        // Use likesPreview from API
         if (post.likesPreview && post.likesPreview.length > 0) {
             return post.likesPreview;
         }
-
-        // Priority 2: Use likeCount to create dummy data if needed
-        const likeCount = post.likeCount || 0;
-        if (likeCount > 0) {
-            return Array.from({ length: Math.min(likeCount, 2) }, (_, i) => ({
-                username: `user${i + 1}`,
-            }));
-        }
-
         return [];
     };
 
@@ -180,7 +171,7 @@ const PostCard = ({
                             <FaRegHeart className="text-xl text-gray-400" />
                         )}
                         <motion.span
-                            key={totalLikes} // Use totalLikes instead of post.likesCount
+                            key={totalLikes}
                             initial={{ scale: 1 }}
                             animate={{ scale: [1.2, 1] }}
                             transition={{ duration: 0.2 }}
@@ -194,28 +185,52 @@ const PostCard = ({
                         </motion.span>
                     </motion.button>
 
-                    {/* Liked by text - placed next to the heart */}
-                    {totalLikes > 0 && likedUsers.length > 0 && (
+                    {/* Liked by text - turant update hoga */}
+                    {totalLikes > 0 && (
                         <div className="text-sm">
                             <div className="flex items-center flex-wrap">
-                                {likedUsers.slice(0, 2).map((user, index) => (
-                                    <span
-                                        key={index}
-                                        className={`font-medium mr-1 ${
-                                            isDarkMode
-                                                ? "text-gray-300"
-                                                : "text-gray-700"
-                                        }`}
-                                    >
-                                        {user.username}
-                                        {index <
-                                        Math.min(2, likedUsers.length - 1)
-                                            ? ","
-                                            : ""}
-                                    </span>
-                                ))}
+                                {likedUsers.length > 0 ? (
+                                    <>
+                                        {likedUsers.slice(0, 2).map((user, index) => (
+                                            <span
+                                                key={index}
+                                                className={`font-medium mr-1 ${
+                                                    isDarkMode
+                                                        ? "text-gray-300"
+                                                        : "text-gray-700"
+                                                }`}
+                                            >
+                                                {user.username}
+                                                {index < Math.min(2, likedUsers.length - 1) ? "," : ""}
+                                            </span>
+                                        ))}
 
-                                {totalLikes > 2 && (
+                                        {totalLikes > 2 && (
+                                            <button
+                                                onClick={handleShowAllLikes}
+                                                className={`font-medium cursor-pointer ${
+                                                    isDarkMode
+                                                        ? "text-blue-300"
+                                                        : "text-blue-500"
+                                                } hover:underline`}
+                                            >
+                                                and {totalLikes - 2} others
+                                            </button>
+                                        )}
+
+                                        {totalLikes === 2 && likedUsers.length === 1 && (
+                                            <span
+                                                className={`font-medium mr-1 ${
+                                                    isDarkMode
+                                                        ? "text-gray-300"
+                                                        : "text-gray-700"
+                                                }`}
+                                            >
+                                                and 1 other
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
                                     <button
                                         onClick={handleShowAllLikes}
                                         className={`font-medium cursor-pointer ${
@@ -224,41 +239,10 @@ const PostCard = ({
                                                 : "text-blue-500"
                                         } hover:underline`}
                                     >
-                                        and {totalLikes - 2} others
+                                        {totalLikes} {totalLikes === 1 ? "like" : "likes"}
                                     </button>
                                 )}
-
-                                {/* Case when we have exactly 2 likes but only 1 user in preview */}
-                                {totalLikes === 2 &&
-                                    likedUsers.length === 1 && (
-                                        <span
-                                            className={`font-medium mr-1 ${
-                                                isDarkMode
-                                                    ? "text-gray-300"
-                                                    : "text-gray-700"
-                                            }`}
-                                        >
-                                            and 1 other
-                                        </span>
-                                    )}
                             </div>
-                        </div>
-                    )}
-
-                    {/* Fallback for when we have likes but no preview data */}
-                    {totalLikes > 0 && likedUsers.length === 0 && (
-                        <div className="text-sm">
-                            <button
-                                onClick={handleShowAllLikes}
-                                className={`font-medium cursor-pointer ${
-                                    isDarkMode
-                                        ? "text-blue-300"
-                                        : "text-blue-500"
-                                } hover:underline`}
-                            >
-                                {totalLikes}{" "}
-                                {totalLikes === 1 ? "like" : "likes"}
-                            </button>
                         </div>
                     )}
                 </div>

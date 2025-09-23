@@ -317,126 +317,145 @@ const MainFeed = () => {
 
   const handleLike = async (postId, e) => {
     if (e) {
-      e.preventDefault();
-      e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
     }
 
     // Prevent multiple rapid likes
     if (likeCooldown[postId]) return;
 
     setLikeCooldown((prev) => ({ ...prev, [postId]: true }));
-
-    // Set a timeout to reset the cooldown after 500ms
     setTimeout(() => {
-      setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
+        setLikeCooldown((prev) => ({ ...prev, [postId]: false }));
     }, 500);
 
     if (!username || !user?._id) {
-      console.error("User information not available");
-      setError("You must be logged in to like posts");
-      return;
+        console.error("User information not available");
+        setError("You must be logged in to like posts");
+        return;
     }
 
     setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
     try {
-      // Store the current state to check if we're adding a like (not removing)
-      const currentPost = posts.find((post) => post._id === postId);
-      const isAddingLike = !currentPost?.hasUserLiked;
+        const currentPost = posts.find((post) => post._id === postId);
+        const isCurrentlyLiked = currentPost?.hasUserLiked;
 
-      setPosts(
-        posts.map((post) => {
-          if (post._id === postId) {
-            const isLiked = post.hasUserLiked;
-            let updatedLikes;
-            let updatedLikesCount;
-            let updatedLikesPreview;
+        // 1. Pehle optimistic update karein
+        setPosts(
+            posts.map((post) => {
+                if (post._id === postId) {
+                    const newLikeCount = isCurrentlyLiked 
+                        ? Math.max(0, (post.likeCount || 0) - 1) 
+                        : (post.likeCount || 0) + 1;
 
-            if (isLiked) {
-              // Remove both user ID and username
-              updatedLikes = post.likes.filter(
-                (like) => like !== user._id && like !== username
-              );
-              updatedLikesCount = post.likesCount - 1;
-              
-              // Update likesPreview
-              updatedLikesPreview = post.likesPreview?.filter(
-                (likeUser) => likeUser.username !== username
-              ) || [];
-              
-              // Update localStorage
-              localStorageService.updateStoredLikes(postId, updatedLikes);
-              localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
-              localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
-              
-              return {
-                ...post,
-                likes: updatedLikes,
-                likesPreview: updatedLikesPreview,
-                likesCount: updatedLikesCount,
-                hasUserLiked: !isLiked,
-              };
+                    let newLikesPreview = [...(post.likesPreview || [])];
+                    
+                    if (isCurrentlyLiked) {
+                        // Remove current user from likesPreview
+                        newLikesPreview = newLikesPreview.filter(
+                            like => like.username !== username
+                        );
+                    } else {
+                        // Add current user to likesPreview
+                        newLikesPreview.unshift({ // unshift se start mein add hoga
+                            username: username,
+                            realname: realname,
+                            profilePic: currentUserProfile?.profilePic || user?.profilePic
+                        });
+                    }
+
+                    return {
+                        ...post,
+                        likeCount: newLikeCount,
+                        likesPreview: newLikesPreview,
+                        hasUserLiked: !isCurrentlyLiked,
+                    };
+                }
+                return post;
+            })
+        );
+
+        // 2. API call karein
+        const response = await apiService.likePost(postId, user._id, token);
+        
+        console.log("Like API Response:", response); // Debugging ke liye
+
+        // 3. API response se actual data leke update karein
+        if (response.success) {
+            // Agar API se likeCount aur likesPreview mile toh use karein
+            const actualLikeCount = response.likes ? response.likes.length : 
+                                  (isCurrentlyLiked ? (currentPost.likeCount || 1) - 1 : (currentPost.likeCount || 0) + 1);
+            
+            // Likes preview update karein based on current state
+            let updatedLikesPreview = [...(currentPost.likesPreview || [])];
+            
+            if (isCurrentlyLiked) {
+                // Unlike kiya hai - remove user from preview
+                updatedLikesPreview = updatedLikesPreview.filter(
+                    like => like.username !== username
+                );
             } else {
-              // Add both user ID and username for compatibility
-              updatedLikes = [...post.likes, user._id]; // Store user ID
-              updatedLikesCount = post.likesCount + 1;
-              
-              // Update likesPreview
-              const newLikeUser = {
-                username: username,
-                realname: realname,
-                profilePic: currentUserProfile?.profilePic || user?.profilePic
-              };
-              
-              updatedLikesPreview = [
-                ...(post.likesPreview || []),
-                newLikeUser
-              ];
-              
-              // Update localStorage
-              localStorageService.updateStoredLikes(postId, updatedLikes);
-              localStorageService.updateStoredLikesCount(postId, updatedLikesCount);
-              localStorageService.updateStoredLikesPreview(postId, updatedLikesPreview);
-              
-              return {
-                ...post,
-                likes: updatedLikes,
-                likesPreview: updatedLikesPreview,
-                likesCount: updatedLikesCount,
-                hasUserLiked: !isLiked,
-              };
+                // Like kiya hai - add user to preview
+                updatedLikesPreview.unshift({
+                    username: username,
+                    realname: realname,
+                    profilePic: currentUserProfile?.profilePic || user?.profilePic
+                });
             }
-          }
-          return post;
-        })
-      );
 
-      // Add floating hearts animation ONLY when adding a like (not removing)
-      if (isAddingLike && e) {
-        const rect = e.target.getBoundingClientRect();
+            setPosts(
+                posts.map((post) => {
+                    if (post._id === postId) {
+                        return {
+                            ...post,
+                            likeCount: actualLikeCount,
+                            likesPreview: updatedLikesPreview,
+                            hasUserLiked: !isCurrentlyLiked,
+                        };
+                    }
+                    return post;
+                })
+            );
+        } else {
+            // Agar API fail hui toh optimistic update revert karein
+            throw new Error(response.message || "Like operation failed");
+        }
 
-        // Add just one heart instead of multiple
-        setFloatingHearts((hearts) => [
-          ...hearts,
-          {
-            id: Date.now(),
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2,
-          },
-        ]);
-      }
+        // 4. Floating hearts animation ONLY when adding a like
+        if (!isCurrentlyLiked && e) {
+            const rect = e.target.getBoundingClientRect();
+            setFloatingHearts((hearts) => [
+                ...hearts,
+                {
+                    id: Date.now(),
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                },
+            ]);
+        }
 
-      await apiService.likePost(postId, user._id, token);
     } catch (err) {
-      console.error("Error liking post:", err);
-      setError(err.message);
+        console.error("Error liking post:", err);
+        setError(err.message);
 
-      // Revert optimistic update on error
-      await fetchPosts();
+        // Revert optimistic update on error
+        setPosts(
+            posts.map((post) => {
+                if (post._id === postId) {
+                    return {
+                        ...post,
+                        likeCount: post.likeCount || 0,
+                        hasUserLiked: post.hasUserLiked,
+                    };
+                }
+                return post;
+            })
+        );
     } finally {
-      setIsLiking((prev) => ({ ...prev, [postId]: false }));
+        setIsLiking((prev) => ({ ...prev, [postId]: false }));
     }
-  };
+};
 
   const toggleCommentDropdown = async (postId, e) => {
     if (e) {
