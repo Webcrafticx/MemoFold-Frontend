@@ -149,41 +149,42 @@ const ProfilePage = () => {
   };
 
   const fetchUserPosts = async (token, username) => {
-    try {
-      const responseData = await apiService.fetchUserPosts(token, username);
-      const postsData = responseData.posts || [];
+  try {
+    const responseData = await apiService.fetchUserPosts(token, username);
+    const postsData = responseData.posts || [];
 
-      const storedLikes = localStorageService.getStoredLikes();
+    const storedLikes = localStorageService.getStoredLikes();
 
-      const postsWithComments = postsData.map((post) => {
-        const postLikes = storedLikes[post._id] || post.likes || [];
-        const currentUserId = localStorage.getItem("userId");
-        const currentUsername = localStorage.getItem("username");
-        const hasUserLiked = postLikes.includes(currentUserId) || postLikes.includes(currentUsername);
+    const postsWithComments = postsData.map((post) => {
+      const postLikes = storedLikes[post._id] || post.likes || [];
+      const currentUserId = localStorage.getItem("userId");
+      const currentUsername = localStorage.getItem("username");
+      const hasUserLiked = postLikes.includes(currentUserId) || postLikes.includes(currentUsername);
 
-        return {
-          ...post,
-          isLiked: hasUserLiked,
-          likes: postLikes.length,
-          comments: post.comments || [],
-          commentCount: post.comments ? post.comments.length : 0,
-          userId: {
-            _id: post.userId?._id || currentUserId,
-            username: post.userId?.username || username,
-            realname: post.userId?.realname || profileData.realName,
-            profilePic: post.userId?.profilePic || profileData.profilePic
-          },
-          profilePic: profileData.profilePic,
-          username: username,
-        };
-      });
+      return {
+        ...post,
+        isLiked: hasUserLiked,
+        likes: postLikes.length,
+        comments: post.comments || [],
+        commentCount: post.comments ? post.comments.length : 0,
+        userId: {
+          _id: post.userId?._id || currentUserId,
+          username: post.userId?.username || username,
+          realname: post.userId?.realname || profileData.realName,
+          profilePic: post.userId?.profilePic || profileData.profilePic // Yeh line important hai
+        },
+        // Additional fallback properties
+        profilePic: post.userId?.profilePic || profileData.profilePic,
+        username: post.userId?.username || username,
+      };
+    });
 
-      setProfileData(prev => ({ ...prev, posts: postsWithComments }));
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      throw error;
-    }
-  };
+    setProfileData(prev => ({ ...prev, posts: postsWithComments }));
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    throw error;
+  }
+};
 
   // File upload handlers for edit mode
   const handleEditFileSelect = (e) => {

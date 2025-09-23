@@ -39,6 +39,44 @@ const ProfilePostCard = ({
   const isOwner = post.userId?._id === currentUserProfile?._id;
   const isEditing = editingPostId === post._id;
 
+  // Profile picture source properly handle karein - multiple fallbacks
+  const getProfilePic = () => {
+    // Priority 1: Post ke user ki profile pic
+    if (post.userId?.profilePic) {
+      return post.userId.profilePic;
+    }
+    // Priority 2: Direct post mein profilePic
+    if (post.profilePic) {
+      return post.profilePic;
+    }
+    // Priority 3: Current user profile pic
+    if (currentUserProfile?.profilePic) {
+      return currentUserProfile.profilePic;
+    }
+    // Priority 4: LocalStorage se profile pic
+    const localStoragePic = localStorage.getItem("profilePic");
+    if (localStoragePic && localStoragePic !== "https://ui-avatars.com/api/?name=User&background=random") {
+      return localStoragePic;
+    }
+    // Priority 5: Default avatar
+    return "https://ui-avatars.com/api/?name=User&background=random";
+  };
+
+  // Username properly handle karein
+  const getUsername = () => {
+    return post.userId?.username || post.username || username || "User";
+  };
+
+  // Real name properly handle karein
+  const getRealName = () => {
+    return post.userId?.realname || currentUserProfile?.realname || getUsername();
+  };
+
+  // User ID handle karein
+  const getUserId = () => {
+    return post.userId?._id || currentUserProfile?._id;
+  };
+
   const handleEditClick = () => {
     onEditPost(post._id);
   };
@@ -98,37 +136,41 @@ const ProfilePostCard = ({
         <div className="flex items-center gap-2 sm:gap-3">
           <div 
             className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-            onClick={() => navigateToUserProfile(post.userId?._id)}
+            onClick={() => navigateToUserProfile(getUserId())}
           >
-            {post.userId?.profilePic ? (
-              <img
-                src={post.userId.profilePic}
-                alt={post.userId.username}
-                className="w-10 h-10 object-cover"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                  e.target.nextSibling.style.display = "flex";
-                }}
-              />
-            ) : null}
-            <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
-              {post.userId?.username?.charAt(0).toUpperCase() || "U"}
+            <img
+              src={getProfilePic()}
+              alt={getUsername()}
+              className="w-10 h-10 object-cover"
+              onError={(e) => {
+                // Agar image load nahi hoti toh fallback display karein
+                e.target.style.display = "none";
+                const fallback = e.target.nextSibling;
+                if (fallback) {
+                  fallback.style.display = "flex";
+                }
+              }}
+            />
+            <span 
+              className="hidden items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg"
+            >
+              {getUsername().charAt(0).toUpperCase()}
             </span>
           </div>
 
           <div>
             <h3
               className="text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer"
-              onClick={() => navigateToUserProfile(post.userId?._id)}
+              onClick={() => navigateToUserProfile(getUserId())}
             >
-              {post.userId?.realname || post.userId?.username || "Unknown User"}
+              {getRealName()}
             </h3>
             <p
               className={`text-xs ${
                 isDarkMode ? "text-gray-400" : "text-gray-500"
               } cursor-default`}
             >
-              @{post.userId?.username || "unknown"} · {formatDate(post.createdAt)}
+              @{getUsername()} · {formatDate(post.createdAt)}
             </p>
           </div>
         </div>
