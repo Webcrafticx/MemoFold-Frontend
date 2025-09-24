@@ -1,5 +1,6 @@
 import React from "react";
-import { FaTrashAlt } from "react-icons/fa";
+import { FaTrashAlt, FaReply, FaChevronDown, FaChevronUp, FaHeart, FaRegHeart } from "react-icons/fa";
+import ReplyItem from "../mainFeed/ReplyItem";
 
 const ProfileCommentSection = ({
   post,
@@ -14,7 +15,20 @@ const ProfileCommentSection = ({
   onSetCommentContent,
   onDeleteComment,
   navigateToUserProfile,
-  formatDate
+  formatDate,
+  // Reply functionality props
+  activeReplyInputs,
+  replyContent,
+  onToggleReplyInput,
+  onReplySubmit,
+  onSetReplyContent,
+  onToggleReplies,
+  onLikeReply,
+  onDeleteReply,
+  isReplying,
+  isFetchingReplies,
+  isLikingReply,
+  isDeletingReply
 }) => {
   if (activeCommentPostId !== post._id) return null;
 
@@ -79,55 +93,151 @@ const ProfileCommentSection = ({
             const commentUsername = getCommentUsername(comment);
             const commentUserProfilePic = getCommentUserProfilePic(comment);
             const commentUserId = getCommentUserId(comment);
+            const replyKey = comment._id;
+            const hasReplies = comment.replies && comment.replies.length > 0;
 
             return (
-              <div key={comment._id} className="flex items-start space-x-2">
-                <img
-                  src={commentUserProfilePic}
-                  alt={commentUsername}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
-                  onError={(e) => {
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(commentUsername)}&background=random`;
-                  }}
-                  onClick={() => navigateToUserProfile(commentUserId)}
-                />
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                      onClick={() => navigateToUserProfile(commentUserId)}
-                    >
-                      {commentUsername}
-                    </span>
-                    <span
-                      className={`text-xs ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
-                      }`}
-                    >
-                      {comment.createdAt ? formatDate(comment.createdAt) : 'Recently'}
-                    </span>
-                  </div>
-                  <p className="text-sm whitespace-pre-line mt-1">
-                    {comment.content}
-                  </p>
-                  
-                  {/* Delete button */}
-                  {canDeleteComment(comment, post) && (
-                    <div className="mt-1 flex justify-end">
-                      <button
-                        onClick={() => {
-                          if (window.confirm("Are you sure you want to delete this comment?")) {
-                            onDeleteComment(comment._id, post._id);
-                          }
-                        }}
-                        className="text-red-500 hover:text-red-700 text-xs flex items-center cursor-pointer"
-                        title="Delete comment"
+              <div key={comment._id} className="space-y-2">
+                {/* Main Comment */}
+                <div className="flex items-start space-x-2">
+                  <img
+                    src={commentUserProfilePic}
+                    alt={commentUsername}
+                    className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600 cursor-pointer"
+                    onError={(e) => {
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(commentUsername)}&background=random`;
+                    }}
+                    onClick={() => navigateToUserProfile(commentUserId)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span
+                        className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                        onClick={() => navigateToUserProfile(commentUserId)}
                       >
-                        <FaTrashAlt className="mr-1" />
-                        Delete
-                      </button>
+                        {commentUsername}
+                      </span>
+                      <span
+                        className={`text-xs ${
+                          isDarkMode ? "text-gray-400" : "text-gray-500"
+                        }`}
+                      >
+                        {comment.createdAt ? formatDate(comment.createdAt) : 'Recently'}
+                      </span>
                     </div>
-                  )}
+                    <p className="text-sm whitespace-pre-line mt-1">
+                      {comment.content}
+                    </p>
+                    
+                    {/* Comment Actions */}
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center space-x-3">
+                        {/* Reply Button */}
+                        <button
+                          onClick={() => onToggleReplyInput(comment._id)}
+                          className="text-blue-500 hover:text-blue-700 text-xs flex items-center cursor-pointer"
+                        >
+                          <FaReply className="mr-1" />
+                          Reply
+                        </button>
+
+                        {/* View Replies Button */}
+                        {hasReplies && (
+                          <button
+                            onClick={() => onToggleReplies(post._id, comment._id)}
+                            className="text-gray-500 hover:text-gray-700 text-xs flex items-center cursor-pointer"
+                          >
+                            {comment.showReplies ? <FaChevronUp className="mr-1" /> : <FaChevronDown className="mr-1" />}
+                            {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Delete button */}
+                      {canDeleteComment(comment, post) && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to delete this comment?")) {
+                              onDeleteComment(comment._id, post._id);
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs flex items-center cursor-pointer"
+                          title="Delete comment"
+                        >
+                          <FaTrashAlt className="mr-1" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Reply Input */}
+                    {activeReplyInputs[replyKey] && (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <input
+                          type="text"
+                          className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                            isDarkMode
+                              ? "bg-gray-600 border-gray-500 text-white"
+                              : "bg-white border-gray-300 text-gray-800"
+                          } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                          placeholder="Write a reply..."
+                          value={replyContent[replyKey] || ""}
+                          onChange={(e) => onSetReplyContent(replyKey, e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === "Enter") {
+                              onReplySubmit(post._id, comment._id);
+                            }
+                          }}
+                        />
+                        <button
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            !replyContent[replyKey]?.trim() || isReplying[replyKey]
+                              ? "bg-blue-300 cursor-not-allowed"
+                              : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                          } text-white transition-colors`}
+                          onClick={() => onReplySubmit(post._id, comment._id)}
+                          disabled={!replyContent[replyKey]?.trim() || isReplying[replyKey]}
+                        >
+                          {isReplying[replyKey] ? "Posting..." : "Post"}
+                        </button>
+                        <button
+                          onClick={() => onToggleReplyInput(comment._id)}
+                          className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Replies Section */}
+                    {comment.showReplies && (
+                      <div className="mt-2 space-y-2">
+                        {isFetchingReplies[comment._id] ? (
+                          <div className="text-center py-2">
+                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-xs mt-1">Loading replies...</p>
+                          </div>
+                        ) : (
+                          comment.replies.map((reply) => (
+                            <ReplyItem
+                              key={reply._id}
+                              reply={reply}
+                              commentId={comment._id}
+                              username={username}
+                              commentOwner={commentUser.username}
+                              isDarkMode={isDarkMode}
+                              onLikeReply={onLikeReply}
+                              onDeleteReply={onDeleteReply}
+                              isLikingReply={isLikingReply}
+                              isDeletingReply={isDeletingReply}
+                              navigateToUserProfile={navigateToUserProfile}
+                              onToggleReplyInput={onToggleReplyInput}
+                            />
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );

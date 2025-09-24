@@ -9,7 +9,7 @@ export const apiService = {
     return response.json();
   },
 
-  // Profile-specific endpoints add karein
+  // Profile-specific endpoints
   fetchUserPosts: async (token, username) => {
     const response = await fetch(`${config.apiUrl}/posts/user/${username}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -75,7 +75,7 @@ export const apiService = {
     return response.json();
   },
 
-  // Existing endpoints same rahenge
+  // Post endpoints
   fetchPosts: async (token) => {
     const response = await fetch(`${config.apiUrl}/posts`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -130,14 +130,42 @@ export const apiService = {
     return response.json();
   },
 
+  // NORMAL COMMENT - parentComment null jayega
   addComment: async (postId, content, token) => {
+    const requestBody = {
+      content
+      // parentComment automatically null jayega
+    };
+
+    console.log("Normal Comment API Request:", { postId, content });
+
     const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ postId, content }),
+      body: JSON.stringify(requestBody),
+    });
+    return response.json();
+  },
+
+  // COMMENT REPLY - parentCommentId jayega
+  addCommentReply: async (postId, content, parentCommentId, token) => {
+    const requestBody = {
+      content,
+      parentCommentId
+    };
+
+    console.log("Reply API Request:", { postId, content, parentCommentId });
+
+    const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
     });
     return response.json();
   },
@@ -157,19 +185,7 @@ export const apiService = {
     return response.json();
   },
 
-  // Comment reply endpoints
-  addCommentReply: async (commentId, content, token) => {
-    const response = await fetch(`${config.apiUrl}/posts/comments/${commentId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ content }),
-    });
-    return response.json();
-  },
-
+  // Reply endpoints (agar alag API hai toh)
   fetchCommentReplies: async (commentId, token) => {
     const response = await fetch(`${config.apiUrl}/posts/replies/${commentId}`, {
       headers: {
@@ -197,7 +213,7 @@ export const apiService = {
 
   deleteReply: async (replyId, token) => {
     const response = await fetch(
-      `${config.apiUrl}/posts/replies/${replyId}`,
+      `${config.apiUrl}/posts/comments/${commentId}`,
       {
         method: "DELETE",
         headers: {
