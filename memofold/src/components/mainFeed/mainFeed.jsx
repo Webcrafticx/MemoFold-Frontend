@@ -358,7 +358,7 @@ const MainFeed = () => {
                         );
                     } else {
                         // Add current user to likesPreview
-                        newLikesPreview.unshift({
+                        newLikesPreview.unshift({ // unshift se start mein add hoga
                             username: username,
                             realname: realname,
                             profilePic: currentUserProfile?.profilePic || user?.profilePic
@@ -379,20 +379,24 @@ const MainFeed = () => {
         // 2. API call karein
         const response = await apiService.likePost(postId, user._id, token);
         
-        console.log("Like API Response:", response);
+        console.log("Like API Response:", response); // Debugging ke liye
 
         // 3. API response se actual data leke update karein
         if (response.success) {
+            // Agar API se likeCount aur likesPreview mile toh use karein
             const actualLikeCount = response.likes ? response.likes.length : 
                                   (isCurrentlyLiked ? (currentPost.likeCount || 1) - 1 : (currentPost.likeCount || 0) + 1);
             
+            // Likes preview update karein based on current state
             let updatedLikesPreview = [...(currentPost.likesPreview || [])];
             
             if (isCurrentlyLiked) {
+                // Unlike kiya hai - remove user from preview
                 updatedLikesPreview = updatedLikesPreview.filter(
                     like => like.username !== username
                 );
             } else {
+                // Like kiya hai - add user to preview
                 updatedLikesPreview.unshift({
                     username: username,
                     realname: realname,
@@ -414,6 +418,7 @@ const MainFeed = () => {
                 })
             );
         } else {
+            // Agar API fail hui toh optimistic update revert karein
             throw new Error(response.message || "Like operation failed");
         }
 
@@ -450,7 +455,7 @@ const MainFeed = () => {
     } finally {
         setIsLiking((prev) => ({ ...prev, [postId]: false }));
     }
-  };
+};
 
   const toggleCommentDropdown = async (postId, e) => {
     if (e) {
@@ -469,7 +474,6 @@ const MainFeed = () => {
     }));
   };
 
-  // NORMAL COMMENT SUBMIT - parentComment null jayega
   const handleCommentSubmit = async (postId, e) => {
     if (e) e.preventDefault();
 
@@ -490,15 +494,13 @@ const MainFeed = () => {
     setError(null);
 
     try {
-      console.log("Submitting NORMAL COMMENT:", { postId, content });
-
-      const responseData = await apiService.addComment(postId, content, token);
-      
-      console.log("Normal Comment API Response:", responseData);
-
+      const responseData = await apiService.addComment(
+        postId,
+        content,
+        token
+      );
       const createdComment = responseData.comment || responseData;
 
-      // Optimistic update for normal comment
       setPosts(
         posts.map((post) =>
           post._id === postId
@@ -512,99 +514,26 @@ const MainFeed = () => {
                     userId: {
                       _id: currentUserProfile?._id || user?._id || username,
                       username: username,
-                      realname: currentUserProfile?.realname || realname || username,
-                      profilePic: currentUserProfile?.profilePic || user?.profilePic,
+                      realname:
+                        currentUserProfile?.realname || realname || username,
+                      profilePic:
+                        currentUserProfile?.profilePic || user?.profilePic,
                     },
                     replies: [],
                     showReplyInput: false,
                   },
                 ],
-                commentCount: (post.commentCount || 0) + 1,
               }
             : post
         )
       );
 
       setCommentContent((prev) => ({ ...prev, [postId]: "" }));
-      setSuccessMessage("Comment posted successfully!");
-      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error("Error posting comment:", err);
       setError(err.message);
     } finally {
       setIsCommenting((prev) => ({ ...prev, [postId]: false }));
-    }
-  };
-
-  // COMMENT REPLY SUBMIT - parentCommentId jayega
-  const handleAddReply = async (commentId, postId, e) => {
-    if (e) e.preventDefault();
-
-    const content = replyContent[commentId] || "";
-
-    if (!content.trim()) {
-      setError("Reply cannot be empty");
-      return;
-    }
-
-    if (!username) {
-      setError("You must be logged in to reply");
-      navigate("/login");
-      return;
-    }
-
-    setIsReplying((prev) => ({ ...prev, [commentId]: true }));
-    setError(null);
-
-    try {
-      console.log("Submitting REPLY:", { postId, content, parentCommentId: commentId });
-
-      const responseData = await apiService.addCommentReply(postId, content, commentId, token);
-      
-      console.log("Reply API Response:", responseData);
-
-      const createdReply = responseData.comment || responseData;
-
-      // Optimistic update for reply
-      setPosts(
-        posts.map((post) =>
-          post._id === postId
-            ? {
-                ...post,
-                comments: post.comments?.map((comment) =>
-                  comment._id === commentId
-                    ? {
-                        ...comment,
-                        replies: [
-                          ...(comment.replies || []),
-                          {
-                            ...createdReply,
-                            isLiked: false,
-                            userId: {
-                              _id: currentUserProfile?._id || user?._id || username,
-                              username: username,
-                              realname: currentUserProfile?.realname || realname || username,
-                              profilePic: currentUserProfile?.profilePic || user?.profilePic,
-                            },
-                          },
-                        ],
-                        showReplyInput: false,
-                      }
-                    : comment
-                ) || [],
-              }
-            : post
-        )
-      );
-
-      setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
-      setSuccessMessage("Reply posted successfully!");
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      console.error("Error posting reply:", err);
-      setError(err.message);
-    } finally {
-      setIsReplying((prev) => ({ ...prev, [commentId]: false }));
     }
   };
 
@@ -664,6 +593,73 @@ const MainFeed = () => {
       ...prev,
       [commentId]: prev[commentId] || "",
     }));
+  };
+
+  const handleAddReply = async (commentId, postId, e) => {
+    if (e) e.preventDefault();
+
+    const content = replyContent[commentId] || "";
+
+    if (!content.trim()) {
+      setError("Reply cannot be empty");
+      return;
+    }
+
+    if (!username) {
+      setError("You must be logged in to reply");
+      navigate("/login");
+      return;
+    }
+
+    setIsReplying((prev) => ({ ...prev, [commentId]: true }));
+    setError(null);
+
+    try {
+      const responseData = await apiService.addCommentReply(commentId, content, token);
+      const createdReply = responseData.reply || responseData;
+
+      setPosts(
+        posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                comments: post.comments?.map((comment) =>
+                  comment._id === commentId
+                    ? {
+                        ...comment,
+                        replies: [
+                          ...(comment.replies || []),
+                          {
+                            ...createdReply,
+                            isLiked: false,
+                            userId: {
+                              _id: currentUserProfile?._id || user?._id || username,
+                              username: username,
+                              realname:
+                                currentUserProfile?.realname || realname || username,
+                              profilePic:
+                                currentUserProfile?.profilePic || user?.profilePic,
+                            },
+                          },
+                        ],
+                        showReplyInput: false,
+                      }
+                    : comment
+                ) || [],
+              }
+            : post
+        )
+      );
+
+      setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
+      setSuccessMessage("Reply posted successfully!");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Error posting reply:", err);
+      setError(err.message);
+    } finally {
+      setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+    }
   };
 
   const handleLikeReply = async (replyId, commentId, e) => {
