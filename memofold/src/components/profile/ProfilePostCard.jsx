@@ -35,44 +35,77 @@ const ProfilePostCard = ({
   editFiles = [],
   onEditFileSelect,
   onRemoveEditFile,
+  // Reply functionality props
+  activeReplyInputs,
+  replyContent,
+  onToggleReplyInput,
+  onReplySubmit,
+  onSetReplyContent,
+  onToggleReplies,
+  onLikeReply,
+  onDeleteReply,
+  isReplying,
+  isFetchingReplies,
+  isLikingReply,
+  isDeletingReply
 }) => {
   const isOwner = post.userId?._id === currentUserProfile?._id;
   const isEditing = editingPostId === post._id;
 
+  // Properly handle like count - multiple sources se
+  const getLikeCount = () => {
+    // Priority 1: API se aaya likeCount
+    if (post.likeCount !== undefined && post.likeCount !== null) {
+      return post.likeCount;
+    }
+    // Priority 2: Local likes array ki length
+    if (post.likes && Array.isArray(post.likes)) {
+      return post.likes.length;
+    }
+    // Priority 3: Default 0
+    return 0;
+  };
+
+  // Properly handle comment count - multiple sources se
+  const getCommentCount = () => {
+    // Priority 1: API se aaya commentCount
+    if (post.commentCount !== undefined && post.commentCount !== null) {
+      return post.commentCount;
+    }
+    // Priority 2: Local comments array ki length
+    if (post.comments && Array.isArray(post.comments)) {
+      return post.comments.length;
+    }
+    // Priority 3: Default 0
+    return 0;
+  };
+
   // Profile picture source properly handle karein - multiple fallbacks
   const getProfilePic = () => {
-    // Priority 1: Post ke user ki profile pic
     if (post.userId?.profilePic) {
       return post.userId.profilePic;
     }
-    // Priority 2: Direct post mein profilePic
     if (post.profilePic) {
       return post.profilePic;
     }
-    // Priority 3: Current user profile pic
     if (currentUserProfile?.profilePic) {
       return currentUserProfile.profilePic;
     }
-    // Priority 4: LocalStorage se profile pic
     const localStoragePic = localStorage.getItem("profilePic");
     if (localStoragePic && localStoragePic !== "https://ui-avatars.com/api/?name=User&background=random") {
       return localStoragePic;
     }
-    // Priority 5: Default avatar
     return "https://ui-avatars.com/api/?name=User&background=random";
   };
 
-  // Username properly handle karein
   const getUsername = () => {
     return post.userId?.username || post.username || username || "User";
   };
 
-  // Real name properly handle karein
   const getRealName = () => {
     return post.userId?.realname || currentUserProfile?.realname || getUsername();
   };
 
-  // User ID handle karein
   const getUserId = () => {
     return post.userId?._id || currentUserProfile?._id;
   };
@@ -123,6 +156,9 @@ const ProfilePostCard = ({
     );
   };
 
+  const likeCount = getLikeCount();
+  const commentCount = getCommentCount();
+
   return (
     <div
       className={`${
@@ -143,7 +179,6 @@ const ProfilePostCard = ({
               alt={getUsername()}
               className="w-10 h-10 object-cover"
               onError={(e) => {
-                // Agar image load nahi hoti toh fallback display karein
                 e.target.style.display = "none";
                 const fallback = e.target.nextSibling;
                 if (fallback) {
@@ -347,7 +382,7 @@ const ProfilePostCard = ({
               )}
             </motion.div>
             <motion.span
-              key={post.likes}
+              key={likeCount}
               initial={{ scale: 1 }}
               animate={{
                 scale: [1.2, 1],
@@ -356,7 +391,7 @@ const ProfilePostCard = ({
                 duration: 0.2,
               }}
             >
-              {post.likes || 0}
+              {likeCount}
             </motion.span>
           </motion.button>
 
@@ -367,7 +402,7 @@ const ProfilePostCard = ({
             } transition-colors cursor-pointer text-xs sm:text-base`}
           >
             <FaComment />
-            <span>{post.commentCount || post.comments?.length || 0}</span>
+            <span>{commentCount}</span>
           </button>
         </div>
       )}
@@ -388,6 +423,19 @@ const ProfilePostCard = ({
           onDeleteComment={onDeleteComment}
           navigateToUserProfile={navigateToUserProfile}
           formatDate={formatDate}
+          // Reply functionality props
+          activeReplyInputs={activeReplyInputs}
+          replyContent={replyContent}
+          onToggleReplyInput={onToggleReplyInput}
+          onReplySubmit={onReplySubmit}
+          onSetReplyContent={onSetReplyContent}
+          onToggleReplies={onToggleReplies}
+          onLikeReply={onLikeReply}
+          onDeleteReply={onDeleteReply}
+          isReplying={isReplying}
+          isFetchingReplies={isFetchingReplies}
+          isLikingReply={isLikingReply}
+          isDeletingReply={isDeletingReply}
         />
       )}
     </div>

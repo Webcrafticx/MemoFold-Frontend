@@ -52,7 +52,14 @@ const ProfilePage = () => {
     isCommenting: {},
     isFetchingComments: false,
     isAddingComment: false,
-    isDeletingComment: false
+    isDeletingComment: false,
+    // Reply states
+    activeReplyInputs: {},
+    replyContent: {},
+    isReplying: {},
+    isFetchingReplies: {},
+    isLikingReply: {},
+    isDeletingReply: {}
   });
 
   const [editState, setEditState] = useState({
@@ -149,42 +156,46 @@ const ProfilePage = () => {
   };
 
   const fetchUserPosts = async (token, username) => {
-  try {
-    const responseData = await apiService.fetchUserPosts(token, username);
-    const postsData = responseData.posts || [];
+    try {
+      const responseData = await apiService.fetchUserPosts(token, username);
+      const postsData = responseData.posts || [];
 
-    const storedLikes = localStorageService.getStoredLikes();
+      const storedLikes = localStorageService.getStoredLikes();
 
-    const postsWithComments = postsData.map((post) => {
-      const postLikes = storedLikes[post._id] || post.likes || [];
-      const currentUserId = localStorage.getItem("userId");
-      const currentUsername = localStorage.getItem("username");
-      const hasUserLiked = postLikes.includes(currentUserId) || postLikes.includes(currentUsername);
+      const postsWithComments = postsData.map((post) => {
+        const postLikes = storedLikes[post._id] || post.likes || [];
+        const currentUserId = localStorage.getItem("userId");
+        const currentUsername = localStorage.getItem("username");
+        const hasUserLiked = postLikes.includes(currentUserId) || postLikes.includes(currentUsername);
 
-      return {
-        ...post,
-        isLiked: hasUserLiked,
-        likes: postLikes.length,
-        comments: post.comments || [],
-        commentCount: post.comments ? post.comments.length : 0,
-        userId: {
-          _id: post.userId?._id || currentUserId,
+        // API se milne wale data ko properly map karo
+        return {
+          ...post,
+          isLiked: hasUserLiked,
+          likes: post.likeCount || postLikes.length, // likeCount use karo
+          comments: post.comments ? post.comments.map(comment => ({
+            ...comment,
+            replies: comment.replies || [],
+            showReplies: false
+          })) : [],
+          commentCount: post.commentCount || 0, // commentCount use karo
+          userId: {
+            _id: post.userId?._id || currentUserId,
+            username: post.userId?.username || username,
+            realname: post.userId?.realname || profileData.realName,
+            profilePic: post.userId?.profilePic || profileData.profilePic
+          },
+          profilePic: post.userId?.profilePic || profileData.profilePic,
           username: post.userId?.username || username,
-          realname: post.userId?.realname || profileData.realName,
-          profilePic: post.userId?.profilePic || profileData.profilePic // Yeh line important hai
-        },
-        // Additional fallback properties
-        profilePic: post.userId?.profilePic || profileData.profilePic,
-        username: post.userId?.username || username,
-      };
-    });
+        };
+      });
 
-    setProfileData(prev => ({ ...prev, posts: postsWithComments }));
-  } catch (error) {
-    console.error("Error fetching posts:", error);
-    throw error;
-  }
-};
+      setProfileData(prev => ({ ...prev, posts: postsWithComments }));
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      throw error;
+    }
+  };
 
   // File upload handlers for edit mode
   const handleEditFileSelect = (e) => {
@@ -218,13 +229,21 @@ const ProfilePage = () => {
     try {
       const token = localStorage.getItem("token");
       const responseData = await apiService.fetchComments(postId, token);
-      const comments = responseData.comments || [];
+      const comments = (responseData.comments || []).map(comment => ({
+        ...comment,
+        replies: comment.replies || [],
+        showReplies: false
+      }));
 
       setProfileData(prev => ({
         ...prev,
         posts: prev.posts.map(post =>
           post._id === postId
-            ? { ...post, comments, commentCount: comments.length }
+            ? { 
+                ...post, 
+                comments, 
+                commentCount: comments.length 
+              }
             : post
         )
       }));
@@ -290,7 +309,7 @@ const ProfilePage = () => {
       }));
       
       const token = localStorage.getItem("token");
-      await apiService.deleteComment(commentId, token);
+      await apiService.deleteComment(commentId, postId, token);
 
       // Refresh comments
       await handleToggleCommentDropdown(postId);
@@ -303,6 +322,236 @@ const ProfilePage = () => {
       setCommentState(prev => ({ 
         ...prev, 
         isDeletingComment: false 
+      }));
+    }
+  };
+
+  // Reply handlers
+  const handleToggleReplyInput = (commentId, parentReplyId = null) => {
+    const key = parentReplyId ? `${commentId}-${parentReplyId}` : commentId;
+    setCommentState(prev => ({
+      ...prev,
+      activeReplyInputs: {
+        ...prev.activeReplyInputs,
+        [key]: !prev.activeReplyInputs[key]
+      },
+      replyContent: {
+        ...prev.replyContent,
+        [key]: prev.replyContent[key] || ""
+      }
+    }));
+  };
+
+  const handleReplySubmit = async (postId, commentId, parentReplyId = null) => {
+    const key = parentReplyId ? `${commentId}-${parentReplyId}` : commentId;
+    const content = commentState.replyContent[key];
+
+    if (!content?.trim()) {
+      toast.error("Reply cannot be empty");
+      return;
+    }
+
+    try {
+      setCommentState(prev => ({
+        ...prev,
+        isReplying: { ...prev.isReplying, [key]: true }
+      }));
+
+      const token = localStorage.getItem("token");
+      
+      if (parentReplyId) {
+        // This is a reply to another reply
+        await apiService.addCommentReply(postId, content, parentReplyId, token);
+      } else {
+        // This is a reply to a comment
+        await apiService.addCommentReply(postId, content, commentId, token);
+      }
+
+      // Refresh comments to show the new reply
+      await handleToggleCommentDropdown(postId);
+      
+      setCommentState(prev => ({
+        ...prev,
+        replyContent: { ...prev.replyContent, [key]: "" },
+        activeReplyInputs: { ...prev.activeReplyInputs, [key]: false }
+      }));
+      
+      toast.success("Reply added successfully!");
+    } catch (error) {
+      console.error("Error adding reply:", error);
+      toast.error(error.message);
+    } finally {
+      setCommentState(prev => ({
+        ...prev,
+        isReplying: { ...prev.isReplying, [key]: false }
+      }));
+    }
+  };
+
+  const handleSetReplyContent = (key, content) => {
+    setCommentState(prev => ({
+      ...prev,
+      replyContent: { ...prev.replyContent, [key]: content }
+    }));
+  };
+
+  const handleToggleReplies = async (postId, commentId) => {
+    setProfileData(prev => ({
+      ...prev,
+      posts: prev.posts.map(post => 
+        post._id === postId 
+          ? {
+              ...post,
+              comments: post.comments.map(comment =>
+                comment._id === commentId
+                  ? { ...comment, showReplies: !comment.showReplies }
+                  : comment
+              )
+            }
+          : post
+      )
+    }));
+
+    // Fetch replies if not already loaded
+    const post = profileData.posts.find(p => p._id === postId);
+    const comment = post?.comments.find(c => c._id === commentId);
+    
+    if (comment && (!comment.replies || comment.replies.length === 0)) {
+      try {
+        setCommentState(prev => ({
+          ...prev,
+          isFetchingReplies: { ...prev.isFetchingReplies, [commentId]: true }
+        }));
+
+        const token = localStorage.getItem("token");
+        const response = await apiService.fetchCommentReplies(commentId, token);
+        const replies = response.replies || [];
+
+        setProfileData(prev => ({
+          ...prev,
+          posts: prev.posts.map(post =>
+            post._id === postId
+              ? {
+                  ...post,
+                  comments: post.comments.map(comment =>
+                    comment._id === commentId
+                      ? { ...comment, replies }
+                      : comment
+                  )
+                }
+              : post
+          )
+        }));
+      } catch (error) {
+        console.error("Error fetching replies:", error);
+        toast.error("Failed to load replies");
+      } finally {
+        setCommentState(prev => ({
+          ...prev,
+          isFetchingReplies: { ...prev.isFetchingReplies, [commentId]: false }
+        }));
+      }
+    }
+  };
+
+  const handleLikeReply = async (replyId, commentId, event) => {
+    try {
+      setCommentState(prev => ({
+        ...prev,
+        isLikingReply: { ...prev.isLikingReply, [replyId]: true }
+      }));
+
+      const token = localStorage.getItem("token");
+      const currentUserId = localStorage.getItem("userId");
+      await apiService.likeReply(replyId, currentUserId, token);
+
+      // Update local state
+      setProfileData(prev => ({
+        ...prev,
+        posts: prev.posts.map(post => ({
+          ...post,
+          comments: post.comments.map(comment => ({
+            ...comment,
+            replies: comment.replies.map(reply =>
+              reply._id === replyId
+                ? {
+                    ...reply,
+                    hasUserLiked: !reply.hasUserLiked,
+                    likes: reply.hasUserLiked 
+                      ? (reply.likes || []).filter(id => id !== currentUserId)
+                      : [...(reply.likes || []), currentUserId]
+                  }
+                : reply
+            )
+          }))
+        }))
+      }));
+
+      if (event) {
+        const rect = event.target.getBoundingClientRect();
+        const heartCount = 3;
+        for (let i = 0; i < heartCount; i++) {
+          setTimeout(() => {
+            setFloatingHearts(hearts => [
+              ...hearts,
+              {
+                id: Date.now() + i,
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+              },
+            ]);
+          }, i * 100);
+        }
+      }
+    } catch (error) {
+      console.error("Error liking reply:", error);
+      toast.error("Failed to like reply");
+    } finally {
+      setCommentState(prev => ({
+        ...prev,
+        isLikingReply: { ...prev.isLikingReply, [replyId]: false }
+      }));
+    }
+  };
+
+  const handleDeleteReply = async (replyId, commentId) => {
+    if (!window.confirm("Are you sure you want to delete this reply?")) {
+      return;
+    }
+
+    try {
+      setCommentState(prev => ({
+        ...prev,
+        isDeletingReply: { ...prev.isDeletingReply, [replyId]: true }
+      }));
+
+      const token = localStorage.getItem("token");
+      await apiService.deleteReply(replyId, token);
+
+      // Update local state
+      setProfileData(prev => ({
+        ...prev,
+        posts: prev.posts.map(post => ({
+          ...post,
+          comments: post.comments.map(comment =>
+            comment._id === commentId
+              ? {
+                  ...comment,
+                  replies: comment.replies.filter(reply => reply._id !== replyId)
+                }
+              : comment
+          )
+        }))
+      }));
+
+      toast.success("Reply deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting reply:", error);
+      toast.error("Failed to delete reply");
+    } finally {
+      setCommentState(prev => ({
+        ...prev,
+        isDeletingReply: { ...prev.isDeletingReply, [replyId]: false }
       }));
     }
   };
@@ -438,6 +687,7 @@ const ProfilePage = () => {
               ...post,
               isLiked: !isCurrentlyLiked,
               likes: updatedLikes.length,
+              likeCount: updatedLikes.length, // dono fields update karo
             };
           }
           return post;
@@ -689,6 +939,19 @@ const ProfilePage = () => {
                     editFiles={editState.editFiles}
                     onEditFileSelect={handleEditFileSelect}
                     onRemoveEditFile={handleRemoveEditFile}
+                    // Reply functionality props
+                    activeReplyInputs={commentState.activeReplyInputs}
+                    replyContent={commentState.replyContent}
+                    onToggleReplyInput={handleToggleReplyInput}
+                    onReplySubmit={handleReplySubmit}
+                    onSetReplyContent={handleSetReplyContent}
+                    onToggleReplies={handleToggleReplies}
+                    onLikeReply={handleLikeReply}
+                    onDeleteReply={handleDeleteReply}
+                    isReplying={commentState.isReplying}
+                    isFetchingReplies={commentState.isFetchingReplies}
+                    isLikingReply={commentState.isLikingReply}
+                    isDeletingReply={commentState.isDeletingReply}
                   />
                 ))}
               </div>
