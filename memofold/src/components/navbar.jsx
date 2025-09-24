@@ -11,8 +11,11 @@ import {
     FaPlusCircle,
     FaHome,
     FaCalendarAlt,
+    FaSearch,
+    FaTimes,
 } from "react-icons/fa";
 import logo from "../assets/logo.png";
+import SearchModal from "./SearchModal";
 
 const Navbar = ({ onDarkModeChange }) => {
     const [darkMode, setDarkMode] = useState(() => {
@@ -20,6 +23,7 @@ const Navbar = ({ onDarkModeChange }) => {
     });
     const [selectedDate, setSelectedDate] = useState("");
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+    const [showSearchModal, setShowSearchModal] = useState(false);
     const { token, username, realname, logout, user } = useAuth();
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic") || ""
@@ -54,6 +58,7 @@ const Navbar = ({ onDarkModeChange }) => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -65,12 +70,10 @@ const Navbar = ({ onDarkModeChange }) => {
 
                 if (response.ok) {
                     const result = await response.json();
-                    const userData = result.user; // extract user object
+                    const userData = result.user;
 
-                    // Update state
                     setCurrentUserProfile(userData);
 
-                    // Save only the needed fields with custom keys
                     localStorage.setItem("userId", userData._id);
                     localStorage.setItem("realname", userData.realname);
                     localStorage.setItem("username", userData.username);
@@ -125,16 +128,6 @@ const Navbar = ({ onDarkModeChange }) => {
         }
     };
 
-    const navigateToUserProfile = (userId) => {
-        if (userId) {
-            if (currentUserProfile && userId === currentUserProfile._id) {
-                navigate("/profile");
-            } else {
-                navigate(`/user/${userId}`);
-            }
-        }
-    };
-
     const navigateToMain = () => {
         navigate("/feed");
         setShowProfileDropdown(false);
@@ -151,73 +144,66 @@ const Navbar = ({ onDarkModeChange }) => {
         setShowProfileDropdown(false);
     };
 
-    return (
-        <div className={`max-w-screen pb-4`}>
-            <div
-                className={`flex justify-between items-center py-4 rounded-xl px-8 ${
-                    darkMode ? "bg-gray-800" : "bg-white"
-                } shadow-md`}
-            >
-                {/* Left Section: Logo */}
-                <button
-                    className="flex items-center space-x-2 cursor-pointer"
-                    onClick={navigateToMain}
-                >
-                    <img
-                        src={logo}
-                        alt="MemoFold"
-                        className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
-                    />
-                    <span className="font-bold text-lg sm:text-xl bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
-                        MemoFold
-                    </span>
-                </button>
+    const handleSearchClick = () => {
+        setShowSearchModal(true);
+        setShowProfileDropdown(false);
+    };
 
-                {/* Right Section: Profile Dropdown */}
-                <div className="relative" ref={profileDropdownRef}>
+    const closeSearchModal = () => {
+        setShowSearchModal(false);
+    };
+
+    return (
+        <>
+            <div className={`max-w-screen pb-4`}>
+                <div
+                    className={`flex justify-between items-center py-4 rounded-xl px-8 ${
+                        darkMode ? "bg-gray-800" : "bg-white"
+                    } shadow-md`}
+                >
+                    {/* Left Section: Logo */}
                     <button
-                        className={`p-1 rounded-full border-2 cursor-pointer ${
-                            darkMode
-                                ? "border-cyan-500 hover:border-cyan-400"
-                                : "border-blue-500 hover:border-blue-400"
-                        } transition-colors`}
-                        onClick={() =>
-                            setShowProfileDropdown(!showProfileDropdown)
-                        }
+                        className="flex items-center space-x-2 cursor-pointer"
+                        onClick={navigateToMain}
                     >
-                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
-                            {profilePic ? (
-                                <img
-                                    src={profilePic}
-                                    alt={username}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.style.display = "none";
-                                        e.target.nextSibling.style.display =
-                                            "flex";
-                                    }}
-                                />
-                            ) : null}
-                            <span
-                                className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
-                                style={profilePic ? { display: "none" } : {}}
-                            >
-                                {username?.charAt(0).toUpperCase() || "U"}
-                            </span>
-                        </div>
+                        <img
+                            src={logo}
+                            alt="MemoFold"
+                            className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+                        />
+                        <span className="font-bold text-lg sm:text-xl bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+                            MemoFold
+                        </span>
                     </button>
 
-                    {showProfileDropdown && (
-                        <div
-                            className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
+                    {/* Right Section: Search Icon and Profile Dropdown */}
+                    <div className="flex items-center space-x-4">
+                        {/* Search Icon */}
+                        <button
+                            className={`p-2 rounded-full cursor-pointer transition-colors ${
                                 darkMode
-                                    ? "bg-gray-800 text-white"
-                                    : "bg-white text-gray-800"
-                            } ring-1 ring-black ring-opacity-5 z-50 p-4`}
+                                    ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
+                                    : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
+                            }`}
+                            onClick={handleSearchClick}
+                            title="Search users"
                         >
-                            {/* User Info */}
-                            <div className="flex items-center space-x-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                                <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400">
+                            <FaSearch className="text-lg" />
+                        </button>
+
+                        {/* Profile Dropdown */}
+                        <div className="relative" ref={profileDropdownRef}>
+                            <button
+                                className={`p-1 rounded-full border-2 cursor-pointer ${
+                                    darkMode
+                                        ? "border-cyan-500 hover:border-cyan-400"
+                                        : "border-blue-500 hover:border-blue-400"
+                                } transition-colors`}
+                                onClick={() =>
+                                    setShowProfileDropdown(!showProfileDropdown)
+                                }
+                            >
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400">
                                     {profilePic ? (
                                         <img
                                             src={profilePic}
@@ -231,7 +217,7 @@ const Navbar = ({ onDarkModeChange }) => {
                                         />
                                     ) : null}
                                     <span
-                                        className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
+                                        className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
                                         style={
                                             profilePic
                                                 ? { display: "none" }
@@ -242,89 +228,144 @@ const Navbar = ({ onDarkModeChange }) => {
                                             "U"}
                                     </span>
                                 </div>
-                                <div>
-                                    <p className="text-sm font-semibold">
-                                        {realname || username}
-                                    </p>
-                                    <p
-                                        className={`text-xs ${
-                                            darkMode
-                                                ? "text-gray-300"
-                                                : "text-gray-600"
-                                        }`}
-                                    >
-                                        @{username}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Navigation Links */}
-                            <div className="space-y-2 mb-4">
-                                <button
-                                    className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
-                                        darkMode
-                                            ? "hover:bg-gray-700"
-                                            : "hover:bg-gray-100"
-                                    } cursor-pointer`}
-                                    onClick={handleProfileClick}
-                                >
-                                    <FaUserCircle className="mr-3" />
-                                    Profile
-                                </button>
-
-                                <button
-                                    className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
-                                        darkMode
-                                            ? "hover:bg-gray-700"
-                                            : "hover:bg-gray-100"
-                                    } cursor-pointer`}
-                                    onClick={handleFeedbackClick}
-                                >
-                                    <FaComment className="mr-3" />
-                                    Feedback
-                                </button>
-                            </div>
-
-                            {/* Dark Mode Toggle */}
-                            <div
-                                className={`flex items-center justify-between px-3 py-2 rounded-lg ${
-                                    darkMode ? "bg-gray-700" : "bg-gray-100"
-                                } mb-4`}
-                            >
-                                <span className="text-sm">
-                                    {darkMode ? "Light Mode" : "Dark Mode"}
-                                </span>
-                                <button
-                                    onClick={toggleDarkMode}
-                                    className={`p-2 rounded-full ${
-                                        darkMode ? "bg-cyan-500" : "bg-gray-300"
-                                    } transition-colors cursor-pointer`}
-                                >
-                                    {darkMode ? (
-                                        <FaSun className="text-sm text-yellow-400" />
-                                    ) : (
-                                        <FaMoon className="text-sm text-gray-600" />
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* Logout Button */}
-                            <button
-                                className={`flex items-center justify-center w-full px-3 py-2 text-sm rounded-lg ${
-                                    darkMode
-                                        ? "text-red-400 hover:bg-gray-700 border border-red-400"
-                                        : "text-red-600 hover:bg-gray-100 border border-red-600"
-                                } cursor-pointer transition-colors`}
-                                onClick={handleLogout}
-                            >
-                                <FaSignOutAlt className="mr-2" />
-                                Logout
                             </button>
+
+                            {showProfileDropdown && (
+                                <div
+                                    className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
+                                        darkMode
+                                            ? "bg-gray-800 text-white"
+                                            : "bg-white text-gray-800"
+                                    } ring-1 ring-black ring-opacity-5 z-50 p-4`}
+                                >
+                                    {/* User Info */}
+                                    <div className="flex items-center space-x-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                                        <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400">
+                                            {profilePic ? (
+                                                <img
+                                                    src={profilePic}
+                                                    alt={username}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.style.display =
+                                                            "none";
+                                                        e.target.nextSibling.style.display =
+                                                            "flex";
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <span
+                                                className="flex items-center justify-center w-full h-full text-white font-semibold text-lg"
+                                                style={
+                                                    profilePic
+                                                        ? { display: "none" }
+                                                        : {}
+                                                }
+                                            >
+                                                {username
+                                                    ?.charAt(0)
+                                                    .toUpperCase() || "U"}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold">
+                                                {realname || username}
+                                            </p>
+                                            <p
+                                                className={`text-xs ${
+                                                    darkMode
+                                                        ? "text-gray-300"
+                                                        : "text-gray-600"
+                                                }`}
+                                            >
+                                                @{username}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Navigation Links */}
+                                    <div className="space-y-2 mb-4">
+                                        <button
+                                            className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
+                                                darkMode
+                                                    ? "hover:bg-gray-700"
+                                                    : "hover:bg-gray-100"
+                                            } cursor-pointer`}
+                                            onClick={handleProfileClick}
+                                        >
+                                            <FaUserCircle className="mr-3" />
+                                            Profile
+                                        </button>
+
+                                        <button
+                                            className={`flex items-center w-full px-3 py-2 text-sm rounded-lg ${
+                                                darkMode
+                                                    ? "hover:bg-gray-700"
+                                                    : "hover:bg-gray-100"
+                                            } cursor-pointer`}
+                                            onClick={handleFeedbackClick}
+                                        >
+                                            <FaComment className="mr-3" />
+                                            Feedback
+                                        </button>
+                                    </div>
+
+                                    {/* Dark Mode Toggle */}
+                                    <div
+                                        className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                                            darkMode
+                                                ? "bg-gray-700"
+                                                : "bg-gray-100"
+                                        } mb-4`}
+                                    >
+                                        <span className="text-sm">
+                                            {darkMode
+                                                ? "Light Mode"
+                                                : "Dark Mode"}
+                                        </span>
+                                        <button
+                                            onClick={toggleDarkMode}
+                                            className={`p-2 rounded-full ${
+                                                darkMode
+                                                    ? "bg-cyan-500"
+                                                    : "bg-gray-300"
+                                            } transition-colors cursor-pointer`}
+                                        >
+                                            {darkMode ? (
+                                                <FaSun className="text-sm text-yellow-400" />
+                                            ) : (
+                                                <FaMoon className="text-sm text-gray-600" />
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    {/* Logout Button */}
+                                    <button
+                                        className={`flex items-center justify-center w-full px-3 py-2 text-sm rounded-lg ${
+                                            darkMode
+                                                ? "text-red-400 hover:bg-gray-700 border border-red-400"
+                                                : "text-red-600 hover:bg-gray-100 border border-red-600"
+                                        } cursor-pointer transition-colors`}
+                                        onClick={handleLogout}
+                                    >
+                                        <FaSignOutAlt className="mr-2" />
+                                        Logout
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
-        </div>
+
+            {/* Search Modal */}
+            <SearchModal
+                isOpen={showSearchModal}
+                onClose={closeSearchModal}
+                darkMode={darkMode}
+                currentUserProfile={currentUserProfile}
+            />
+        </>
     );
 };
 
