@@ -20,7 +20,7 @@ import "react-toastify/dist/ReactToastify.css";
 import config from "../../hooks/config";
 import imageCompression from "browser-image-compression";
 import { motion } from "framer-motion";
-import Navbar from "../navbar";
+import Navbar from "../navbar/navbar";
 
 const MainDashboard = () => {
     const [postContent, setPostContent] = useState("");
