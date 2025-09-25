@@ -16,7 +16,7 @@ import {
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
-import Navbar from "./navbar";
+import Navbar from "./navbar/navbar";
 
 const UserProfile = () => {
     const { userId } = useParams();
