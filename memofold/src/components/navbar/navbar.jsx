@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import config from "../../hooks/config";
+import { FiCalendar } from "react-icons/fi";
 import NotificationModal from "./NotificationModal";
+import CalendarDropdown from "./CalendarDropdown";
 import SearchBar from "./SearchBar";
 import ProfileDropdown from "./ProfileDropDown";
 import NotificationBell from "./NotificationBell";
@@ -14,18 +16,21 @@ const Navbar = ({ onDarkModeChange }) => {
     });
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
+    const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
-    const { token, username, realname, logout, user } = useAuth();
+
+    const { token, username, realname, logout } = useAuth();
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic") || ""
     );
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [showMobileSearch, setShowMobileSearch] = useState(false);
+
     const navigate = useNavigate();
     const profileDropdownRef = useRef(null);
     const mobileSearchRef = useRef(null);
-    const desktopProfileTriggerRef = useRef(null);
-    const mobileProfileTriggerRef = useRef(null);
+    const profileTriggerRef = useRef(null);
+    const calendarDropdownRef = useRef(null);
 
     // Handle dark mode
     useEffect(() => {
@@ -37,22 +42,20 @@ const Navbar = ({ onDarkModeChange }) => {
         localStorage.setItem("darkMode", darkMode);
     }, [darkMode]);
 
-    // Handle outside clicks to close dropdown and mobile search
+    // Outside click handling
     useEffect(() => {
         const handleClickOutside = (event) => {
-            // Close profile dropdown if clicked outside (both desktop and mobile)
+            // Profile dropdown close
             if (
                 showProfileDropdown &&
                 profileDropdownRef.current &&
                 !profileDropdownRef.current.contains(event.target) &&
-                !event.target.closest(".profile-trigger") &&
-                !desktopProfileTriggerRef.current?.contains(event.target) &&
-                !mobileProfileTriggerRef.current?.contains(event.target)
+                !event.target.closest(".profile-trigger")
             ) {
                 setShowProfileDropdown(false);
             }
 
-            // Close mobile search if clicked outside
+            // Mobile search close
             if (
                 showMobileSearch &&
                 mobileSearchRef.current &&
@@ -61,14 +64,25 @@ const Navbar = ({ onDarkModeChange }) => {
             ) {
                 setShowMobileSearch(false);
             }
+
+            // Calendar dropdown close
+            if (
+                showCalendarDropdown &&
+                calendarDropdownRef.current &&
+                !calendarDropdownRef.current.contains(event.target) &&
+                !event.target.closest(".calendar-trigger")
+            ) {
+                setShowCalendarDropdown(false);
+            }
         };
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showMobileSearch, showProfileDropdown]);
+    }, [showMobileSearch, showProfileDropdown, showCalendarDropdown]);
 
+    // Fetch user data
     useEffect(() => {
         const fetchUserData = async () => {
             try {
@@ -123,11 +137,22 @@ const Navbar = ({ onDarkModeChange }) => {
         setShowNotificationModal(true);
         setShowProfileDropdown(false);
         setShowMobileSearch(false);
+        setShowCalendarDropdown(false);
+    };
+
+    const handleCalendarClick = () => {
+        setShowCalendarDropdown(!showCalendarDropdown);
+        setShowProfileDropdown(false);
+        setShowMobileSearch(false);
     };
 
     const handleNotificationModalClose = () => {
         setShowNotificationModal(false);
         fetchUnreadCount();
+    };
+
+    const handleCalendarDropdownClose = () => {
+        setShowCalendarDropdown(false);
     };
 
     const fetchUnreadCount = async () => {
@@ -155,16 +180,41 @@ const Navbar = ({ onDarkModeChange }) => {
     const toggleMobileSearch = () => {
         setShowMobileSearch(!showMobileSearch);
         setShowProfileDropdown(false);
+        setShowCalendarDropdown(false);
     };
 
-    const handleDesktopProfileClick = () => {
+    const handleProfileClick = () => {
         setShowProfileDropdown(!showProfileDropdown);
         setShowMobileSearch(false);
+        setShowCalendarDropdown(false);
     };
+    const UserAvatar = ({ profilePic, username, size = "sm" }) => {
+        const dimensions = size === "sm" ? "w-8 h-8" : "w-12 h-12";
+        const textSize = size === "sm" ? "text-sm" : "text-lg";
 
-    const handleMobileProfileClick = () => {
-        setShowProfileDropdown(!showProfileDropdown);
-        setShowMobileSearch(false);
+        return (
+            <div
+                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center `}
+            >
+                {profilePic ? (
+                    <img
+                        src={profilePic}
+                        alt={username}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                        }}
+                    />
+                ) : null}
+                <span
+                    className={`flex items-center justify-center w-full h-full text-white font-semibold ${textSize}`}
+                    style={profilePic ? { display: "none" } : {}}
+                >
+                    {username?.charAt(0).toUpperCase() || "U"}
+                </span>
+            </div>
+        );
     };
 
     return (
@@ -181,7 +231,7 @@ const Navbar = ({ onDarkModeChange }) => {
                         navigateToMain={() => navigate("/feed")}
                     />
 
-                    {/* Center Section: Search Bar - Hidden on mobile, visible on tablet and up */}
+                    {/* Center Section: Search Bar */}
                     <div className="hidden md:block flex-1 max-w-lg mx-4">
                         <SearchBar
                             darkMode={darkMode}
@@ -191,9 +241,9 @@ const Navbar = ({ onDarkModeChange }) => {
                         />
                     </div>
 
-                    {/* Right Section: All icons visible on both mobile and desktop */}
-                    <div className="flex items-center space-x-3 md:space-x-4">
-                        {/* Search Icon - Visible only on mobile */}
+                    {/* Right Section */}
+                    <div className="flex items-center space-x-3 md:space-x-4 px-1">
+                        {/* Search Icon - Mobile */}
                         <button
                             className="md:hidden p-2 rounded-md mobile-search-icon"
                             onClick={toggleMobileSearch}
@@ -215,7 +265,7 @@ const Navbar = ({ onDarkModeChange }) => {
                             </svg>
                         </button>
 
-                        {/* Notification Bell - Visible on both mobile and desktop */}
+                        {/* Notification Bell */}
                         <div className="relative cursor-pointer">
                             <NotificationBell
                                 darkMode={darkMode}
@@ -224,51 +274,64 @@ const Navbar = ({ onDarkModeChange }) => {
                             />
                         </div>
 
-                        {/* Profile Section - Visible on both mobile and desktop */}
+                        {/* Calendar Dropdown Trigger */}
                         <div className="relative">
-                            {/* Desktop Profile Dropdown */}
-                            <div className="hidden md:block">
-                                <div
-                                    ref={desktopProfileTriggerRef}
-                                    className="profile-trigger"
-                                >
-                                    <ProfileDropdown
-                                        darkMode={darkMode}
-                                        profilePic={profilePic}
-                                        username={username}
-                                        realname={realname}
-                                        showProfileDropdown={
-                                            showProfileDropdown
-                                        }
-                                        setShowProfileDropdown={
-                                            setShowProfileDropdown
-                                        }
-                                        profileDropdownRef={profileDropdownRef}
-                                        toggleDarkMode={toggleDarkMode}
-                                        navigate={navigate}
-                                        logout={logout}
-                                    />
-                                </div>
+                            <button
+                                onClick={handleCalendarClick}
+                                className={`calendar-trigger p-2 rounded-md transition-colors ${
+                                    darkMode
+                                        ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
+                                        : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
+                                }`}
+                                aria-label="Calendar"
+                            >
+                                <FiCalendar className="w-6 h-6" />
+                            </button>
+
+                            {/* Calendar Dropdown */}
+                            <CalendarDropdown
+                                showDropdown={showCalendarDropdown}
+                                onClose={handleCalendarDropdownClose}
+                                darkMode={darkMode}
+                                token={token}
+                                username={username}
+                                navigate={navigate}
+                                calendarRef={calendarDropdownRef}
+                            />
+                        </div>
+
+                        {/* Profile Section */}
+                        <div className="relative">
+                            <div
+                                ref={profileTriggerRef}
+                                className="profile-trigger cursor-pointer  border-2  border-blue-500 rounded-full p-1"
+                                onClick={handleProfileClick}
+                            >
+                                <UserAvatar
+                                    profilePic={profilePic}
+                                    username={username}
+                                    size="sm"
+                                />
                             </div>
 
-                            {/* Mobile Profile Icon */}
-                            <button
-                                ref={mobileProfileTriggerRef}
-                                className="md:hidden p-1 rounded-full profile-trigger"
-                                onClick={handleMobileProfileClick}
-                                aria-label="Profile"
-                            >
-                                <img
-                                    src={profilePic || "/default-avatar.png"}
-                                    alt="Profile"
-                                    className="w-8 h-8 rounded-full border-2 border-gray-300 dark:border-gray-600"
-                                />
-                            </button>
+                            {/* ✅ Single ProfileDropdown for both Desktop & Mobile */}
+                            <ProfileDropdown
+                                darkMode={darkMode}
+                                profilePic={profilePic}
+                                username={username}
+                                realname={realname}
+                                showProfileDropdown={showProfileDropdown}
+                                setShowProfileDropdown={setShowProfileDropdown}
+                                profileDropdownRef={profileDropdownRef}
+                                toggleDarkMode={toggleDarkMode}
+                                navigate={navigate}
+                                logout={logout}
+                            />
                         </div>
                     </div>
                 </div>
 
-                {/* Mobile Search Bar - Appears below navbar on mobile when search icon is clicked */}
+                {/* Mobile Search Bar */}
                 {showMobileSearch && (
                     <div
                         ref={mobileSearchRef}
@@ -284,133 +347,6 @@ const Navbar = ({ onDarkModeChange }) => {
                             isMobile={true}
                             onSearch={() => setShowMobileSearch(false)}
                         />
-                    </div>
-                )}
-
-                {/* Mobile Profile Dropdown - Appears below navbar on mobile */}
-                {showProfileDropdown && (
-                    <div
-                        ref={profileDropdownRef}
-                        className={`md:hidden mt-2 py-2 rounded-xl px-4 ${
-                            darkMode ? "bg-gray-800" : "bg-white"
-                        } shadow-md animate-in slide-in-from-top-5 duration-200`}
-                    >
-                        <div className="flex items-center py-2 border-b border-gray-300 dark:border-gray-600 mb-2">
-                            <img
-                                src={profilePic || "/default-avatar.png"}
-                                alt="Profile"
-                                className="w-10 h-10 rounded-full mr-3"
-                            />
-                            <div>
-                                <p
-                                    className={`font-semibold ${
-                                        darkMode
-                                            ? "text-white"
-                                            : "text-gray-900"
-                                    }`}
-                                >
-                                    {realname || username}
-                                </p>
-                                <p
-                                    className={`text-sm ${
-                                        darkMode
-                                            ? "text-gray-300"
-                                            : "text-gray-600"
-                                    }`}
-                                >
-                                    @{username}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-1">
-                            <button
-                                onClick={() => {
-                                    navigate("/profile");
-                                    setShowProfileDropdown(false);
-                                }}
-                                className={`flex items-center w-full text-left py-3 px-3 rounded-lg ${
-                                    darkMode
-                                        ? "text-white hover:bg-gray-700"
-                                        : "text-gray-700 hover:bg-gray-100"
-                                } transition-colors`}
-                            >
-                                <svg
-                                    className="w-5 h-5 mr-3"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                                    />
-                                </svg>
-                                Profile
-                            </button>
-
-                            <button
-                                onClick={toggleDarkMode}
-                                className={`flex items-center w-full text-left py-3 px-3 rounded-lg ${
-                                    darkMode
-                                        ? "text-white hover:bg-gray-700"
-                                        : "text-gray-700 hover:bg-gray-100"
-                                } transition-colors`}
-                            >
-                                <svg
-                                    className="w-5 h-5 mr-3"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    {darkMode ? (
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-                                        />
-                                    ) : (
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-                                        />
-                                    )}
-                                </svg>
-                                {darkMode ? "Light Mode" : "Dark Mode"}
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    logout();
-                                    setShowProfileDropdown(false);
-                                }}
-                                className={`flex items-center w-full text-left py-3 px-3 rounded-lg ${
-                                    darkMode
-                                        ? "text-red-400 hover:bg-gray-700"
-                                        : "text-red-600 hover:bg-gray-100"
-                                } transition-colors`}
-                            >
-                                <svg
-                                    className="w-5 h-5 mr-3"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                    />
-                                </svg>
-                                Logout
-                            </button>
-                        </div>
                     </div>
                 )}
             </div>

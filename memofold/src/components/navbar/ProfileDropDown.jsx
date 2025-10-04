@@ -14,25 +14,25 @@ const ProfileDropdown = ({
     username,
     realname,
     showProfileDropdown,
-    setShowProfileDropdown,
     profileDropdownRef,
     toggleDarkMode,
     navigate,
     logout,
+    onClose,
 }) => {
     const handleProfileClick = () => {
         navigate("/profile");
-        setShowProfileDropdown(false);
+        onClose();
     };
 
     const handleFeedbackClick = () => {
         navigate("/feedback");
-        setShowProfileDropdown(false);
+        onClose();
     };
 
     const navigateToCreatePost = () => {
         navigate("/profile");
-        setShowProfileDropdown(false);
+        onClose();
     };
 
     const handleLogout = async () => {
@@ -44,57 +44,36 @@ const ProfileDropdown = ({
         }
     };
 
+    if (!showProfileDropdown) return null;
+
     return (
-        <div className="relative" ref={profileDropdownRef}>
-            <button
-                className={`p-1 rounded-full border-2 cursor-pointer ${
-                    darkMode
-                        ? "border-cyan-500 hover:border-cyan-400"
-                        : "border-blue-500 hover:border-blue-400"
-                } transition-colors`}
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-            >
-                <UserAvatar
-                    profilePic={profilePic}
-                    username={username}
-                    size="sm"
-                />
-            </button>
+        <div
+            ref={profileDropdownRef}
+            className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
+                darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-800"
+            } ring-1 ring-black ring-opacity-5 z-50 p-4`}
+        >
+            {/* User Info */}
+            <UserInfo
+                profilePic={profilePic}
+                username={username}
+                realname={realname}
+                darkMode={darkMode}
+            />
 
-            {showProfileDropdown && (
-                <div
-                    className={`absolute right-0 mt-2 w-72 rounded-xl shadow-lg ${
-                        darkMode
-                            ? "bg-gray-800 text-white"
-                            : "bg-white text-gray-800"
-                    } ring-1 ring-black ring-opacity-5 z-50 p-4`}
-                >
-                    {/* User Info */}
-                    <UserInfo
-                        profilePic={profilePic}
-                        username={username}
-                        realname={realname}
-                        darkMode={darkMode}
-                    />
+            {/* Navigation Links */}
+            <NavigationLinks
+                darkMode={darkMode}
+                onProfileClick={handleProfileClick}
+                onCreatePostClick={navigateToCreatePost}
+                onFeedbackClick={handleFeedbackClick}
+            />
 
-                    {/* Navigation Links */}
-                    <NavigationLinks
-                        darkMode={darkMode}
-                        onProfileClick={handleProfileClick}
-                        onCreatePostClick={navigateToCreatePost}
-                        onFeedbackClick={handleFeedbackClick}
-                    />
+            {/* Dark Mode Toggle */}
+            <DarkModeToggle darkMode={darkMode} onToggle={toggleDarkMode} />
 
-                    {/* Dark Mode Toggle */}
-                    <DarkModeToggle
-                        darkMode={darkMode}
-                        onToggle={toggleDarkMode}
-                    />
-
-                    {/* Logout Button */}
-                    <LogoutButton darkMode={darkMode} onLogout={handleLogout} />
-                </div>
-            )}
+            {/* Logout Button */}
+            <LogoutButton darkMode={darkMode} onLogout={handleLogout} />
         </div>
     );
 };
@@ -144,12 +123,7 @@ const UserInfo = ({ profilePic, username, realname, darkMode }) => (
     </div>
 );
 
-const NavigationLinks = ({
-    darkMode,
-    onProfileClick,
-    onCreatePostClick,
-    onFeedbackClick,
-}) => (
+const NavigationLinks = ({ darkMode, onProfileClick, onFeedbackClick }) => (
     <div className="space-y-2 mb-4">
         <DropdownButton
             icon={FaUserCircle}
@@ -157,12 +131,7 @@ const NavigationLinks = ({
             darkMode={darkMode}
             onClick={onProfileClick}
         />
-        <DropdownButton
-            icon={FaPlusCircle}
-            label="Create Post"
-            darkMode={darkMode}
-            onClick={onCreatePostClick}
-        />
+
         <DropdownButton
             icon={FaComment}
             label="Feedback"
