@@ -63,6 +63,22 @@ const PostCard = ({
         setShowLikesModal(false);
     };
 
+    // FIXED: Image error handler without optional chaining issue
+    const handleImageError = (e) => {
+        e.target.style.display = "none";
+        if (e.target.nextSibling) {
+            e.target.nextSibling.style.display = "flex";
+        }
+    };
+
+    // FIXED: Profile pic error handler without optional chaining issue
+    const handleProfilePicError = (e) => {
+        e.target.style.display = "none";
+        if (e.target.nextSibling) {
+            e.target.nextSibling.style.display = "flex";
+        }
+    };
+
     return (
         <div
             className={`w-full max-w-2xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
@@ -89,22 +105,13 @@ const PostCard = ({
                         <img
                             src={post.userId.profilePic}
                             alt={post.userId.username}
-                            className="w-8 h-8 object-cover rounded-full"
-                            onError={(e) => {
-                                e.target.style.display = "none";
-                                e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
-                                    post.userId.username
-                                        ?.charAt(0)
-                                        .toUpperCase() || "U"
-                                }</span>`;
-                            }}
+                            className="w-full h-full object-cover"
+                            onError={handleProfilePicError}
                         />
-                    ) : (
-                        <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
-                            {post.userId.username?.charAt(0).toUpperCase() ||
-                                "U"}
-                        </span>
-                    )}
+                    ) : null}
+                    <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg ${post.userId.profilePic ? 'hidden' : 'flex'}`}>
+                        {post.userId.username?.charAt(0).toUpperCase() || "U"}
+                    </div>
                 </div>
 
                 <div>
@@ -142,11 +149,9 @@ const PostCard = ({
                     <img
                         src={post.image}
                         alt="Post"
-                        className="max-h-96 max-w-full object-contain cursor-pointer"
+                        className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
                         onClick={() => onImagePreview(post.image)}
-                        onError={(e) => {
-                            e.target.style.display = "none";
-                        }}
+                        onError={handleImageError}
                     />
                 </div>
             )}
@@ -253,8 +258,9 @@ const PostCard = ({
                     disabled={loadingComments[post._id]}
                 >
                     <FaComment />
+                    {/* FIXED: Use commentCount from API */}
                     <span className="text-sm">
-                        {post.commentCount || post.comments?.length || 0}
+                        {post.commentCount || 0}
                     </span>
                     {loadingComments[post._id] && (
                         <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>

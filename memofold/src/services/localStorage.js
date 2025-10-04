@@ -63,6 +63,25 @@ export const localStorageService = {
     localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
   },
 
+  // Active Replies state - ADDED MISSING METHODS
+  getActiveReplies: () => {
+    try {
+      const activeReplies = localStorage.getItem('activeReplies');
+      return activeReplies ? JSON.parse(activeReplies) : {};
+    } catch (error) {
+      console.error('Error getting active replies:', error);
+      return {};
+    }
+  },
+
+  setActiveReplies: (activeReplies) => {
+    try {
+      localStorage.setItem('activeReplies', JSON.stringify(activeReplies));
+    } catch (error) {
+      console.error('Error setting active replies:', error);
+    }
+  },
+
   // Dark mode
   getDarkMode: () => localStorage.getItem("darkMode") === "true",
   setDarkMode: (value) => localStorage.setItem("darkMode", value),

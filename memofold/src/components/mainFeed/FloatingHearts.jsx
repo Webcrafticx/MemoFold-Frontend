@@ -1,4 +1,3 @@
-// src/components/mainFeed/FloatingHearts.jsx
 import { motion } from "framer-motion";
 
 const FloatingHearts = ({ hearts, setHearts }) => (
@@ -6,20 +5,21 @@ const FloatingHearts = ({ hearts, setHearts }) => (
     {hearts.map((heart) => (
       <motion.div
         key={heart.id}
-        className="absolute text-red-500 text-xl pointer-events-none"
+        className="absolute text-red-500 text-2xl pointer-events-none"
         initial={{
-          x: heart.x,
-          y: heart.y,
+          x: heart.x - 12,
+          y: heart.y - 12,
           scale: 0,
           opacity: 1,
         }}
         animate={{
-          y: heart.y - 100,
-          scale: [0, 1.2, 1],
-          opacity: [1, 1, 0],
+          y: heart.y - 150,
+          scale: [0, 1.5, 1],
+          opacity: [1, 0.8, 0],
+          rotate: [0, -10, 10, 0],
         }}
         transition={{
-          duration: 1.5,
+          duration: 2,
           ease: "easeOut",
         }}
         onAnimationComplete={() => {

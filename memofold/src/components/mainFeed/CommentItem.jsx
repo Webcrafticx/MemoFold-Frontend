@@ -1,5 +1,4 @@
-// src/components/mainFeed/CommentItem.jsx
-import { FaHeart, FaRegHeart, FaTrashAlt, FaReply, FaCaretDown, FaCaretRight } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaTrashAlt, FaReply, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import ReplyItem from "./ReplyItem";
 
@@ -26,8 +25,15 @@ const CommentItem = ({
   activeReplies,
   navigateToUserProfile,
 }) => {
-  const hasReplies = comment.replies && comment.replies.length > 0;
+  const hasReplies = (comment.replyCount && comment.replyCount > 0) || (comment.replies && comment.replies.length > 0);
   const isRepliesVisible = activeReplies[comment._id];
+
+  const handleProfilePicError = (e) => {
+    e.target.style.display = "none";
+    if (e.target.nextSibling) {
+      e.target.nextSibling.style.display = "flex";
+    }
+  };
 
   return (
     <div className="flex items-start space-x-2">
@@ -40,18 +46,12 @@ const CommentItem = ({
             src={comment.userId.profilePic}
             alt={comment.userId.username}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.style.display = "none";
-              e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
-                comment.userId.username?.charAt(0).toUpperCase() || "U"
-              }</span>`;
-            }}
+            onError={handleProfilePicError}
           />
-        ) : (
-          <span className="text-xs font-semibold text-gray-700">
-            {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
-          </span>
-        )}
+        ) : null}
+        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${comment.userId?.profilePic ? 'hidden' : 'flex'}`}>
+          {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
+        </div>
       </div>
       <div className="flex-1">
         <div className="flex items-center space-x-2">
@@ -121,22 +121,23 @@ const CommentItem = ({
 
             {hasReplies && (
               <button
-                className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs"
+                className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
                 onClick={(e) => onToggleReplies(comment._id, e)}
                 title={isRepliesVisible ? "Hide replies" : "Show replies"}
               >
-                {isRepliesVisible ? <FaCaretDown /> : <FaCaretRight />}
-                <span className="ml-1">{comment.replies.length}</span>
+                {isRepliesVisible ? <FaChevronDown /> : <FaChevronRight />}
+                <span>{comment.replyCount || comment.replies?.length || 0}</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Reply input */}
         {comment.showReplyInput && (
           <div className="mt-2 flex items-center space-x-2">
             <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-              {username?.charAt(0).toUpperCase() || "U"}
+              <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs">
+                {username?.charAt(0).toUpperCase() || "U"}
+              </div>
             </div>
             <div className="flex-1 flex space-x-2">
               <input
@@ -176,7 +177,6 @@ const CommentItem = ({
           </div>
         )}
 
-        {/* Replies section */}
         {isRepliesVisible && comment.replies && comment.replies.length > 0 && (
           <div className="mt-2 space-y-2">
             {comment.replies.map((reply) => (

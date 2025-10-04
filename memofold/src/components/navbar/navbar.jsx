@@ -216,7 +216,7 @@ const Navbar = ({ onDarkModeChange }) => {
                         </button>
 
                         {/* Notification Bell - Visible on both mobile and desktop */}
-                        <div className="relative">
+                        <div className="relative cursor-pointer">
                             <NotificationBell
                                 darkMode={darkMode}
                                 unreadNotifications={unreadNotifications}

@@ -13,10 +13,14 @@ import {
     FaTimes,
     FaTrashAlt,
     FaComment,
+    FaReply,
+    FaChevronDown,
+    FaChevronRight,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
 import Navbar from "./navbar/navbar";
+import { apiService } from "../services/api";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -36,7 +40,20 @@ const UserProfile = () => {
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
-    const [posts, setPosts] = useState([]);
+
+    // Reply states - Load from localStorage on component mount
+    const [activeReplies, setActiveReplies] = useState(() => {
+        try {
+            const stored = localStorage.getItem("userProfileActiveReplies");
+            return stored ? JSON.parse(stored) : {};
+        } catch {
+            return {};
+        }
+    });
+    const [replyContent, setReplyContent] = useState({});
+    const [isReplying, setIsReplying] = useState({});
+    const [isLikingReply, setIsLikingReply] = useState({});
+    const [isDeletingReply, setIsDeletingReply] = useState({});
 
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
@@ -55,9 +72,845 @@ const UserProfile = () => {
         return localStorage.getItem("darkMode") === "true";
     });
 
+    // Save activeReplies to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem("userProfileActiveReplies", JSON.stringify(activeReplies));
+    }, [activeReplies]);
+
     // Handle dark mode changes from Navbar
     const handleDarkModeChange = (darkMode) => {
         setIsDarkMode(darkMode);
+    };
+
+    // Helper functions to manage localStorage
+    const getStoredLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("postLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored likes:", error);
+            return {};
+        }
+    };
+
+    const updateStoredLikes = (postId, likes) => {
+        const storedLikes = getStoredLikes();
+        storedLikes[postId] = likes;
+        localStorage.setItem("postLikes", JSON.stringify(storedLikes));
+    };
+
+    const getStoredCommentLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("commentLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored comment likes:", error);
+            return {};
+        }
+    };
+
+    const updateStoredCommentLikes = (commentId, likes) => {
+        const storedCommentLikes = getStoredCommentLikes();
+        storedCommentLikes[commentId] = likes;
+        localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
+    };
+
+    const getStoredReplyLikes = () => {
+        try {
+            return JSON.parse(localStorage.getItem("replyLikes") || "{}");
+        } catch (error) {
+            console.error("Error parsing stored reply likes:", error);
+            return {};
+        }
+    };
+
+    const updateStoredReplyLikes = (replyId, likes) => {
+        const storedReplyLikes = getStoredReplyLikes();
+        storedReplyLikes[replyId] = likes;
+        localStorage.setItem("replyLikes", JSON.stringify(storedReplyLikes));
+    };
+
+    useEffect(() => {
+        if (token) {
+            fetchCurrentUserProfile();
+            fetchUserProfile();
+        } else {
+            navigate("/login");
+        }
+    }, [userId, token]);
+
+    useEffect(() => {
+        document.body.classList.toggle("dark", isDarkMode);
+    }, [isDarkMode]);
+
+    const fetchCurrentUserProfile = async () => {
+        try {
+            const userData = await apiService.fetchCurrentUser(token);
+            setCurrentUserProfile(userData);
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        }
+    };
+
+    const fetchUserProfile = async () => {
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/user/user/${userId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to fetch user profile");
+            }
+
+            const data = await response.json();
+            const userDataFromApi = data.user || data;
+            setUserData(userDataFromApi);
+
+            if (data.description) {
+                setUserDescription(data.description);
+            }
+
+            if (userDataFromApi.username) {
+                fetchUserPosts(userDataFromApi.username);
+            }
+        } catch (err) {
+            console.error("Error fetching user profile:", err);
+            setError(err.message);
+            setIsLoading(false);
+        }
+    };
+
+    const fetchUserPosts = async (username) => {
+        try {
+            const data = await apiService.fetchUserPosts(token, username);
+            const postsData = Array.isArray(data) ? data : data.posts || [];
+
+            const storedLikes = getStoredLikes();
+
+            const postsWithLikes = postsData.map((post) => {
+                const postLikes = storedLikes[post._id] || post.likes || [];
+                const hasUserLiked = postLikes.includes(user._id) || postLikes.includes(username);
+
+                return {
+                    ...post,
+                    likes: postLikes,
+                    hasUserLiked: hasUserLiked,
+                    comments: post.comments || [],
+                    commentCount: post.commentCount || 0,
+                };
+            });
+
+            setUserPosts(postsWithLikes);
+
+            const likesByPost = {};
+            postsData.forEach((post) => {
+                const storedPostLikes = storedLikes[post._id] || post.likes || [];
+                likesByPost[post._id] = storedPostLikes;
+            });
+
+            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+        } catch (err) {
+            console.error("Error fetching user posts:", err);
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchComments = async (postId) => {
+        setLoadingComments((prev) => ({ ...prev, [postId]: true }));
+
+        try {
+            const responseData = await apiService.fetchComments(postId, token);
+            const comments = responseData.comments || [];
+
+            const storedCommentLikes = getStoredCommentLikes();
+            const storedReplyLikes = getStoredReplyLikes();
+
+            const commentsWithLikes = comments.map((comment) => {
+                const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
+                const hasUserLiked = commentLikes.includes(user._id);
+
+                const userData = comment.userId || comment.user || {
+                    _id: 'unknown',
+                    username: 'Unknown',
+                    realname: 'Unknown User',
+                    profilePic: ''
+                };
+
+                const finalUserData = {
+                    _id: userData._id || 'unknown',
+                    username: userData.username || 'Unknown',
+                    realname: userData.realname || userData.username || 'Unknown User',
+                    profilePic: userData.profilePic || ''
+                };
+
+                // Load replies data if available from API
+                const repliesWithLikes = (comment.replies || []).map((reply) => {
+                    const replyLikes = storedReplyLikes[reply._id] || reply.likes || [];
+                    const hasUserLikedReply = replyLikes.includes(user._id);
+
+                    const replyUserData = reply.userId || reply.user || {
+                        _id: 'unknown',
+                        username: 'Unknown',
+                        realname: 'Unknown User',
+                        profilePic: ''
+                    };
+
+                    const finalReplyUserData = {
+                        _id: replyUserData._id || 'unknown',
+                        username: replyUserData.username || 'Unknown',
+                        realname: replyUserData.realname || replyUserData.username || 'Unknown User',
+                        profilePic: replyUserData.profilePic || ''
+                    };
+
+                    return {
+                        ...reply,
+                        likes: replyLikes,
+                        hasUserLiked: hasUserLikedReply,
+                        userId: finalReplyUserData,
+                    };
+                });
+
+                return {
+                    ...comment,
+                    likes: commentLikes,
+                    hasUserLiked: hasUserLiked,
+                    userId: finalUserData,
+                    replies: repliesWithLikes,
+                    replyCount: comment.replyCount || repliesWithLikes.length,
+                    showReplyInput: false,
+                };
+            });
+
+            setUserPosts((posts) =>
+                posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            comments: commentsWithLikes,
+                            commentCount: commentsWithLikes.length,
+                        }
+                        : post
+                )
+            );
+
+            const likesByComment = {};
+            const likesByReply = {};
+            comments.forEach((comment) => {
+                likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
+                
+                (comment.replies || []).forEach((reply) => {
+                    likesByReply[reply._id] = storedReplyLikes[reply._id] || reply.likes || [];
+                });
+            });
+
+            localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
+            localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
+        } catch (err) {
+            setError(err.message);
+            console.error("Error fetching comments:", err);
+        } finally {
+            setLoadingComments((prev) => ({ ...prev, [postId]: false }));
+        }
+    };
+
+    const fetchCommentReplies = async (commentId, postId) => {
+        try {
+            const responseData = await apiService.fetchCommentReplies(commentId, token);
+            const replies = responseData.replies || [];
+
+            const storedReplyLikes = getStoredReplyLikes();
+
+            const repliesWithLikes = replies.map((reply) => {
+                const replyLikes = storedReplyLikes[reply._id] || reply.likes || [];
+                const hasUserLikedReply = replyLikes.includes(user._id);
+
+                const replyUserData = reply.userId || reply.user || {
+                    _id: 'unknown',
+                    username: 'Unknown',
+                    realname: 'Unknown User',
+                    profilePic: ''
+                };
+
+                const finalReplyUserData = {
+                    _id: replyUserData._id || 'unknown',
+                    username: replyUserData.username || 'Unknown',
+                    realname: replyUserData.realname || replyUserData.username || 'Unknown User',
+                    profilePic: replyUserData.profilePic || ''
+                };
+
+                return {
+                    ...reply,
+                    likes: replyLikes,
+                    hasUserLiked: hasUserLikedReply,
+                    userId: finalReplyUserData,
+                };
+            });
+
+            setUserPosts(prevPosts =>
+                prevPosts.map(post => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(comment =>
+                            comment._id === commentId
+                                ? {
+                                    ...comment,
+                                    replies: repliesWithLikes,
+                                    replyCount: repliesWithLikes.length
+                                }
+                                : comment
+                        ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const likesByReply = {};
+            replies.forEach((reply) => {
+                likesByReply[reply._id] = storedReplyLikes[reply._id] || reply.likes || [];
+            });
+
+            localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
+        } catch (err) {
+            setError("Failed to load replies");
+        }
+    };
+
+    const handleDeleteComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+
+        if (!post || !comment) {
+            setError("Comment not found");
+            return;
+        }
+
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to delete this comment and all its replies?")) {
+            return;
+        }
+
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        const originalPosts = [...userPosts];
+
+        try {
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.filter(
+                            (comment) => comment._id !== commentId
+                        ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                            commentCount: updatedComments.length,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const storedCommentLikes = getStoredCommentLikes();
+            delete storedCommentLikes[commentId];
+            localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
+
+            await apiService.deleteComment(commentId, postId, token);
+
+            setSuccessMessage("Comment deleted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error deleting comment:", err);
+            setError(err.message);
+            setUserPosts(originalPosts);
+        } finally {
+            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
+
+    const handleDeleteReply = async (replyId, commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+        const reply = comment?.replies?.find((r) => r._id === replyId);
+
+        if (!post || !comment || !reply) {
+            setError("Reply not found");
+            return;
+        }
+
+        const isReplyOwner = reply.userId?.username === username;
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isReplyOwner && !isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this reply");
+            return;
+        }
+
+        if (!window.confirm("Are you sure you want to delete this reply?")) {
+            return;
+        }
+
+        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        const originalPosts = [...userPosts];
+
+        try {
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map((comment) => {
+                            if (comment._id === commentId) {
+                                const updatedReplies = comment.replies?.filter(
+                                    (reply) => reply._id !== replyId
+                                ) || [];
+                                return {
+                                    ...comment,
+                                    replies: updatedReplies,
+                                    replyCount: updatedReplies.length,
+                                };
+                            }
+                            return comment;
+                        });
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const storedReplyLikes = getStoredReplyLikes();
+            delete storedReplyLikes[replyId];
+            localStorage.setItem("replyLikes", JSON.stringify(storedReplyLikes));
+
+            await apiService.deleteReply(replyId, token);
+
+            setSuccessMessage("Reply deleted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error deleting reply:", err);
+            setError(err.message);
+            setUserPosts(originalPosts);
+        } finally {
+            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
+        }
+    };
+
+    const handleLike = async (postId, e) => {
+        if (e) {
+            e.stopPropagation();
+        }
+
+        if (!username || !user?._id) {
+            console.error("User information not available");
+            setError("You must be logged in to like posts");
+            return;
+        }
+
+        setIsLiking((prev) => ({ ...prev, [postId]: true }));
+
+        try {
+            setUserPosts((posts) =>
+                posts.map((post) => {
+                    if (post._id === postId) {
+                        const isLiked = post.hasUserLiked;
+                        let updatedLikes;
+
+                        if (isLiked) {
+                            updatedLikes = post.likes.filter(
+                                (like) => like !== user._id && like !== username
+                            );
+                        } else {
+                            updatedLikes = [...post.likes, user._id];
+
+                            if (e) {
+                                const rect = e.target.getBoundingClientRect();
+                                const heartCount = 5;
+
+                                for (let i = 0; i < heartCount; i++) {
+                                    setTimeout(() => {
+                                        setFloatingHearts((hearts) => [
+                                            ...hearts,
+                                            {
+                                                id: Date.now() + i,
+                                                x: rect.left + rect.width / 2,
+                                                y: rect.top + rect.height / 2,
+                                            },
+                                        ]);
+                                    }, i * 100);
+                                }
+                            }
+                        }
+
+                        updateStoredLikes(postId, updatedLikes);
+
+                        return {
+                            ...post,
+                            likes: updatedLikes,
+                            hasUserLiked: !isLiked,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            await apiService.likePost(postId, user._id, token);
+        } catch (err) {
+            console.error("Error liking post:", err);
+            setError(err.message);
+            await fetchUserPosts(userData.username);
+        } finally {
+            setIsLiking((prev) => ({ ...prev, [postId]: false }));
+        }
+    };
+
+    const handleLikeComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        if (!username || !user?._id) {
+            setError("You must be logged in to like comments");
+            return;
+        }
+
+        setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        try {
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const isLiked = comment.hasUserLiked;
+                                    let updatedLikes;
+
+                                    if (isLiked) {
+                                        updatedLikes = comment.likes.filter(
+                                            (likeUserId) => likeUserId !== user._id
+                                        );
+                                    } else {
+                                        updatedLikes = [...(comment.likes || []), user._id];
+                                    }
+
+                                    updateStoredCommentLikes(commentId, updatedLikes);
+
+                                    return {
+                                        ...comment,
+                                        likes: updatedLikes,
+                                        hasUserLiked: !isLiked,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return { ...post, comments: updatedComments };
+                    }
+                    return post;
+                })
+            );
+
+            await apiService.likeComment(commentId, user._id, token);
+            await fetchComments(postId);
+        } catch (err) {
+            console.error("Error liking comment:", err);
+            setError(err.message);
+            await fetchComments(postId);
+        } finally {
+            setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
+
+    const handleLikeReply = async (replyId, commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        if (!username || !user?._id) {
+            setError("You must be logged in to like replies");
+            return;
+        }
+
+        setIsLikingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        try {
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map((comment) => {
+                            if (comment._id === commentId) {
+                                const updatedReplies = comment.replies?.map((reply) => {
+                                    if (reply._id === replyId) {
+                                        const isLiked = reply.hasUserLiked;
+                                        let updatedLikes;
+
+                                        if (isLiked) {
+                                            updatedLikes = reply.likes.filter(
+                                                (likeUserId) => likeUserId !== user._id
+                                            );
+                                        } else {
+                                            updatedLikes = [...(reply.likes || []), user._id];
+                                        }
+
+                                        updateStoredReplyLikes(replyId, updatedLikes);
+
+                                        return {
+                                            ...reply,
+                                            likes: updatedLikes,
+                                            hasUserLiked: !isLiked,
+                                        };
+                                    }
+                                    return reply;
+                                });
+
+                                return { ...comment, replies: updatedReplies };
+                            }
+                            return comment;
+                        });
+
+                        return { ...post, comments: updatedComments };
+                    }
+                    return post;
+                })
+            );
+
+            await apiService.likeReply(replyId, user._id, token);
+            await fetchComments(postId);
+        } catch (err) {
+            console.error("Error liking reply:", err);
+            setError(err.message);
+            await fetchComments(postId);
+        } finally {
+            setIsLikingReply((prev) => ({ ...prev, [replyId]: false }));
+        }
+    };
+
+    const toggleCommentDropdown = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        if (activeCommentPostId !== postId) {
+            await fetchComments(postId);
+        }
+
+        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
+        setCommentContent((prev) => ({
+            ...prev,
+            [postId]: prev[postId] || "",
+        }));
+    };
+
+    const toggleReplies = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // If we're expanding and replies aren't loaded yet, fetch them
+        if (!activeReplies[commentId]) {
+            try {
+                await fetchCommentReplies(commentId, postId);
+            } catch (err) {
+                setError("Failed to load replies");
+                return;
+            }
+        }
+
+        // Toggle the active state
+        setActiveReplies(prev => ({
+            ...prev,
+            [commentId]: !prev[commentId]
+        }));
+    };
+
+    const toggleReplyInput = (commentId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        setUserPosts(prevPosts =>
+            prevPosts.map(post => ({
+                ...post,
+                comments: post.comments?.map(comment =>
+                    comment._id === commentId
+                        ? { ...comment, showReplyInput: !comment.showReplyInput }
+                        : comment
+                ) || []
+            }))
+        );
+
+        setReplyContent(prev => ({
+            ...prev,
+            [commentId]: prev[commentId] || ""
+        }));
+    };
+
+    const handleCommentSubmit = async (postId, e) => {
+        if (e) e.preventDefault();
+
+        const content = commentContent[postId] || "";
+
+        if (!content.trim()) {
+            setError("Comment cannot be empty");
+            return;
+        }
+
+        if (!username) {
+            setError("You must be logged in to comment");
+            navigate("/login");
+            return;
+        }
+
+        setIsCommenting((prev) => ({ ...prev, [postId]: true }));
+        setError(null);
+
+        try {
+            const responseData = await apiService.addComment(postId, content, token);
+            const createdComment = responseData.comment || responseData;
+
+            setUserPosts((posts) =>
+                posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            comments: [
+                                ...(post.comments || []),
+                                {
+                                    ...createdComment,
+                                    hasUserLiked: false,
+                                    userId: {
+                                        _id: currentUserProfile?._id || user?._id || username,
+                                        username: username,
+                                        realname: currentUserProfile?.realname || user?.realname || username,
+                                        profilePic: currentUserProfile?.profilePic || user?.profilePic,
+                                    },
+                                    replies: [],
+                                    replyCount: 0,
+                                    showReplyInput: false,
+                                },
+                            ],
+                            commentCount: (post.commentCount || 0) + 1,
+                        }
+                        : post
+                )
+            );
+
+            setCommentContent((prev) => ({ ...prev, [postId]: "" }));
+        } catch (err) {
+            console.error("Error posting comment:", err);
+            setError(err.message);
+        } finally {
+            setIsCommenting((prev) => ({ ...prev, [postId]: false }));
+        }
+    };
+
+    const handleAddReply = async (commentId, postId, e) => {
+        if (e) e.preventDefault();
+
+        const content = replyContent[commentId] || "";
+
+        if (!content.trim()) {
+            setError("Reply cannot be empty");
+            return;
+        }
+
+        if (!username) {
+            setError("You must be logged in to reply");
+            navigate("/login");
+            return;
+        }
+
+        setIsReplying((prev) => ({ ...prev, [commentId]: true }));
+        setError(null);
+
+        try {
+            const responseData = await apiService.addCommentReply(commentId, content, postId, token);
+            const createdReply = responseData.reply || responseData;
+
+            setUserPosts(prevPosts =>
+                prevPosts.map(post => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(comment => {
+                            if (comment._id === commentId) {
+                                const newReply = {
+                                    ...createdReply,
+                                    _id: createdReply._id || `temp-${Date.now()}`,
+                                    content: content,
+                                    userId: {
+                                        _id: user._id,
+                                        username: username,
+                                        realname: currentUserProfile?.realname || user?.realname || username,
+                                        profilePic: currentUserProfile?.profilePic || user?.profilePic,
+                                    },
+                                    likes: [],
+                                    hasUserLiked: false,
+                                    createdAt: createdReply.createdAt || new Date().toISOString(),
+                                };
+
+                                const updatedReplies = [...(comment.replies || []), newReply];
+
+                                return {
+                                    ...comment,
+                                    replies: updatedReplies,
+                                    replyCount: updatedReplies.length,
+                                    showReplyInput: false,
+                                };
+                            }
+                            return comment;
+                        });
+
+                        return {
+                            ...post,
+                            comments: updatedComments
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
+            setSuccessMessage("Reply posted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+
+        } catch (err) {
+            console.error("Error posting reply:", err);
+            setError(err.message);
+        } finally {
+            setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+        }
     };
 
     // Floating Hearts Animation Component
@@ -94,602 +947,6 @@ const UserProfile = () => {
         </div>
     );
 
-    // Helper functions to manage localStorage likes
-    const getStoredLikes = () => {
-        try {
-            return JSON.parse(localStorage.getItem("postLikes") || "{}");
-        } catch (error) {
-            console.error("Error parsing stored likes:", error);
-            return {};
-        }
-    };
-
-    const updateStoredLikes = (postId, likes) => {
-        const storedLikes = getStoredLikes();
-        storedLikes[postId] = likes;
-        localStorage.setItem("postLikes", JSON.stringify(storedLikes));
-    };
-
-    // Helper functions for comment likes
-    const getStoredCommentLikes = () => {
-        try {
-            return JSON.parse(localStorage.getItem("commentLikes") || "{}");
-        } catch (error) {
-            console.error("Error parsing stored comment likes:", error);
-            return {};
-        }
-    };
-
-    const updateStoredCommentLikes = (commentId, likes) => {
-        const storedCommentLikes = getStoredCommentLikes();
-        storedCommentLikes[commentId] = likes;
-        localStorage.setItem(
-            "commentLikes",
-            JSON.stringify(storedCommentLikes)
-        );
-    };
-
-    useEffect(() => {
-        if (token) {
-            fetchCurrentUserProfile();
-            fetchUserProfile();
-        } else {
-            navigate("/login");
-        }
-    }, [userId, token]);
-
-    useEffect(() => {
-        document.body.classList.toggle("dark", isDarkMode);
-    }, [isDarkMode]);
-
-    const fetchUserProfile = async () => {
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/user/user/${userId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch user profile");
-            }
-
-            const data = await response.json();
-
-            const userDataFromApi = data.user || data;
-            setUserData(userDataFromApi);
-
-            if (data.description) {
-                setUserDescription(data.description);
-            }
-
-            if (userDataFromApi.username) {
-                fetchUserPosts(userDataFromApi.username);
-            }
-        } catch (err) {
-            console.error("Error fetching user profile:", err);
-            setError(err.message);
-            setIsLoading(false);
-        }
-    };
-
-    const fetchUserPosts = async (username) => {
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/posts/user/${username}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch user posts");
-            }
-
-            const data = await response.json();
-            const postsData = Array.isArray(data) ? data : data.posts || [];
-
-            // Get stored likes from localStorage
-            const storedLikes = getStoredLikes();
-
-            const postsWithLikes = postsData.map((post) => {
-                // Get likes from storage or API
-                const postLikes = storedLikes[post._id] || post.likes || [];
-
-                // Check if current user has liked this post (handles both user ID and username)
-                const hasUserLiked =
-                    postLikes.includes(user._id) ||
-                    postLikes.includes(username);
-
-                return {
-                    ...post,
-                    likes: postLikes,
-                    hasUserLiked: hasUserLiked,
-                    comments: post.comments || [],
-                };
-            });
-
-            setUserPosts(postsWithLikes);
-
-            // Update localStorage with current likes
-            const likesByPost = {};
-            postsData.forEach((post) => {
-                const storedPostLikes =
-                    storedLikes[post._id] || post.likes || [];
-                likesByPost[post._id] = storedPostLikes;
-            });
-
-            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-        } catch (err) {
-            console.error("Error fetching user posts:", err);
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchComments = async (postId) => {
-        setLoadingComments((prev) => ({ ...prev, [postId]: true }));
-
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/posts/${postId}/comments`,
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to fetch comments");
-            }
-
-            const responseData = await response.json();
-            const comments = responseData.comments || [];
-
-            // Get stored comment likes from localStorage
-            const storedCommentLikes = getStoredCommentLikes();
-
-            const commentsWithLikes = comments.map((comment) => {
-                // Get likes from storage or API
-                const commentLikes =
-                    storedCommentLikes[comment._id] || comment.likes || [];
-
-                // Check if current user has liked this comment
-                const hasUserLiked = commentLikes.includes(user._id);
-
-                return {
-                    ...comment,
-                    likes: commentLikes,
-                    hasUserLiked: hasUserLiked,
-                };
-            });
-
-            setUserPosts((posts) =>
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: commentsWithLikes,
-                              commentCount: commentsWithLikes.length,
-                          }
-                        : post
-                )
-            );
-
-            // Update localStorage with current comment likes
-            const likesByComment = {};
-            comments.forEach((comment) => {
-                likesByComment[comment._id] =
-                    storedCommentLikes[comment._id] || comment.likes || [];
-            });
-
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(likesByComment)
-            );
-        } catch (err) {
-            setError(err.message);
-            console.error("Error fetching comments:", err);
-        } finally {
-            setLoadingComments((prev) => ({ ...prev, [postId]: false }));
-        }
-    };
-
-    const handleDeleteComment = async (commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        const post = userPosts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
-
-        if (!post || !comment) {
-            setError("Comment not found");
-            return;
-        }
-
-        const isCommentOwner = comment.userId?.username === username;
-        const isPostOwner = post.userId?.username === username;
-
-        if (!isCommentOwner && !isPostOwner) {
-            setError("You don't have permission to delete this comment");
-            return;
-        }
-
-        if (!window.confirm("Are you sure you want to delete this comment?")) {
-            return;
-        }
-
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
-
-        const originalPosts = [...userPosts];
-
-        try {
-            setUserPosts(
-                userPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments =
-                            post.comments?.filter(
-                                (comment) => comment._id !== commentId
-                            ) || [];
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                            commentCount: updatedComments.length,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            // Remove comment likes from localStorage when comment is deleted
-            const storedCommentLikes = getStoredCommentLikes();
-            delete storedCommentLikes[commentId];
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(storedCommentLikes)
-            );
-
-            const response = await fetch(
-                `${config.apiUrl}/posts/comments/${commentId}`,
-                {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ postId }),
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(
-                    errorData.message || "Failed to delete comment"
-                );
-            }
-
-            setSuccessMessage("Comment deleted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
-        } catch (err) {
-            console.error("Error deleting comment:", err);
-            setError(err.message);
-
-            setUserPosts(originalPosts);
-        } finally {
-            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-        }
-    };
-
-    const handleLike = async (postId, e) => {
-        if (e) {
-            e.stopPropagation();
-        }
-
-        if (!username || !user?._id) {
-            console.error("User information not available");
-            setError("You must be logged in to like posts");
-            return;
-        }
-
-        setIsLiking((prev) => ({ ...prev, [postId]: true }));
-
-        try {
-            // Update UI immediately for better UX
-            setUserPosts((posts) =>
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const isLiked = post.hasUserLiked;
-                        let updatedLikes;
-
-                        if (isLiked) {
-                            // Remove both user ID and username
-                            updatedLikes = post.likes.filter(
-                                (like) => like !== user._id && like !== username
-                            );
-                        } else {
-                            // Add both user ID and username for compatibility
-                            updatedLikes = [
-                                ...post.likes,
-                                user._id, // Store user ID
-                            ];
-
-                            // Add floating hearts animation when liking
-                            if (e) {
-                                const rect = e.target.getBoundingClientRect();
-                                const heartCount = 5; // Number of hearts to show
-
-                                for (let i = 0; i < heartCount; i++) {
-                                    setTimeout(() => {
-                                        setFloatingHearts((hearts) => [
-                                            ...hearts,
-                                            {
-                                                id: Date.now() + i,
-                                                x: rect.left + rect.width / 2,
-                                                y: rect.top + rect.height / 2,
-                                            },
-                                        ]);
-                                    }, i * 100); // Stagger the hearts
-                                }
-                            }
-                        }
-
-                        // Update localStorage with both formats
-                        updateStoredLikes(postId, updatedLikes);
-
-                        return {
-                            ...post,
-                            likes: updatedLikes,
-                            hasUserLiked: !isLiked,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            // Send API request
-            const response = await fetch(
-                `${config.apiUrl}/posts/like/${postId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ userId: user._id }), // Send user ID to API
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to like post");
-            }
-        } catch (err) {
-            console.error("Error liking post:", err);
-            setError(err.message);
-
-            // Revert UI changes if API call fails
-            await fetchUserPosts(userData.username);
-        } finally {
-            setIsLiking((prev) => ({ ...prev, [postId]: false }));
-        }
-    };
-
-    const handleLikeComment = async (commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        if (!username || !user?._id) {
-            setError("You must be logged in to like comments");
-            return;
-        }
-
-        setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
-
-        try {
-            // Optimistic UI update
-            setUserPosts(
-                userPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments = post.comments?.map(
-                            (comment) => {
-                                if (comment._id === commentId) {
-                                    const isLiked = comment.hasUserLiked;
-                                    let updatedLikes;
-
-                                    if (isLiked) {
-                                        // Remove user ID
-                                        updatedLikes = comment.likes.filter(
-                                            (likeUserId) =>
-                                                likeUserId !== user._id
-                                        );
-                                    } else {
-                                        // Add user ID
-                                        updatedLikes = [
-                                            ...(comment.likes || []),
-                                            user._id,
-                                        ];
-                                    }
-
-                                    // Update localStorage
-                                    updateStoredCommentLikes(
-                                        commentId,
-                                        updatedLikes
-                                    );
-
-                                    return {
-                                        ...comment,
-                                        likes: updatedLikes,
-                                        hasUserLiked: !isLiked,
-                                    };
-                                }
-                                return comment;
-                            }
-                        );
-
-                        return { ...post, comments: updatedComments };
-                    }
-                    return post;
-                })
-            );
-
-            const response = await fetch(
-                `${config.apiUrl}/posts/comments/${commentId}/like`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        userId: user._id,
-                    }),
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to like comment");
-            }
-
-            await fetchComments(postId);
-        } catch (err) {
-            console.error("Error liking comment:", err);
-            setError(err.message);
-            await fetchComments(postId);
-        } finally {
-            setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
-        }
-    };
-
-    const toggleCommentDropdown = async (postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        if (activeCommentPostId !== postId) {
-            await fetchComments(postId);
-        }
-
-        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
-        setCommentContent((prev) => ({
-            ...prev,
-            [postId]: prev[postId] || "",
-        }));
-    };
-
-    const handleCommentSubmit = async (postId, e) => {
-        if (e) e.preventDefault();
-
-        const content = commentContent[postId] || "";
-
-        if (!content.trim()) {
-            setError("Comment cannot be empty");
-            return;
-        }
-
-        if (!username) {
-            setError("You must be logged in to comment");
-            navigate("/login");
-            return;
-        }
-
-        setIsCommenting((prev) => ({ ...prev, [postId]: true }));
-        setError(null);
-
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/posts/${postId}/comments`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        postId: postId,
-                        content: content,
-                    }),
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to post comment");
-            }
-
-            const responseData = await response.json();
-            const createdComment = responseData.comment || responseData;
-
-            setUserPosts((posts) =>
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: [
-                                  ...(post.comments || []),
-                                  {
-                                      ...createdComment,
-                                      isLiked: false,
-                                      userId: {
-                                          _id:
-                                              currentUserProfile?._id ||
-                                              user?._id ||
-                                              username,
-                                          username: username,
-                                          realname:
-                                              currentUserProfile?.realname ||
-                                              user?.realname ||
-                                              username,
-                                          profilePic:
-                                              currentUserProfile?.profilePic ||
-                                              user?.profilePic,
-                                      },
-                                  },
-                              ],
-                          }
-                        : post
-                )
-            );
-
-            setCommentContent((prev) => ({ ...prev, [postId]: "" }));
-        } catch (err) {
-            console.error("Error posting comment:", err);
-            setError(err.message);
-        } finally {
-            setIsCommenting((prev) => ({ ...prev, [postId]: false }));
-        }
-    };
-
-    const fetchCurrentUserProfile = async () => {
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(`${config.apiUrl}/user/me`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (response.ok) {
-                const userData = await response.json();
-                setCurrentUserProfile(userData);
-            }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
-        }
-    };
-
     // Function to handle image load and get dimensions
     const handleImageLoad = (e) => {
         const img = e.target;
@@ -704,10 +961,7 @@ const UserProfile = () => {
         const maxWidth = window.innerWidth * 0.9;
         const maxHeight = window.innerHeight * 0.9;
 
-        if (
-            imageDimensions.width > maxWidth ||
-            imageDimensions.height > maxHeight
-        ) {
+        if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
             const widthRatio = maxWidth / imageDimensions.width;
             const heightRatio = maxHeight / imageDimensions.height;
             const ratio = Math.min(widthRatio, heightRatio);
@@ -726,7 +980,6 @@ const UserProfile = () => {
 
     const formatDate = (dateString) => {
         try {
-            // Convert UTC string to IST date
             const utcDate = new Date(dateString);
             const istDate = new Date(
                 utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
@@ -736,14 +989,12 @@ const UserProfile = () => {
                 return "Just now";
             }
 
-            // Current IST time
             const now = new Date(
                 new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
             );
 
             const diffInSeconds = Math.floor((now - istDate) / 1000);
 
-            // Handle future dates
             if (diffInSeconds < 0) {
                 return "Just now";
             }
@@ -774,19 +1025,119 @@ const UserProfile = () => {
         }
     };
 
+    // Reply Item Component
+    const ReplyItem = ({ reply, commentId, postId, commentOwner }) => {
+        return (
+            <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
+                <div className="flex items-start space-x-2">
+                    <div
+                        className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (reply.userId?._id === currentUserProfile?._id) {
+                                navigate("/profile");
+                            } else {
+                                navigate(`/user/${reply.userId?._id}`);
+                            }
+                        }}
+                    >
+                        {reply.userId?.profilePic ? (
+                            <img
+                                src={reply.userId.profilePic}
+                                alt={reply.userId.username}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    e.target.style.display = "none";
+                                }}
+                            />
+                        ) : null}
+                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${reply.userId?.profilePic ? 'hidden' : 'flex'}`}>
+                            {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
+                        </div>
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                            <span
+                                className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (reply.userId?._id === currentUserProfile?._id) {
+                                        navigate("/profile");
+                                    } else {
+                                        navigate(`/user/${reply.userId?._id}`);
+                                    }
+                                }}
+                            >
+                                {reply.userId?.username || "Unknown"}
+                            </span>
+                            <span
+                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                    }`}
+                            >
+                                {formatDate(reply.createdAt)}
+                            </span>
+                        </div>
+                        <p
+                            className={`text-xs whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                }`}
+                        >
+                            {reply.content}
+                        </p>
+
+                        <div className="mt-1 flex items-center justify-between">
+                            <button
+                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                onClick={(e) => handleLikeReply(reply._id, commentId, postId, e)}
+                                disabled={isLikingReply[reply._id]}
+                            >
+                                {isLikingReply[reply._id] ? (
+                                    <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                ) : reply.hasUserLiked ? (
+                                    <FaHeart className="text-xs text-red-500" />
+                                ) : (
+                                    <FaRegHeart className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                        }`} />
+                                )}
+                                <span className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                    }`}>
+                                    {reply.likes?.length || 0}
+                                </span>
+                            </button>
+
+                            <div className="flex space-x-2">
+                                {(reply.userId?.username === username || commentOwner === username) && (
+                                    <button
+                                        className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                        onClick={(e) => handleDeleteReply(reply._id, commentId, postId, e)}
+                                        disabled={isDeletingReply[reply._id]}
+                                        title="Delete reply"
+                                    >
+                                        {isDeletingReply[reply._id] ? (
+                                            <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <FaTrashAlt />
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (isLoading) {
         return (
             <div
-                className={`min-h-screen ${
-                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                } flex items-center justify-center`}
+                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                    } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <p
-                        className={`mt-2 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
+                        className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"
+                            }`}
                     >
                         Loading profile...
                     </p>
@@ -798,9 +1149,8 @@ const UserProfile = () => {
     if (error) {
         return (
             <div
-                className={`min-h-screen ${
-                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                } flex items-center justify-center`}
+                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                    } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <p className="text-red-500">Error: {error}</p>
@@ -818,15 +1168,13 @@ const UserProfile = () => {
     if (!userData) {
         return (
             <div
-                className={`min-h-screen ${
-                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                } flex items-center justify-center`}
+                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                    } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <p
-                        className={`${
-                            isDarkMode ? "text-gray-400" : "text-gray-500"
-                        }`}
+                        className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
                     >
                         User not found
                     </p>
@@ -843,9 +1191,8 @@ const UserProfile = () => {
 
     return (
         <div
-            className={`min-h-screen ${
-                isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"
-            }`}
+            className={`min-h-screen ${isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"
+                }`}
         >
             {/* Floating Hearts Animation */}
             <FloatingHearts />
@@ -911,9 +1258,8 @@ const UserProfile = () => {
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 {/* Profile Info */}
                 <div
-                    className={`w-full max-w-4xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
-                        isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white"
-                    }`}
+                    className={`w-full max-w-4xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white"
+                        }`}
                 >
                     <div className="flex flex-col items-center md:flex-row md:items-start">
                         <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 mb-4 md:mb-0 md:mr-6">
@@ -924,34 +1270,24 @@ const UserProfile = () => {
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                         e.target.style.display = "none";
-                                        e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full text-white font-bold text-3xl">
-                    ${userData.username?.charAt(0).toUpperCase() || "U"}
-                </span>`;
                                     }}
                                 />
-                            ) : (
-                                <span className="flex items-center justify-center w-full h-full text-white font-bold text-3xl">
-                                    {userData.username
-                                        ?.charAt(0)
-                                        .toUpperCase() || "U"}
-                                </span>
-                            )}
+                            ) : null}
+                            <div className={`w-full h-full flex items-center justify-center text-white font-bold text-3xl ${userData.profilePic ? 'hidden' : 'flex'}`}>
+                                {userData.username?.charAt(0).toUpperCase() || "U"}
+                            </div>
                         </div>
 
                         <div className="flex-1 text-center md:text-left">
                             <h2
-                                className={`text-2xl font-bold ${
-                                    isDarkMode ? "text-white" : "text-gray-900"
-                                }`}
+                                className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"
+                                    }`}
                             >
                                 {userData.realname || userData.username}
                             </h2>
                             <p
-                                className={`${
-                                    isDarkMode
-                                        ? "text-gray-400"
-                                        : "text-gray-500"
-                                }`}
+                                className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                    }`}
                             >
                                 @{userData.username}
                             </p>
@@ -959,22 +1295,16 @@ const UserProfile = () => {
                             {/* display user description  */}
                             {userDescription && (
                                 <p
-                                    className={`mt-2 ${
-                                        isDarkMode
-                                            ? "text-gray-300"
-                                            : "text-gray-700"
-                                    }`}
+                                    className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"
+                                        }`}
                                 >
                                     {userDescription}
                                 </p>
                             )}
 
                             <div
-                                className={`mt-4 flex flex-wrap gap-4 text-sm ${
-                                    isDarkMode
-                                        ? "text-gray-400"
-                                        : "text-gray-500"
-                                }`}
+                                className={`mt-4 flex flex-wrap gap-4 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                    }`}
                             >
                                 {userData.location && (
                                     <div className="flex items-center">
@@ -1017,32 +1347,24 @@ const UserProfile = () => {
                 {/* Posts */}
                 <div className="w-full max-w-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default">
                     <h3
-                        className={`text-xl font-semibold mb-4 ${
-                            isDarkMode ? "text-white" : "text-gray-900"
-                        }`}
+                        className={`text-xl font-semibold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"
+                            }`}
                     >
                         Posts
                     </h3>
 
                     {userPosts.length === 0 ? (
                         <div
-                            className={`rounded-lg p-6 text-center ${
-                                isDarkMode ? "bg-gray-800" : "bg-white"
-                            }`}
+                            className={`rounded-lg p-6 text-center ${isDarkMode ? "bg-gray-800" : "bg-white"
+                                }`}
                         >
                             <FaUser
-                                className={`text-4xl mx-auto mb-4 ${
-                                    isDarkMode
-                                        ? "text-gray-500"
-                                        : "text-gray-400"
-                                }`}
+                                className={`text-4xl mx-auto mb-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"
+                                    }`}
                             />
                             <p
-                                className={`${
-                                    isDarkMode
-                                        ? "text-gray-400"
-                                        : "text-gray-500"
-                                }`}
+                                className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                    }`}
                             >
                                 No posts yet
                             </p>
@@ -1052,11 +1374,8 @@ const UserProfile = () => {
                             {userPosts.map((post) => (
                                 <div
                                     key={post._id}
-                                    className={`rounded-lg p-4 shadow-sm ${
-                                        isDarkMode
-                                            ? "bg-gray-800 text-gray-100"
-                                            : "bg-white text-gray-900"
-                                    }`}
+                                    className={`rounded-lg p-4 shadow-sm ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3 mb-3">
                                         <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
@@ -1066,111 +1385,79 @@ const UserProfile = () => {
                                                     alt={userData.username}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
-                                                        e.target.style.display =
-                                                            "none";
-                                                        e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full text-white font-semibold text-sm">
-                    ${userData.username?.charAt(0).toUpperCase() || "U"}
-                </span>`;
+                                                        e.target.style.display = "none";
                                                     }}
                                                 />
-                                            ) : (
-                                                <span className="flex items-center justify-center w-full h-full text-white font-semibold text-sm">
-                                                    {userData.username
-                                                        ?.charAt(0)
-                                                        .toUpperCase() || "U"}
-                                                </span>
-                                            )}
+                                            ) : null}
+                                            <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userData.profilePic ? 'hidden' : 'flex'}`}>
+                                                {userData.username?.charAt(0).toUpperCase() || "U"}
+                                            </div>
                                         </div>
 
                                         <div>
                                             <h3
-                                                className={`text-base font-semibold ${
-                                                    isDarkMode
-                                                        ? "text-white"
-                                                        : "text-gray-800"
-                                                }`}
+                                                className={`text-base font-semibold ${isDarkMode ? "text-white" : "text-gray-800"
+                                                    }`}
                                             >
-                                                {userData.realname ||
-                                                    userData.username}
+                                                {userData.realname || userData.username}
                                             </h3>
                                             <p
-                                                className={`text-xs ${
-                                                    isDarkMode
-                                                        ? "text-gray-400"
-                                                        : "text-gray-500"
-                                                }`}
+                                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                    }`}
                                             >
                                                 @{userData.username}{" "}
                                                 {post.createdAt &&
-                                                    `· ${formatDate(
-                                                        post.createdAt
-                                                    )}`}
+                                                    `· ${formatDate(post.createdAt)}`}
                                             </p>
                                         </div>
                                     </div>
 
                                     <p
-                                        className={`leading-relaxed mb-3 ${
-                                            isDarkMode
-                                                ? "text-gray-200"
-                                                : "text-gray-700"
-                                        }`}
+                                        className={`leading-relaxed mb-3 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                            }`}
                                     >
                                         {post.content}
                                     </p>
 
-                                    {/* Fixed Image Container */}
+                                    {/* Fixed Image Container with Border Radius */}
                                     {post.image && (
-                                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                                        <div className="w-full mb-3 overflow-hidden flex justify-center">
                                             <img
                                                 src={post.image}
                                                 alt="Post"
-                                                className="max-h-96 max-w-full object-contain cursor-pointer"
+                                                className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
                                                 onClick={() => {
                                                     setPreviewImage(post.image);
                                                     setShowImagePreview(true);
                                                 }}
                                                 onError={(e) => {
-                                                    e.target.style.display =
-                                                        "none";
+                                                    e.target.style.display = "none";
                                                 }}
                                             />
                                         </div>
                                     )}
 
                                     <div
-                                        className={`flex items-center justify-between border-t pt-3 ${
-                                            isDarkMode
-                                                ? "border-gray-700"
-                                                : "border-gray-200"
-                                        }`}
+                                        className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? "border-gray-700" : "border-gray-200"
+                                            }`}
                                     >
                                         <motion.button
                                             whileTap={{ scale: 0.9 }}
-                                            onClick={(e) =>
-                                                handleLike(post._id, e)
-                                            }
+                                            onClick={(e) => handleLike(post._id, e)}
                                             disabled={isLiking[post._id]}
-                                            className={`flex items-center gap-1 ${
-                                                isLiking[post._id]
-                                                    ? "opacity-50 cursor-not-allowed"
-                                                    : "cursor-pointer"
-                                            } hover:text-red-500 transition-colors`}
+                                            className={`flex items-center gap-1 ${isLiking[post._id]
+                                                ? "opacity-50 cursor-not-allowed"
+                                                : "cursor-pointer"
+                                                } hover:text-red-500 transition-colors`}
                                         >
                                             {isLiking[post._id] ? (
-                                                // Loader while liking/unliking
                                                 <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                                             ) : post.hasUserLiked ? (
-                                                // When already liked -> filled red heart
                                                 <FaHeart className="text-xl text-red-500" />
                                             ) : (
-                                                // When not liked -> outlined heart
                                                 <FaRegHeart
-                                                    className={`text-xl ${
-                                                        isDarkMode
-                                                            ? "text-gray-400"
-                                                            : "text-gray-500"
-                                                    }`}
+                                                    className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                        }`}
                                                 />
                                             )}
                                             <motion.span
@@ -1178,35 +1465,26 @@ const UserProfile = () => {
                                                 initial={{ scale: 1 }}
                                                 animate={{ scale: [1.2, 1] }}
                                                 transition={{ duration: 0.2 }}
-                                                className={`text-sm font-medium ${
-                                                    post.hasUserLiked
-                                                        ? "text-red-500"
-                                                        : isDarkMode
+                                                className={`text-sm font-medium ${post.hasUserLiked
+                                                    ? "text-red-500"
+                                                    : isDarkMode
                                                         ? "text-gray-400"
                                                         : "text-gray-500"
-                                                }`}
+                                                    }`}
                                             >
                                                 {post.likes?.length || 0}
                                             </motion.span>
                                         </motion.button>
 
                                         <button
-                                            className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${
-                                                isDarkMode
-                                                    ? "text-gray-400"
-                                                    : "text-gray-600"
-                                            }`}
-                                            onClick={(e) =>
-                                                toggleCommentDropdown(
-                                                    post._id,
-                                                    e
-                                                )
-                                            }
+                                            className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                                }`}
+                                            onClick={(e) => toggleCommentDropdown(post._id, e)}
                                             disabled={loadingComments[post._id]}
                                         >
                                             <FaComment />
                                             <span className="text-sm">
-                                                {post.comments?.length || 0}
+                                                {post.commentCount || 0}
                                             </span>
                                             {loadingComments[post._id] && (
                                                 <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
@@ -1217,253 +1495,222 @@ const UserProfile = () => {
                                     {/* Comment Section */}
                                     {activeCommentPostId === post._id && (
                                         <div className="mt-4">
-                                            {/* Show loading state when fetching */}
                                             {loadingComments[post._id] ? (
                                                 <div className="text-center py-4">
                                                     <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                                     <p
-                                                        className={`text-sm mt-2 ${
-                                                            isDarkMode
-                                                                ? "text-gray-400"
-                                                                : "text-gray-600"
-                                                        }`}
+                                                        className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                                            }`}
                                                     >
                                                         Loading comments...
                                                     </p>
                                                 </div>
                                             ) : (
                                                 <>
-                                                    {/* Show comments if they exist */}
-                                                    {post.comments &&
-                                                    post.comments.length > 0 ? (
+                                                    {post.comments && post.comments.length > 0 ? (
                                                         <div
-                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                                isDarkMode
-                                                                    ? "bg-gray-700 text-gray-200"
-                                                                    : "bg-gray-100 text-gray-800"
-                                                            }`}
+                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${isDarkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
+                                                                }`}
                                                         >
-                                                            {post.comments.map(
-                                                                (comment) => (
+                                                            {post.comments.map((comment) => (
+                                                                <div
+                                                                    key={comment._id}
+                                                                    className="flex items-start space-x-2"
+                                                                >
                                                                     <div
-                                                                        key={
-                                                                            comment._id
-                                                                        }
-                                                                        className="flex items-start space-x-2"
+                                                                        className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                                                                        onClick={() => {
+                                                                            if (comment.userId?._id === currentUserProfile?._id) {
+                                                                                navigate("/profile");
+                                                                            } else {
+                                                                                navigate(`/user/${comment.userId?._id}`);
+                                                                            }
+                                                                        }}
                                                                     >
-                                                                        <div
-                                                                            className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                                                                            onClick={() => {
-                                                                                if (
-                                                                                    comment
-                                                                                        .userId
-                                                                                        ?._id ===
-                                                                                    currentUserProfile?._id
-                                                                                ) {
-                                                                                    navigate(
-                                                                                        "/profile"
-                                                                                    );
-                                                                                } else {
-                                                                                    navigate(
-                                                                                        `/user/${comment.userId?._id}`
-                                                                                    );
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            {comment
-                                                                                .userId
-                                                                                ?.profilePic ? (
-                                                                                <img
-                                                                                    src={
-                                                                                        comment
-                                                                                            .userId
-                                                                                            .profilePic
-                                                                                    }
-                                                                                    alt={
-                                                                                        comment
-                                                                                            .userId
-                                                                                            .username
-                                                                                    }
-                                                                                    className="w-full h-full object-cover"
-                                                                                    onError={(
-                                                                                        e
-                                                                                    ) => {
-                                                                                        e.target.style.display =
-                                                                                            "none";
-                                                                                        e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
-                                                                                            comment.userId.username
-                                                                                                ?.charAt(
-                                                                                                    0
-                                                                                                )
-                                                                                                .toUpperCase() ||
-                                                                                            "U"
-                                                                                        }</span>`;
-                                                                                    }}
-                                                                                />
-                                                                            ) : (
-                                                                                <span className="text-xs font-semibold text-gray-700">
-                                                                                    {comment.userId?.username
-                                                                                        ?.charAt(
-                                                                                            0
-                                                                                        )
-                                                                                        .toUpperCase() ||
-                                                                                        "U"}
-                                                                                </span>
-                                                                            )}
+                                                                        {comment.userId?.profilePic ? (
+                                                                            <img
+                                                                                src={comment.userId.profilePic}
+                                                                                alt={comment.userId.username}
+                                                                                className="w-full h-full object-cover"
+                                                                                onError={(e) => {
+                                                                                    e.target.style.display = "none";
+                                                                                }}
+                                                                            />
+                                                                        ) : null}
+                                                                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${comment.userId?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                            {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
                                                                         </div>
-                                                                        <div className="flex-1">
-                                                                            <div className="flex items-center space-x-2">
-                                                                                <span
-                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                                    onClick={() => {
-                                                                                        if (
-                                                                                            comment
-                                                                                                .userId
-                                                                                                ?._id ===
-                                                                                            currentUserProfile?._id
-                                                                                        ) {
-                                                                                            navigate(
-                                                                                                "/profile"
-                                                                                            );
-                                                                                        } else {
-                                                                                            navigate(
-                                                                                                `/user/${comment.userId?._id}`
-                                                                                            );
-                                                                                        }
-                                                                                    }}
-                                                                                >
-                                                                                    {comment
-                                                                                        .userId
-                                                                                        ?.username ||
-                                                                                        "Unknown"}
-                                                                                </span>
-                                                                                <span
-                                                                                    className={`text-xs ${
-                                                                                        isDarkMode
-                                                                                            ? "text-gray-400"
-                                                                                            : "text-gray-500"
-                                                                                    }`}
-                                                                                >
-                                                                                    {formatDate(
-                                                                                        comment.createdAt
-                                                                                    )}
-                                                                                </span>
-                                                                            </div>
-                                                                            <p
-                                                                                className={`text-sm whitespace-pre-line mt-1 ${
-                                                                                    isDarkMode
-                                                                                        ? "text-gray-200"
-                                                                                        : "text-gray-700"
-                                                                                }`}
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center space-x-2">
+                                                                            <span
+                                                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                onClick={() => {
+                                                                                    if (comment.userId?._id === currentUserProfile?._id) {
+                                                                                        navigate("/profile");
+                                                                                    } else {
+                                                                                        navigate(`/user/${comment.userId?._id}`);
+                                                                                    }
+                                                                                }}
                                                                             >
-                                                                                {
-                                                                                    comment.content
-                                                                                }
-                                                                            </p>
-                                                                            <div className="mt-1 flex items-center justify-between">
-                                                                                <button
-                                                                                    className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                                                                    onClick={(
-                                                                                        e
-                                                                                    ) =>
-                                                                                        handleLikeComment(
-                                                                                            comment._id,
-                                                                                            post._id,
-                                                                                            e
-                                                                                        )
-                                                                                    }
-                                                                                    disabled={
-                                                                                        isLikingComment[
-                                                                                            comment
-                                                                                                ._id
-                                                                                        ]
-                                                                                    }
-                                                                                >
-                                                                                    {isLikingComment[
-                                                                                        comment
-                                                                                            ._id
-                                                                                    ] ? (
-                                                                                        <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                                                                    ) : comment.hasUserLiked ? (
-                                                                                        <FaHeart className="text-xs text-red-500" />
-                                                                                    ) : (
-                                                                                        <FaRegHeart
-                                                                                            className={`text-xs ${
-                                                                                                isDarkMode
-                                                                                                    ? "text-gray-400"
-                                                                                                    : "text-gray-500"
+                                                                                {comment.userId?.username || "Unknown"}
+                                                                            </span>
+                                                                            <span
+                                                                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                                    }`}
+                                                                            >
+                                                                                {formatDate(comment.createdAt)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p
+                                                                            className={`text-sm whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                                                                }`}
+                                                                        >
+                                                                            {comment.content}
+                                                                        </p>
+                                                                        <div className="mt-1 flex items-center justify-between">
+                                                                            <button
+                                                                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                                onClick={(e) => handleLikeComment(comment._id, post._id, e)}
+                                                                                disabled={isLikingComment[comment._id]}
+                                                                            >
+                                                                                {isLikingComment[comment._id] ? (
+                                                                                    <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                ) : comment.hasUserLiked ? (
+                                                                                    <FaHeart className="text-xs text-red-500" />
+                                                                                ) : (
+                                                                                    <FaRegHeart
+                                                                                        className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
                                                                                             }`}
-                                                                                        />
-                                                                                    )}
-                                                                                    <span
-                                                                                        className={`text-xs ${
-                                                                                            isDarkMode
-                                                                                                ? "text-gray-400"
-                                                                                                : "text-gray-600"
+                                                                                    />
+                                                                                )}
+                                                                                <span
+                                                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
                                                                                         }`}
-                                                                                    >
-                                                                                        {comment
-                                                                                            .likes
-                                                                                            ?.length ||
-                                                                                            0}
-                                                                                    </span>
+                                                                                >
+                                                                                    {comment.likes?.length || 0}
+                                                                                </span>
+                                                                            </button>
+
+                                                                            <div className="flex space-x-2">
+                                                                                <button
+                                                                                    className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                                                                    onClick={(e) => toggleReplyInput(comment._id, e)}
+                                                                                    title="Reply to comment"
+                                                                                >
+                                                                                    <FaReply />
                                                                                 </button>
 
-                                                                                {/* Delete button condition for both comment owner AND post owner */}
-                                                                                {(comment
-                                                                                    .userId
-                                                                                    ?.username ===
-                                                                                    username ||
-                                                                                    post
-                                                                                        .userId
-                                                                                        ?.username ===
-                                                                                        username) && (
+                                                                                {(comment.userId?.username === username || post.userId?.username === username) && (
                                                                                     <button
                                                                                         className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                                                                        onClick={(
-                                                                                            e
-                                                                                        ) =>
-                                                                                            handleDeleteComment(
-                                                                                                comment._id,
-                                                                                                post._id,
-                                                                                                e
-                                                                                            )
-                                                                                        }
-                                                                                        disabled={
-                                                                                            isDeletingComment[
-                                                                                                comment
-                                                                                                    ._id
-                                                                                            ]
-                                                                                        }
+                                                                                        onClick={(e) => handleDeleteComment(comment._id, post._id, e)}
+                                                                                        disabled={isDeletingComment[comment._id]}
                                                                                         title="Delete comment"
                                                                                     >
-                                                                                        {isDeletingComment[
-                                                                                            comment
-                                                                                                ._id
-                                                                                        ] ? (
+                                                                                        {isDeletingComment[comment._id] ? (
                                                                                             <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                                                                                         ) : (
                                                                                             <FaTrashAlt />
                                                                                         )}
                                                                                     </button>
                                                                                 )}
+
+                                                                                {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
+                                                                                {comment.replyCount > 0 && (
+                                                                                    <button
+                                                                                        className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
+                                                                                        onClick={(e) => toggleReplies(comment._id, post._id, e)}
+                                                                                        title={activeReplies[comment._id] ? "Hide replies" : "Show replies"}
+                                                                                    >
+                                                                                        {activeReplies[comment._id] ? <FaChevronDown /> : <FaChevronRight />}
+                                                                                        <span>{comment.replyCount}</span>
+                                                                                    </button>
+                                                                                )}
                                                                             </div>
                                                                         </div>
+
+                                                                        {/* Reply Input for Comment */}
+                                                                        {comment.showReplyInput && (
+                                                                            <div className="mt-2">
+                                                                                <form
+                                                                                    onSubmit={(e) => handleAddReply(comment._id, post._id, e)}
+                                                                                    className="flex items-center space-x-2"
+                                                                                >
+                                                                                    <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                                                        {currentUserProfile?.profilePic || user?.profilePic ? (
+                                                                                            <img
+                                                                                                src={currentUserProfile?.profilePic || user?.profilePic}
+                                                                                                alt={username}
+                                                                                                className="w-full h-full object-cover"
+                                                                                                onError={(e) => {
+                                                                                                    e.target.style.display = "none";
+                                                                                                }}
+                                                                                            />
+                                                                                        ) : null}
+                                                                                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                                            {username?.charAt(0).toUpperCase() || "U"}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div className="flex-1 flex space-x-2">
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            className={`flex-1 px-3 py-1 rounded-full text-xs border ${isDarkMode
+                                                                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                                                                : "bg-white border-gray-300"
+                                                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                                            placeholder="Write a reply..."
+                                                                                            value={replyContent[comment._id] || ""}
+                                                                                            onChange={(e) =>
+                                                                                                setReplyContent({
+                                                                                                    ...replyContent,
+                                                                                                    [comment._id]: e.target.value,
+                                                                                                })
+                                                                                            }
+                                                                                        />
+                                                                                        <button
+                                                                                            type="submit"
+                                                                                            className={`px-2 py-1 rounded-full text-xs ${!replyContent[comment._id]?.trim() || isReplying[comment._id]
+                                                                                                ? "bg-blue-300 cursor-not-allowed"
+                                                                                                : "bg-blue-500 hover:bg-blue-600"
+                                                                                                } text-white transition-colors`}
+                                                                                            disabled={!replyContent[comment._id]?.trim() || isReplying[comment._id]}
+                                                                                        >
+                                                                                            {isReplying[comment._id] ? (
+                                                                                                <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                                            ) : (
+                                                                                                "Reply"
+                                                                                            )}
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </form>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Display Replies */}
+                                                                        {activeReplies[comment._id] && comment.replies && comment.replies.length > 0 && (
+                                                                            <div className="mt-2">
+                                                                                {comment.replies.map((reply) => (
+                                                                                    <ReplyItem
+                                                                                        key={reply._id}
+                                                                                        reply={reply}
+                                                                                        commentId={comment._id}
+                                                                                        postId={post._id}
+                                                                                        commentOwner={comment.userId?.username}
+                                                                                    />
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                )
-                                                            )}
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     ) : (
                                                         <div
-                                                            className={`text-center py-4 ${
-                                                                isDarkMode
-                                                                    ? "text-gray-400"
-                                                                    : "text-gray-500"
-                                                            }`}
+                                                            className={`text-center py-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                }`}
                                                         >
-                                                            No comments yet. Be
-                                                            the first to
-                                                            comment!
+                                                            No comments yet. Be the first to comment!
                                                         </div>
                                                     )}
 
@@ -1471,101 +1718,50 @@ const UserProfile = () => {
                                                     <form
                                                         onSubmit={(e) => {
                                                             e.preventDefault();
-                                                            handleCommentSubmit(
-                                                                post._id,
-                                                                e
-                                                            );
+                                                            handleCommentSubmit(post._id, e);
                                                         }}
                                                         className="flex items-center space-x-2"
                                                     >
                                                         <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                            {currentUserProfile?.profilePic ||
-                                                            user?.profilePic ? (
+                                                            {currentUserProfile?.profilePic || user?.profilePic ? (
                                                                 <img
-                                                                    src={
-                                                                        currentUserProfile?.profilePic ||
-                                                                        user?.profilePic
-                                                                    }
-                                                                    alt={
-                                                                        username
-                                                                    }
+                                                                    src={currentUserProfile?.profilePic || user?.profilePic}
+                                                                    alt={username}
                                                                     className="w-full h-full object-cover"
-                                                                    onError={(
-                                                                        e
-                                                                    ) => {
-                                                                        e.target.style.display =
-                                                                            "none";
-                                                                        e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
-                                                                            username
-                                                                                ?.charAt(
-                                                                                    0
-                                                                                )
-                                                                                .toUpperCase() ||
-                                                                            "U"
-                                                                        }</span>`;
+                                                                    onError={(e) => {
+                                                                        e.target.style.display = "none";
                                                                     }}
                                                                 />
-                                                            ) : (
-                                                                <span className="text-xs font-semibold text-gray-700">
-                                                                    {username
-                                                                        ?.charAt(
-                                                                            0
-                                                                        )
-                                                                        .toUpperCase() ||
-                                                                        "U"}
-                                                                </span>
-                                                            )}
+                                                            ) : null}
+                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                {username?.charAt(0).toUpperCase() || "U"}
+                                                            </div>
                                                         </div>
                                                         <div className="flex-1 flex space-x-2">
                                                             <input
                                                                 type="text"
-                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                                                                    isDarkMode
-                                                                        ? "bg-gray-700 border-gray-600 text-white"
-                                                                        : "bg-white border-gray-300"
-                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${isDarkMode
+                                                                    ? "bg-gray-700 border-gray-600 text-white"
+                                                                    : "bg-white border-gray-300"
+                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                                                 placeholder="Write a comment..."
-                                                                value={
-                                                                    commentContent[
-                                                                        post._id
-                                                                    ] || ""
-                                                                }
+                                                                value={commentContent[post._id] || ""}
                                                                 onChange={(e) =>
-                                                                    setCommentContent(
-                                                                        {
-                                                                            ...commentContent,
-                                                                            [post._id]:
-                                                                                e
-                                                                                    .target
-                                                                                    .value,
-                                                                        }
-                                                                    )
+                                                                    setCommentContent({
+                                                                        ...commentContent,
+                                                                        [post._id]: e.target.value,
+                                                                    })
                                                                 }
                                                             />
                                                             <button
                                                                 type="submit"
-                                                                className={`px-3 py-1 rounded-full text-sm ${
-                                                                    !commentContent[
-                                                                        post._id
-                                                                    ]?.trim() ||
-                                                                    isCommenting[
-                                                                        post._id
-                                                                    ]
-                                                                        ? "bg-blue-300 cursor-not-allowed"
-                                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                                } text-white transition-colors`}
-                                                                disabled={
-                                                                    !commentContent[
-                                                                        post._id
-                                                                    ]?.trim() ||
-                                                                    isCommenting[
-                                                                        post._id
-                                                                    ]
-                                                                }
+                                                                className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id]
+                                                                    ? "bg-blue-300 cursor-not-allowed"
+                                                                    : "bg-blue-500 hover:bg-blue-600"
+                                                                    } text-white transition-colors`}
+                                                                disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
                                                             >
-                                                                {isCommenting[
-                                                                    post._id
-                                                                ] ? (
+                                                                {isCommenting[post._id] ? (
                                                                     <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                                                                 ) : (
                                                                     "Post"
