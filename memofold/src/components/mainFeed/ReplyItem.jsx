@@ -12,8 +12,14 @@ const ReplyItem = ({
   isLikingReply,
   isDeletingReply,
   navigateToUserProfile,
-  onToggleReplyInput,
 }) => {
+  const handleProfilePicError = (e) => {
+    e.target.style.display = "none";
+    if (e.target.nextSibling) {
+      e.target.nextSibling.style.display = "flex";
+    }
+  };
+
   return (
     <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
       <div className="flex items-start space-x-2">
@@ -26,18 +32,12 @@ const ReplyItem = ({
               src={reply.userId.profilePic}
               alt={reply.userId.username}
               className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = "none";
-                e.target.parentElement.innerHTML = `<span class="text-xs font-semibold text-gray-700">${
-                  reply.userId.username?.charAt(0).toUpperCase() || "U"
-                }</span>`;
-              }}
+              onError={handleProfilePicError}
             />
-          ) : (
-            <span className="text-xs font-semibold text-gray-700">
-              {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
-            </span>
-          )}
+          ) : null}
+          <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${reply.userId?.profilePic ? 'hidden' : 'flex'}`}>
+            {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
+          </div>
         </div>
         <div className="flex-1">
           <div className="flex items-center space-x-2">
@@ -82,14 +82,8 @@ const ReplyItem = ({
             </button>
 
             <div className="flex space-x-2">
-              <button
-                className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
-                onClick={(e) => onToggleReplyInput(commentId, reply._id, e)}
-                title="Reply to this reply"
-              >
-                <FaReply />
-              </button>
-
+              {/* FIXED: Removed reply to reply functionality to simplify */}
+              
               {(reply.userId?.username === username || commentOwner === username) && (
                 <button
                   className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"

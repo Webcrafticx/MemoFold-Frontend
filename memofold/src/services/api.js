@@ -130,11 +130,11 @@ export const apiService = {
     return response.json();
   },
 
-  // NORMAL COMMENT - parentComment null jayega
+  // NORMAL COMMENT - parentComment null
   addComment: async (postId, content, token) => {
     const requestBody = {
       content
-      // parentComment automatically null jayega
+      // parentComment automatically null
     };
 
     console.log("Normal Comment API Request:", { postId, content });
@@ -150,14 +150,19 @@ export const apiService = {
     return response.json();
   },
 
-  // COMMENT REPLY - parentCommentId jayega
-  addCommentReply: async (postId, content, parentCommentId, token) => {
+  
+  addCommentReply: async (commentId, content, postId, token) => {
     const requestBody = {
       content,
-      parentCommentId
+      parentCommentId: commentId
     };
 
-    console.log("Reply API Request:", { postId, content, parentCommentId });
+    console.log("Reply API Request:", { 
+      commentId, 
+      content, 
+      postId,
+      requestBody 
+    });
 
     const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
       method: "POST",
@@ -185,7 +190,7 @@ export const apiService = {
     return response.json();
   },
 
-  // Reply endpoints (agar alag API hai toh)
+  // Reply endpoints
   fetchCommentReplies: async (commentId, token) => {
     const response = await fetch(`${config.apiUrl}/posts/replies/${commentId}`, {
       headers: {
@@ -198,7 +203,7 @@ export const apiService = {
 
   likeReply: async (replyId, userId, token) => {
     const response = await fetch(
-      `${config.apiUrl}/posts/replies/${replyId}/like`,
+      `${config.apiUrl}/posts/comments/${commentId}/like`,
       {
         method: "POST",
         headers: {
