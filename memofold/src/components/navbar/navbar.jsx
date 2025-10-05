@@ -179,30 +179,26 @@ const Navbar = ({ onDarkModeChange }) => {
     };
 
     const UserAvatar = ({ profilePic, username, size = "sm" }) => {
+        const [imageError, setImageError] = useState(false);
         const dimensions = size === "sm" ? "w-8 h-8" : "w-12 h-12";
         const textSize = size === "sm" ? "text-sm" : "text-lg";
 
+        const showInitial = !profilePic || imageError;
+
         return (
             <div
-                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center `}
+                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold ${textSize}`}
             >
-                {profilePic ? (
+                {!showInitial ? (
                     <img
                         src={profilePic}
                         alt={username}
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.nextSibling.style.display = "flex";
-                        }}
+                        onError={() => setImageError(true)}
                     />
-                ) : null}
-                <span
-                    className={`flex items-center justify-center w-full h-full text-white font-semibold ${textSize}`}
-                    style={profilePic ? { display: "none" } : {}}
-                >
-                    {username?.charAt(0).toUpperCase() || "U"}
-                </span>
+                ) : (
+                    <span>{username?.charAt(0).toUpperCase() || "U"}</span>
+                )}
             </div>
         );
     };
