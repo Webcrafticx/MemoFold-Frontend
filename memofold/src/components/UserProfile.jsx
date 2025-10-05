@@ -16,6 +16,13 @@ import {
     FaReply,
     FaChevronDown,
     FaChevronRight,
+    FaCalendarAlt,
+    FaUserFriends,
+    FaChartBar,
+    FaMapMarkerAlt,
+    FaUserPlus,
+    FaCheckCircle,
+    FaClock,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
@@ -41,6 +48,12 @@ const UserProfile = () => {
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
+    const [userStats, setUserStats] = useState({
+        postCount: 0,
+        friendsCount: 0,
+    });
+    const [isSendingRequest, setIsSendingRequest] = useState(false);
+    const [friendRequestStatus, setFriendRequestStatus] = useState(null);
 
     // Likes modal state
     const [likesModal, setLikesModal] = useState({
@@ -81,7 +94,10 @@ const UserProfile = () => {
 
     // Save activeReplies to localStorage whenever it changes
     useEffect(() => {
-        localStorage.setItem("userProfileActiveReplies", JSON.stringify(activeReplies));
+        localStorage.setItem(
+            "userProfileActiveReplies",
+            JSON.stringify(activeReplies)
+        );
     }, [activeReplies]);
 
     // Handle dark mode changes from Navbar
@@ -117,7 +133,10 @@ const UserProfile = () => {
     const updateStoredCommentLikes = (commentId, likes) => {
         const storedCommentLikes = getStoredCommentLikes();
         storedCommentLikes[commentId] = likes;
-        localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
+        localStorage.setItem(
+            "commentLikes",
+            JSON.stringify(storedCommentLikes)
+        );
     };
 
     const getStoredReplyLikes = () => {
@@ -152,6 +171,20 @@ const UserProfile = () => {
         try {
             const userData = await apiService.fetchCurrentUser(token);
             setCurrentUserProfile(userData);
+            // console.log("Current user data:", userData);
+
+            // CORRECTED: Access sentrequests from userData.user.sentrequests
+            if (userData.user && userData.user.sentrequests) {
+                const hasSentRequest = userData.user.sentrequests.some(
+                    (request) =>
+                        request.to === userId && request.status === "pending"
+                );
+                // console.log("Has sent request to", userId, ":", hasSentRequest);
+                if (hasSentRequest) {
+                    setFriendRequestStatus("pending");
+                    return; // Stop here if we found a pending request
+                }
+            }
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
@@ -176,8 +209,28 @@ const UserProfile = () => {
             const userDataFromApi = data.user || data;
             setUserData(userDataFromApi);
 
-            if (data.description) {
+            // FIX: Get description from profile object
+            if (data.profile && data.profile.description) {
+                setUserDescription(data.profile.description);
+            } else if (data.description) {
                 setUserDescription(data.description);
+            }
+
+            // Extract stats from API response
+            if (data.stats) {
+                setUserStats({
+                    postCount: data.stats.postCount || 0,
+                    friendsCount: data.stats.friendsCount || 0,
+                });
+            }
+
+            // Check friend request status
+            if (userDataFromApi.friends?.includes(user._id)) {
+                setFriendRequestStatus("friends");
+            } else if (userDataFromApi.friendrequests?.includes(user._id)) {
+                setFriendRequestStatus("pending");
+            } else {
+                setFriendRequestStatus(null);
             }
 
             if (userDataFromApi.username) {
@@ -217,7 +270,8 @@ const UserProfile = () => {
 
             const likesByPost = {};
             postsData.forEach((post) => {
-                const storedPostLikes = storedLikes[post._id] || post.likes || [];
+                const storedPostLikes =
+                    storedLikes[post._id] || post.likes || [];
                 likesByPost[post._id] = storedPostLikes;
             });
 
@@ -241,49 +295,61 @@ const UserProfile = () => {
             const storedReplyLikes = getStoredReplyLikes();
 
             const commentsWithLikes = comments.map((comment) => {
-                const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
+                const commentLikes =
+                    storedCommentLikes[comment._id] || comment.likes || [];
                 const hasUserLiked = commentLikes.includes(user._id);
 
-                const userData = comment.userId || comment.user || {
-                    _id: 'unknown',
-                    username: 'Unknown',
-                    realname: 'Unknown User',
-                    profilePic: ''
-                };
+                const userData = comment.userId ||
+                    comment.user || {
+                        _id: "unknown",
+                        username: "Unknown",
+                        realname: "Unknown User",
+                        profilePic: "",
+                    };
 
                 const finalUserData = {
-                    _id: userData._id || 'unknown',
-                    username: userData.username || 'Unknown',
-                    realname: userData.realname || userData.username || 'Unknown User',
-                    profilePic: userData.profilePic || ''
+                    _id: userData._id || "unknown",
+                    username: userData.username || "Unknown",
+                    realname:
+                        userData.realname ||
+                        userData.username ||
+                        "Unknown User",
+                    profilePic: userData.profilePic || "",
                 };
 
                 // Load replies data if available from API
-                const repliesWithLikes = (comment.replies || []).map((reply) => {
-                    const replyLikes = storedReplyLikes[reply._id] || reply.likes || [];
-                    const hasUserLikedReply = replyLikes.includes(user._id);
+                const repliesWithLikes = (comment.replies || []).map(
+                    (reply) => {
+                        const replyLikes =
+                            storedReplyLikes[reply._id] || reply.likes || [];
+                        const hasUserLikedReply = replyLikes.includes(user._id);
 
-                    const replyUserData = reply.userId || reply.user || {
-                        _id: 'unknown',
-                        username: 'Unknown',
-                        realname: 'Unknown User',
-                        profilePic: ''
-                    };
+                        const replyUserData = reply.userId ||
+                            reply.user || {
+                                _id: "unknown",
+                                username: "Unknown",
+                                realname: "Unknown User",
+                                profilePic: "",
+                            };
 
-                    const finalReplyUserData = {
-                        _id: replyUserData._id || 'unknown',
-                        username: replyUserData.username || 'Unknown',
-                        realname: replyUserData.realname || replyUserData.username || 'Unknown User',
-                        profilePic: replyUserData.profilePic || ''
-                    };
+                        const finalReplyUserData = {
+                            _id: replyUserData._id || "unknown",
+                            username: replyUserData.username || "Unknown",
+                            realname:
+                                replyUserData.realname ||
+                                replyUserData.username ||
+                                "Unknown User",
+                            profilePic: replyUserData.profilePic || "",
+                        };
 
-                    return {
-                        ...reply,
-                        likes: replyLikes,
-                        hasUserLiked: hasUserLikedReply,
-                        userId: finalReplyUserData,
-                    };
-                });
+                        return {
+                            ...reply,
+                            likes: replyLikes,
+                            hasUserLiked: hasUserLikedReply,
+                            userId: finalReplyUserData,
+                        };
+                    }
+                );
 
                 return {
                     ...comment,
@@ -300,10 +366,10 @@ const UserProfile = () => {
                 posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            comments: commentsWithLikes,
-                            commentCount: commentsWithLikes.length,
-                        }
+                              ...post,
+                              comments: commentsWithLikes,
+                              commentCount: commentsWithLikes.length,
+                          }
                         : post
                 )
             );
@@ -311,14 +377,19 @@ const UserProfile = () => {
             const likesByComment = {};
             const likesByReply = {};
             comments.forEach((comment) => {
-                likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
-                
+                likesByComment[comment._id] =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+
                 (comment.replies || []).forEach((reply) => {
-                    likesByReply[reply._id] = storedReplyLikes[reply._id] || reply.likes || [];
+                    likesByReply[reply._id] =
+                        storedReplyLikes[reply._id] || reply.likes || [];
                 });
             });
 
-            localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(likesByComment)
+            );
             localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
         } catch (err) {
             setError(err.message);
@@ -330,27 +401,35 @@ const UserProfile = () => {
 
     const fetchCommentReplies = async (commentId, postId) => {
         try {
-            const responseData = await apiService.fetchCommentReplies(commentId, token);
+            const responseData = await apiService.fetchCommentReplies(
+                commentId,
+                token
+            );
             const replies = responseData.replies || [];
 
             const storedReplyLikes = getStoredReplyLikes();
 
             const repliesWithLikes = replies.map((reply) => {
-                const replyLikes = storedReplyLikes[reply._id] || reply.likes || [];
+                const replyLikes =
+                    storedReplyLikes[reply._id] || reply.likes || [];
                 const hasUserLikedReply = replyLikes.includes(user._id);
 
-                const replyUserData = reply.userId || reply.user || {
-                    _id: 'unknown',
-                    username: 'Unknown',
-                    realname: 'Unknown User',
-                    profilePic: ''
-                };
+                const replyUserData = reply.userId ||
+                    reply.user || {
+                        _id: "unknown",
+                        username: "Unknown",
+                        realname: "Unknown User",
+                        profilePic: "",
+                    };
 
                 const finalReplyUserData = {
-                    _id: replyUserData._id || 'unknown',
-                    username: replyUserData.username || 'Unknown',
-                    realname: replyUserData.realname || replyUserData.username || 'Unknown User',
-                    profilePic: replyUserData.profilePic || ''
+                    _id: replyUserData._id || "unknown",
+                    username: replyUserData.username || "Unknown",
+                    realname:
+                        replyUserData.realname ||
+                        replyUserData.username ||
+                        "Unknown User",
+                    profilePic: replyUserData.profilePic || "",
                 };
 
                 return {
@@ -361,21 +440,22 @@ const UserProfile = () => {
                 };
             });
 
-            setUserPosts(prevPosts =>
-                prevPosts.map(post => {
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments = post.comments?.map(comment =>
-                            comment._id === commentId
-                                ? {
-                                    ...comment,
-                                    replies: repliesWithLikes,
-                                    replyCount: repliesWithLikes.length
-                                }
-                                : comment
-                        ) || [];
+                        const updatedComments =
+                            post.comments?.map((comment) =>
+                                comment._id === commentId
+                                    ? {
+                                          ...comment,
+                                          replies: repliesWithLikes,
+                                          replyCount: repliesWithLikes.length,
+                                      }
+                                    : comment
+                            ) || [];
                         return {
                             ...post,
-                            comments: updatedComments
+                            comments: updatedComments,
                         };
                     }
                     return post;
@@ -384,7 +464,8 @@ const UserProfile = () => {
 
             const likesByReply = {};
             replies.forEach((reply) => {
-                likesByReply[reply._id] = storedReplyLikes[reply._id] || reply.likes || [];
+                likesByReply[reply._id] =
+                    storedReplyLikes[reply._id] || reply.likes || [];
             });
 
             localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
@@ -430,7 +511,11 @@ const UserProfile = () => {
             return;
         }
 
-        if (!window.confirm("Are you sure you want to delete this comment and all its replies?")) {
+        if (
+            !window.confirm(
+                "Are you sure you want to delete this comment and all its replies?"
+            )
+        ) {
             return;
         }
 
@@ -442,9 +527,10 @@ const UserProfile = () => {
             setUserPosts(
                 userPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments = post.comments?.filter(
-                            (comment) => comment._id !== commentId
-                        ) || [];
+                        const updatedComments =
+                            post.comments?.filter(
+                                (comment) => comment._id !== commentId
+                            ) || [];
                         return {
                             ...post,
                             comments: updatedComments,
@@ -457,7 +543,10 @@ const UserProfile = () => {
 
             const storedCommentLikes = getStoredCommentLikes();
             delete storedCommentLikes[commentId];
-            localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(storedCommentLikes)
+            );
 
             await apiService.deleteComment(commentId, postId, token);
 
@@ -508,19 +597,22 @@ const UserProfile = () => {
             setUserPosts(
                 userPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments = post.comments?.map((comment) => {
-                            if (comment._id === commentId) {
-                                const updatedReplies = comment.replies?.filter(
-                                    (reply) => reply._id !== replyId
-                                ) || [];
-                                return {
-                                    ...comment,
-                                    replies: updatedReplies,
-                                    replyCount: updatedReplies.length,
-                                };
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const updatedReplies =
+                                        comment.replies?.filter(
+                                            (reply) => reply._id !== replyId
+                                        ) || [];
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                        replyCount: updatedReplies.length,
+                                    };
+                                }
+                                return comment;
                             }
-                            return comment;
-                        });
+                        );
                         return {
                             ...post,
                             comments: updatedComments,
@@ -532,7 +624,10 @@ const UserProfile = () => {
 
             const storedReplyLikes = getStoredReplyLikes();
             delete storedReplyLikes[replyId];
-            localStorage.setItem("replyLikes", JSON.stringify(storedReplyLikes));
+            localStorage.setItem(
+                "replyLikes",
+                JSON.stringify(storedReplyLikes)
+            );
 
             await apiService.deleteReply(replyId, token);
 
@@ -587,8 +682,13 @@ const UserProfile = () => {
                             // Add current user to likesPreview
                             newLikesPreview.unshift({
                                 username: username,
-                                realname: currentUserProfile?.realname || user?.realname || username,
-                                profilePic: currentUserProfile?.profilePic || user?.profilePic,
+                                realname:
+                                    currentUserProfile?.realname ||
+                                    user?.realname ||
+                                    username,
+                                profilePic:
+                                    currentUserProfile?.profilePic ||
+                                    user?.profilePic,
                             });
                         }
 
@@ -623,10 +723,9 @@ const UserProfile = () => {
                     }, i * 100);
                 }
             }
-
         } catch (err) {
             console.error("Error liking post:", err);
-            
+
             // Revert optimistic update on error
             setUserPosts((prev) => ({
                 ...prev,
@@ -642,7 +741,7 @@ const UserProfile = () => {
                     return post;
                 }),
             }));
-            
+
             setError(err.message);
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
@@ -674,13 +773,20 @@ const UserProfile = () => {
 
                                     if (isLiked) {
                                         updatedLikes = comment.likes.filter(
-                                            (likeUserId) => likeUserId !== user._id
+                                            (likeUserId) =>
+                                                likeUserId !== user._id
                                         );
                                     } else {
-                                        updatedLikes = [...(comment.likes || []), user._id];
+                                        updatedLikes = [
+                                            ...(comment.likes || []),
+                                            user._id,
+                                        ];
                                     }
 
-                                    updateStoredCommentLikes(commentId, updatedLikes);
+                                    updateStoredCommentLikes(
+                                        commentId,
+                                        updatedLikes
+                                    );
 
                                     return {
                                         ...comment,
@@ -726,36 +832,53 @@ const UserProfile = () => {
             setUserPosts(
                 userPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments = post.comments?.map((comment) => {
-                            if (comment._id === commentId) {
-                                const updatedReplies = comment.replies?.map((reply) => {
-                                    if (reply._id === replyId) {
-                                        const isLiked = reply.hasUserLiked;
-                                        let updatedLikes;
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const updatedReplies = comment.replies?.map(
+                                        (reply) => {
+                                            if (reply._id === replyId) {
+                                                const isLiked =
+                                                    reply.hasUserLiked;
+                                                let updatedLikes;
 
-                                        if (isLiked) {
-                                            updatedLikes = reply.likes.filter(
-                                                (likeUserId) => likeUserId !== user._id
-                                            );
-                                        } else {
-                                            updatedLikes = [...(reply.likes || []), user._id];
+                                                if (isLiked) {
+                                                    updatedLikes =
+                                                        reply.likes.filter(
+                                                            (likeUserId) =>
+                                                                likeUserId !==
+                                                                user._id
+                                                        );
+                                                } else {
+                                                    updatedLikes = [
+                                                        ...(reply.likes || []),
+                                                        user._id,
+                                                    ];
+                                                }
+
+                                                updateStoredReplyLikes(
+                                                    replyId,
+                                                    updatedLikes
+                                                );
+
+                                                return {
+                                                    ...reply,
+                                                    likes: updatedLikes,
+                                                    hasUserLiked: !isLiked,
+                                                };
+                                            }
+                                            return reply;
                                         }
+                                    );
 
-                                        updateStoredReplyLikes(replyId, updatedLikes);
-
-                                        return {
-                                            ...reply,
-                                            likes: updatedLikes,
-                                            hasUserLiked: !isLiked,
-                                        };
-                                    }
-                                    return reply;
-                                });
-
-                                return { ...comment, replies: updatedReplies };
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                    };
+                                }
+                                return comment;
                             }
-                            return comment;
-                        });
+                        );
 
                         return { ...post, comments: updatedComments };
                     }
@@ -808,9 +931,9 @@ const UserProfile = () => {
         }
 
         // Toggle the active state
-        setActiveReplies(prev => ({
+        setActiveReplies((prev) => ({
             ...prev,
-            [commentId]: !prev[commentId]
+            [commentId]: !prev[commentId],
         }));
     };
 
@@ -820,20 +943,24 @@ const UserProfile = () => {
             e.stopPropagation();
         }
 
-        setUserPosts(prevPosts =>
-            prevPosts.map(post => ({
+        setUserPosts((prevPosts) =>
+            prevPosts.map((post) => ({
                 ...post,
-                comments: post.comments?.map(comment =>
-                    comment._id === commentId
-                        ? { ...comment, showReplyInput: !comment.showReplyInput }
-                        : comment
-                ) || []
+                comments:
+                    post.comments?.map((comment) =>
+                        comment._id === commentId
+                            ? {
+                                  ...comment,
+                                  showReplyInput: !comment.showReplyInput,
+                              }
+                            : comment
+                    ) || [],
             }))
         );
 
-        setReplyContent(prev => ({
+        setReplyContent((prev) => ({
             ...prev,
-            [commentId]: prev[commentId] || ""
+            [commentId]: prev[commentId] || "",
         }));
     };
 
@@ -857,32 +984,44 @@ const UserProfile = () => {
         setError(null);
 
         try {
-            const responseData = await apiService.addComment(postId, content, token);
+            const responseData = await apiService.addComment(
+                postId,
+                content,
+                token
+            );
             const createdComment = responseData.comment || responseData;
 
             setUserPosts((posts) =>
                 posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            comments: [
-                                ...(post.comments || []),
-                                {
-                                    ...createdComment,
-                                    hasUserLiked: false,
-                                    userId: {
-                                        _id: currentUserProfile?._id || user?._id || username,
-                                        username: username,
-                                        realname: currentUserProfile?.realname || user?.realname || username,
-                                        profilePic: currentUserProfile?.profilePic || user?.profilePic,
-                                    },
-                                    replies: [],
-                                    replyCount: 0,
-                                    showReplyInput: false,
-                                },
-                            ],
-                            commentCount: (post.commentCount || 0) + 1,
-                        }
+                              ...post,
+                              comments: [
+                                  ...(post.comments || []),
+                                  {
+                                      ...createdComment,
+                                      hasUserLiked: false,
+                                      userId: {
+                                          _id:
+                                              currentUserProfile?._id ||
+                                              user?._id ||
+                                              username,
+                                          username: username,
+                                          realname:
+                                              currentUserProfile?.realname ||
+                                              user?.realname ||
+                                              username,
+                                          profilePic:
+                                              currentUserProfile?.profilePic ||
+                                              user?.profilePic,
+                                      },
+                                      replies: [],
+                                      replyCount: 0,
+                                      showReplyInput: false,
+                                  },
+                              ],
+                              commentCount: (post.commentCount || 0) + 1,
+                          }
                         : post
                 )
             );
@@ -916,44 +1055,63 @@ const UserProfile = () => {
         setError(null);
 
         try {
-            const responseData = await apiService.addCommentReply(commentId, content, postId, token);
+            const responseData = await apiService.addCommentReply(
+                commentId,
+                content,
+                postId,
+                token
+            );
             const createdReply = responseData.reply || responseData;
 
-            setUserPosts(prevPosts =>
-                prevPosts.map(post => {
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments = post.comments?.map(comment => {
-                            if (comment._id === commentId) {
-                                const newReply = {
-                                    ...createdReply,
-                                    _id: createdReply._id || `temp-${Date.now()}`,
-                                    content: content,
-                                    userId: {
-                                        _id: user._id,
-                                        username: username,
-                                        realname: currentUserProfile?.realname || user?.realname || username,
-                                        profilePic: currentUserProfile?.profilePic || user?.profilePic,
-                                    },
-                                    likes: [],
-                                    hasUserLiked: false,
-                                    createdAt: createdReply.createdAt || new Date().toISOString(),
-                                };
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const newReply = {
+                                        ...createdReply,
+                                        _id:
+                                            createdReply._id ||
+                                            `temp-${Date.now()}`,
+                                        content: content,
+                                        userId: {
+                                            _id: user._id,
+                                            username: username,
+                                            realname:
+                                                currentUserProfile?.realname ||
+                                                user?.realname ||
+                                                username,
+                                            profilePic:
+                                                currentUserProfile?.profilePic ||
+                                                user?.profilePic,
+                                        },
+                                        likes: [],
+                                        hasUserLiked: false,
+                                        createdAt:
+                                            createdReply.createdAt ||
+                                            new Date().toISOString(),
+                                    };
 
-                                const updatedReplies = [...(comment.replies || []), newReply];
+                                    const updatedReplies = [
+                                        ...(comment.replies || []),
+                                        newReply,
+                                    ];
 
-                                return {
-                                    ...comment,
-                                    replies: updatedReplies,
-                                    replyCount: updatedReplies.length,
-                                    showReplyInput: false,
-                                };
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                        replyCount: updatedReplies.length,
+                                        showReplyInput: false,
+                                    };
+                                }
+                                return comment;
                             }
-                            return comment;
-                        });
+                        );
 
                         return {
                             ...post,
-                            comments: updatedComments
+                            comments: updatedComments,
                         };
                     }
                     return post;
@@ -963,12 +1121,48 @@ const UserProfile = () => {
             setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
             setSuccessMessage("Reply posted successfully!");
             setTimeout(() => setSuccessMessage(null), 3000);
-
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
         } finally {
             setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
+
+    const handleSendFriendRequest = async () => {
+        if (!token || !userId) {
+            setError("Unable to send friend request");
+            return;
+        }
+
+        setIsSendingRequest(true);
+        setError(null);
+
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/friends/friend-request/${userId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to send friend request");
+            }
+
+            const data = await response.json();
+            setFriendRequestStatus("pending");
+            setSuccessMessage("Friend request sent successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error sending friend request:", err);
+            setError(err.message || "Failed to send friend request");
+        } finally {
+            setIsSendingRequest(false);
         }
     };
 
@@ -1020,7 +1214,10 @@ const UserProfile = () => {
         const maxWidth = window.innerWidth * 0.9;
         const maxHeight = window.innerHeight * 0.9;
 
-        if (imageDimensions.width > maxWidth || imageDimensions.height > maxHeight) {
+        if (
+            imageDimensions.width > maxWidth ||
+            imageDimensions.height > maxHeight
+        ) {
             const widthRatio = maxWidth / imageDimensions.width;
             const heightRatio = maxHeight / imageDimensions.height;
             const ratio = Math.min(widthRatio, heightRatio);
@@ -1127,8 +1324,13 @@ const UserProfile = () => {
                                 }}
                             />
                         ) : null}
-                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${reply.userId?.profilePic ? 'hidden' : 'flex'}`}>
-                            {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
+                        <div
+                            className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                reply.userId?.profilePic ? "hidden" : "flex"
+                            }`}
+                        >
+                            {reply.userId?.username?.charAt(0).toUpperCase() ||
+                                "U"}
                         </div>
                     </div>
                     <div className="flex-1">
@@ -1137,7 +1339,10 @@ const UserProfile = () => {
                                 className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (reply.userId?._id === currentUserProfile?._id) {
+                                    if (
+                                        reply.userId?._id ===
+                                        currentUserProfile?._id
+                                    ) {
                                         navigate("/profile");
                                     } else {
                                         navigate(`/user/${reply.userId?._id}`);
@@ -1147,15 +1352,19 @@ const UserProfile = () => {
                                 {reply.userId?.username || "Unknown"}
                             </span>
                             <span
-                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                    }`}
+                                className={`text-xs ${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
                             >
                                 {formatDate(reply.createdAt)}
                             </span>
                         </div>
                         <p
-                            className={`text-xs whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
-                                }`}
+                            className={`text-xs whitespace-pre-line mt-1 ${
+                                isDarkMode ? "text-gray-200" : "text-gray-700"
+                            }`}
                         >
                             {reply.content}
                         </p>
@@ -1163,7 +1372,14 @@ const UserProfile = () => {
                         <div className="mt-1 flex items-center justify-between">
                             <button
                                 className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                onClick={(e) => handleLikeReply(reply._id, commentId, postId, e)}
+                                onClick={(e) =>
+                                    handleLikeReply(
+                                        reply._id,
+                                        commentId,
+                                        postId,
+                                        e
+                                    )
+                                }
                                 disabled={isLikingReply[reply._id]}
                             >
                                 {isLikingReply[reply._id] ? (
@@ -1171,20 +1387,38 @@ const UserProfile = () => {
                                 ) : reply.hasUserLiked ? (
                                     <FaHeart className="text-xs text-red-500" />
                                 ) : (
-                                    <FaRegHeart className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                        }`} />
+                                    <FaRegHeart
+                                        className={`text-xs ${
+                                            isDarkMode
+                                                ? "text-gray-400"
+                                                : "text-gray-500"
+                                        }`}
+                                    />
                                 )}
-                                <span className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
-                                    }`}>
+                                <span
+                                    className={`text-xs ${
+                                        isDarkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-600"
+                                    }`}
+                                >
                                     {reply.likes?.length || 0}
                                 </span>
                             </button>
 
                             <div className="flex space-x-2">
-                                {(reply.userId?.username === username || commentOwner === username) && (
+                                {(reply.userId?.username === username ||
+                                    commentOwner === username) && (
                                     <button
                                         className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                        onClick={(e) => handleDeleteReply(reply._id, commentId, postId, e)}
+                                        onClick={(e) =>
+                                            handleDeleteReply(
+                                                reply._id,
+                                                commentId,
+                                                postId,
+                                                e
+                                            )
+                                        }
                                         disabled={isDeletingReply[reply._id]}
                                         title="Delete reply"
                                     >
@@ -1206,14 +1440,16 @@ const UserProfile = () => {
     if (isLoading) {
         return (
             <div
-                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                    } flex items-center justify-center`}
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <p
-                        className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"
-                            }`}
+                        className={`mt-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
                     >
                         Loading profile...
                     </p>
@@ -1225,8 +1461,9 @@ const UserProfile = () => {
     if (error) {
         return (
             <div
-                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                    } flex items-center justify-center`}
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <p className="text-red-500">Error: {error}</p>
@@ -1244,13 +1481,15 @@ const UserProfile = () => {
     if (!userData) {
         return (
             <div
-                className={`min-h-screen ${isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                    } flex items-center justify-center`}
+                className={`min-h-screen ${
+                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
+                } flex items-center justify-center`}
             >
                 <div className="text-center">
                     <p
-                        className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
+                        className={`${
+                            isDarkMode ? "text-gray-400" : "text-gray-500"
+                        }`}
                     >
                         User not found
                     </p>
@@ -1267,8 +1506,9 @@ const UserProfile = () => {
 
     return (
         <div
-            className={`min-h-screen ${isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"
-                }`}
+            className={`min-h-screen ${
+                isDarkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50"
+            }`}
         >
             {/* Floating Hearts Animation */}
             <FloatingHearts />
@@ -1341,89 +1581,161 @@ const UserProfile = () => {
             )}
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
-                {/* Profile Info */}
                 <div
-                    className={`w-full max-w-4xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white"
-                        }`}
+                    className={`relative w-full max-w-5xl rounded-2xl p-5 sm:p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-lg mx-auto ${
+                        isDarkMode
+                            ? "bg-gray-800 text-gray-100"
+                            : "bg-white text-gray-900"
+                    }`}
                 >
-                    <div className="flex flex-col items-center md:flex-row md:items-start">
-                        <div className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 mb-4 md:mb-0 md:mr-6">
-                            {userData.profilePic ? (
-                                <img
-                                    src={userData.profilePic}
-                                    alt={userData.username}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.style.display = "none";
-                                    }}
-                                />
-                            ) : null}
-                            <div className={`w-full h-full flex items-center justify-center text-white font-bold text-3xl ${userData.profilePic ? 'hidden' : 'flex'}`}>
-                                {userData.username?.charAt(0).toUpperCase() || "U"}
+                    {/* Friend Request Icon — Top Right */}
+                    {userData._id !== currentUserProfile?._id && (
+                        <div className="absolute top-4 right-4">
+                            {friendRequestStatus === "friends" ? (
+                                <div
+                                    className="p-2 bg-green-500 text-white rounded-full shadow-sm cursor-default"
+                                    title="Friends"
+                                >
+                                    <FaCheckCircle className="text-base" />
+                                </div>
+                            ) : friendRequestStatus === "pending" ? (
+                                <div
+                                    className="p-2 bg-yellow-500 text-white rounded-full shadow-sm animate-pulse cursor-default"
+                                    title="Pending"
+                                >
+                                    <FaClock className="text-base" />
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleSendFriendRequest}
+                                    disabled={isSendingRequest}
+                                    className={`p-2 rounded-full transition-all shadow-sm ${
+                                        isSendingRequest
+                                            ? "bg-blue-300 cursor-not-allowed"
+                                            : "bg-blue-500 hover:bg-blue-600 active:scale-95"
+                                    }`}
+                                    title="Add Friend"
+                                >
+                                    {isSendingRequest ? (
+                                        <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    ) : (
+                                        <FaUserPlus className="text-white text-base" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    <div
+                        className="
+          flex flex-col items-center text-center 
+          sm:flex-row sm:text-left sm:items-start sm:gap-6
+          gap-4
+        "
+                    >
+                        {/* Profile Image */}
+                        <div className="relative flex-shrink-0">
+                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-md">
+                                {userData.profilePic ? (
+                                    <img
+                                        src={userData.profilePic}
+                                        alt={userData.username}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) =>
+                                            (e.target.style.display = "none")
+                                        }
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-3xl font-bold">
+                                        {userData.username
+                                            ?.charAt(0)
+                                            .toUpperCase() || "U"}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div className="flex-1 text-center md:text-left">
-                            <h2
-                                className={`text-2xl font-bold ${isDarkMode ? "text-white" : "text-gray-900"
-                                    }`}
-                            >
+                        {/* User Info */}
+                        <div className="flex-1">
+                            <h2 className="text-xl sm:text-2xl font-bold leading-snug">
                                 {userData.realname || userData.username}
                             </h2>
-                            <p
-                                className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                    }`}
-                            >
+                            <p className="text-gray-500 text-sm sm:text-base">
                                 @{userData.username}
                             </p>
 
-                            {/* display user description  */}
+                            {/* Bio */}
                             {userDescription && (
                                 <p
-                                    className={`mt-2 ${isDarkMode ? "text-gray-300" : "text-gray-700"
-                                        }`}
+                                    className={`mt-2 text-sm sm:text-base ${
+                                        isDarkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-700"
+                                    }`}
                                 >
                                     {userDescription}
                                 </p>
                             )}
 
-                            <div
-                                className={`mt-4 flex flex-wrap gap-4 text-sm ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                    }`}
-                            >
-                                {userData.location && (
-                                    <div className="flex items-center">
-                                        <FaMapMarker className="mr-1" />
-                                        <span>{userData.location}</span>
-                                    </div>
-                                )}
-
-                                {userData.website && (
-                                    <a
-                                        href={userData.website}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center text-blue-500 hover:underline"
-                                    >
-                                        <FaLink className="mr-1" />
-                                        <span>
-                                            {userData.website.replace(
-                                                /(^\w+:|^)\/\//,
-                                                ""
-                                            )}
-                                        </span>
-                                    </a>
-                                )}
-
+                            {/* Stats */}
+                            <div className="mt-3 flex flex-wrap justify-center sm:justify-start gap-2">
                                 {userData.createdAt && (
-                                    <div className="flex items-center">
-                                        <FaCalendar className="mr-1" />
-                                        <span>
+                                    <div
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                                            isDarkMode
+                                                ? "bg-gray-700"
+                                                : "bg-gray-100"
+                                        }`}
+                                    >
+                                        <FaCalendarAlt
+                                            className={
+                                                isDarkMode
+                                                    ? "text-gray-300"
+                                                    : "text-gray-600"
+                                            }
+                                        />
+                                        <span className="text-xs sm:text-sm">
                                             Joined{" "}
                                             {formatDate(userData.createdAt)}
                                         </span>
                                     </div>
                                 )}
+                                <div
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                                        isDarkMode
+                                            ? "bg-gray-700"
+                                            : "bg-gray-100"
+                                    }`}
+                                >
+                                    <FaChartBar
+                                        className={
+                                            isDarkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-600"
+                                        }
+                                    />
+                                    <span className="text-xs sm:text-sm">
+                                        {userStats.postCount} Posts
+                                    </span>
+                                </div>
+                                <div
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                                        isDarkMode
+                                            ? "bg-gray-700"
+                                            : "bg-gray-100"
+                                    }`}
+                                >
+                                    <FaUserFriends
+                                        className={
+                                            isDarkMode
+                                                ? "text-gray-300"
+                                                : "text-gray-600"
+                                        }
+                                    />
+                                    <span className="text-xs sm:text-sm">
+                                        {userStats.friendsCount} Friends
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1432,24 +1744,32 @@ const UserProfile = () => {
                 {/* Posts */}
                 <div className="w-full max-w-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default">
                     <h3
-                        className={`text-xl font-semibold mb-4 ${isDarkMode ? "text-white" : "text-gray-900"
-                            }`}
+                        className={`text-xl font-semibold mb-4 ${
+                            isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
                     >
                         Posts
                     </h3>
 
                     {userPosts.length === 0 ? (
                         <div
-                            className={`rounded-lg p-6 text-center ${isDarkMode ? "bg-gray-800" : "bg-white"
-                                }`}
+                            className={`rounded-lg p-6 text-center ${
+                                isDarkMode ? "bg-gray-800" : "bg-white"
+                            }`}
                         >
                             <FaUser
-                                className={`text-4xl mx-auto mb-4 ${isDarkMode ? "text-gray-500" : "text-gray-400"
-                                    }`}
+                                className={`text-4xl mx-auto mb-4 ${
+                                    isDarkMode
+                                        ? "text-gray-500"
+                                        : "text-gray-400"
+                                }`}
                             />
                             <p
-                                className={`${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                    }`}
+                                className={`${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
                             >
                                 No posts yet
                             </p>
@@ -1464,47 +1784,73 @@ const UserProfile = () => {
                                 return (
                                     <div
                                         key={post._id}
-                                        className={`rounded-lg p-4 shadow-sm ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
-                                            }`}
+                                        className={`rounded-lg p-4 shadow-sm ${
+                                            isDarkMode
+                                                ? "bg-gray-800 text-gray-100"
+                                                : "bg-white text-gray-900"
+                                        }`}
                                     >
                                         <div className="flex items-center gap-3 mb-3">
                                             <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
                                                 {userData.profilePic ? (
                                                     <img
-                                                        src={userData.profilePic}
+                                                        src={
+                                                            userData.profilePic
+                                                        }
                                                         alt={userData.username}
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => {
-                                                            e.target.style.display = "none";
+                                                            e.target.style.display =
+                                                                "none";
                                                         }}
                                                     />
                                                 ) : null}
-                                                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userData.profilePic ? 'hidden' : 'flex'}`}>
-                                                    {userData.username?.charAt(0).toUpperCase() || "U"}
+                                                <div
+                                                    className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${
+                                                        userData.profilePic
+                                                            ? "hidden"
+                                                            : "flex"
+                                                    }`}
+                                                >
+                                                    {userData.username
+                                                        ?.charAt(0)
+                                                        .toUpperCase() || "U"}
                                                 </div>
                                             </div>
 
                                             <div>
                                                 <h3
-                                                    className={`text-base font-semibold ${isDarkMode ? "text-white" : "text-gray-800"
-                                                        }`}
+                                                    className={`text-base font-semibold ${
+                                                        isDarkMode
+                                                            ? "text-white"
+                                                            : "text-gray-800"
+                                                    }`}
                                                 >
-                                                    {userData.realname || userData.username}
+                                                    {userData.realname ||
+                                                        userData.username}
                                                 </h3>
                                                 <p
-                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                        }`}
+                                                    className={`text-xs ${
+                                                        isDarkMode
+                                                            ? "text-gray-400"
+                                                            : "text-gray-500"
+                                                    }`}
                                                 >
                                                     @{userData.username}{" "}
                                                     {post.createdAt &&
-                                                        `· ${formatDate(post.createdAt)}`}
+                                                        `· ${formatDate(
+                                                            post.createdAt
+                                                        )}`}
                                                 </p>
                                             </div>
                                         </div>
 
                                         <p
-                                            className={`leading-relaxed mb-3 ${isDarkMode ? "text-gray-200" : "text-gray-700"
-                                                }`}
+                                            className={`leading-relaxed mb-3 ${
+                                                isDarkMode
+                                                    ? "text-gray-200"
+                                                    : "text-gray-700"
+                                            }`}
                                         >
                                             {post.content}
                                         </p>
@@ -1517,29 +1863,42 @@ const UserProfile = () => {
                                                     alt="Post"
                                                     className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
                                                     onClick={() => {
-                                                        setPreviewImage(post.image);
-                                                        setShowImagePreview(true);
+                                                        setPreviewImage(
+                                                            post.image
+                                                        );
+                                                        setShowImagePreview(
+                                                            true
+                                                        );
                                                     }}
                                                     onError={(e) => {
-                                                        e.target.style.display = "none";
+                                                        e.target.style.display =
+                                                            "none";
                                                     }}
                                                 />
                                             </div>
                                         )}
 
                                         <div
-                                            className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? "border-gray-700" : "border-gray-200"
-                                                }`}
+                                            className={`flex items-center justify-between border-t pt-3 ${
+                                                isDarkMode
+                                                    ? "border-gray-700"
+                                                    : "border-gray-200"
+                                            }`}
                                         >
                                             <div className="flex items-center gap-3">
                                                 <motion.button
                                                     whileTap={{ scale: 0.9 }}
-                                                    onClick={(e) => handleLike(post._id, e)}
-                                                    disabled={isLiking[post._id]}
-                                                    className={`flex items-center gap-1 ${isLiking[post._id]
-                                                        ? "opacity-50 cursor-not-allowed"
-                                                        : "cursor-pointer"
-                                                        } hover:text-red-500 transition-colors`}
+                                                    onClick={(e) =>
+                                                        handleLike(post._id, e)
+                                                    }
+                                                    disabled={
+                                                        isLiking[post._id]
+                                                    }
+                                                    className={`flex items-center gap-1 ${
+                                                        isLiking[post._id]
+                                                            ? "opacity-50 cursor-not-allowed"
+                                                            : "cursor-pointer"
+                                                    } hover:text-red-500 transition-colors`}
                                                 >
                                                     {isLiking[post._id] ? (
                                                         <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1547,21 +1906,29 @@ const UserProfile = () => {
                                                         <FaHeart className="text-xl text-red-500" />
                                                     ) : (
                                                         <FaRegHeart
-                                                            className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                }`}
+                                                            className={`text-xl ${
+                                                                isDarkMode
+                                                                    ? "text-gray-400"
+                                                                    : "text-gray-500"
+                                                            }`}
                                                         />
                                                     )}
                                                     <motion.span
                                                         key={totalLikes}
                                                         initial={{ scale: 1 }}
-                                                        animate={{ scale: [1.2, 1] }}
-                                                        transition={{ duration: 0.2 }}
-                                                        className={`text-sm font-medium ${isPostLiked
-                                                            ? "text-red-500"
-                                                            : isDarkMode
+                                                        animate={{
+                                                            scale: [1.2, 1],
+                                                        }}
+                                                        transition={{
+                                                            duration: 0.2,
+                                                        }}
+                                                        className={`text-sm font-medium ${
+                                                            isPostLiked
+                                                                ? "text-red-500"
+                                                                : isDarkMode
                                                                 ? "text-gray-400"
                                                                 : "text-gray-500"
-                                                            }`}
+                                                        }`}
                                                     >
                                                         {totalLikes}
                                                     </motion.span>
@@ -1571,53 +1938,106 @@ const UserProfile = () => {
                                                 {totalLikes > 0 && (
                                                     <div className="text-sm">
                                                         <div className="flex items-center flex-wrap">
-                                                            {likedUsers.length > 0 ? (
+                                                            {likedUsers.length >
+                                                            0 ? (
                                                                 <>
-                                                                    {likedUsers.slice(0, 2).map((user, index) => (
-                                                                        <span
-                                                                            key={index}
-                                                                            className={`font-medium mr-1 ${isDarkMode
-                                                                                ? "text-gray-300"
-                                                                                : "text-gray-700"
-                                                                                }`}
-                                                                        >
-                                                                            {user.username}
-                                                                            {index < Math.min(2, likedUsers.length - 1) ? "," : ""}
-                                                                        </span>
-                                                                    ))}
+                                                                    {likedUsers
+                                                                        .slice(
+                                                                            0,
+                                                                            2
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                user,
+                                                                                index
+                                                                            ) => (
+                                                                                <span
+                                                                                    key={
+                                                                                        index
+                                                                                    }
+                                                                                    className={`font-medium mr-1 ${
+                                                                                        isDarkMode
+                                                                                            ? "text-gray-300"
+                                                                                            : "text-gray-700"
+                                                                                    }`}
+                                                                                >
+                                                                                    {
+                                                                                        user.username
+                                                                                    }
+                                                                                    {index <
+                                                                                    Math.min(
+                                                                                        2,
+                                                                                        likedUsers.length -
+                                                                                            1
+                                                                                    )
+                                                                                        ? ","
+                                                                                        : ""}
+                                                                                </span>
+                                                                            )
+                                                                        )}
 
-                                                                    {totalLikes > 2 && (
+                                                                    {totalLikes >
+                                                                        2 && (
                                                                         <button
-                                                                            onClick={(e) => handleShowLikes(post._id, e)}
-                                                                            className={`font-medium cursor-pointer ${isDarkMode
-                                                                                ? "text-blue-300"
-                                                                                : "text-blue-500"
-                                                                                } hover:underline`}
+                                                                            onClick={(
+                                                                                e
+                                                                            ) =>
+                                                                                handleShowLikes(
+                                                                                    post._id,
+                                                                                    e
+                                                                                )
+                                                                            }
+                                                                            className={`font-medium cursor-pointer ${
+                                                                                isDarkMode
+                                                                                    ? "text-blue-300"
+                                                                                    : "text-blue-500"
+                                                                            } hover:underline`}
                                                                         >
-                                                                            and {totalLikes - 2} others
+                                                                            and{" "}
+                                                                            {totalLikes -
+                                                                                2}{" "}
+                                                                            others
                                                                         </button>
                                                                     )}
 
-                                                                    {totalLikes === 2 && likedUsers.length === 1 && (
-                                                                        <span
-                                                                            className={`font-medium mr-1 ${isDarkMode
-                                                                                ? "text-gray-300"
-                                                                                : "text-gray-700"
+                                                                    {totalLikes ===
+                                                                        2 &&
+                                                                        likedUsers.length ===
+                                                                            1 && (
+                                                                            <span
+                                                                                className={`font-medium mr-1 ${
+                                                                                    isDarkMode
+                                                                                        ? "text-gray-300"
+                                                                                        : "text-gray-700"
                                                                                 }`}
-                                                                        >
-                                                                            and 1 other
-                                                                        </span>
-                                                                    )}
+                                                                            >
+                                                                                and
+                                                                                1
+                                                                                other
+                                                                            </span>
+                                                                        )}
                                                                 </>
                                                             ) : (
                                                                 <button
-                                                                    onClick={(e) => handleShowLikes(post._id, e)}
-                                                                    className={`font-medium cursor-pointer ${isDarkMode
-                                                                        ? "text-blue-300"
-                                                                        : "text-blue-500"
-                                                                        } hover:underline`}
+                                                                    onClick={(
+                                                                        e
+                                                                    ) =>
+                                                                        handleShowLikes(
+                                                                            post._id,
+                                                                            e
+                                                                        )
+                                                                    }
+                                                                    className={`font-medium cursor-pointer ${
+                                                                        isDarkMode
+                                                                            ? "text-blue-300"
+                                                                            : "text-blue-500"
+                                                                    } hover:underline`}
                                                                 >
-                                                                    {totalLikes} {totalLikes === 1 ? "like" : "likes"}
+                                                                    {totalLikes}{" "}
+                                                                    {totalLikes ===
+                                                                    1
+                                                                        ? "like"
+                                                                        : "likes"}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1626,10 +2046,20 @@ const UserProfile = () => {
                                             </div>
 
                                             <button
-                                                className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${isDarkMode ? "text-gray-400" : "text-gray-600"
-                                                    }`}
-                                                onClick={(e) => toggleCommentDropdown(post._id, e)}
-                                                disabled={loadingComments[post._id]}
+                                                className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${
+                                                    isDarkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-600"
+                                                }`}
+                                                onClick={(e) =>
+                                                    toggleCommentDropdown(
+                                                        post._id,
+                                                        e
+                                                    )
+                                                }
+                                                disabled={
+                                                    loadingComments[post._id]
+                                                }
                                             >
                                                 <FaComment />
                                                 <span className="text-sm">
@@ -1648,218 +2078,463 @@ const UserProfile = () => {
                                                     <div className="text-center py-4">
                                                         <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                                         <p
-                                                            className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"
-                                                                }`}
+                                                            className={`text-sm mt-2 ${
+                                                                isDarkMode
+                                                                    ? "text-gray-400"
+                                                                    : "text-gray-600"
+                                                            }`}
                                                         >
                                                             Loading comments...
                                                         </p>
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        {post.comments && post.comments.length > 0 ? (
+                                                        {post.comments &&
+                                                        post.comments.length >
+                                                            0 ? (
                                                             <div
-                                                                className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${isDarkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
-                                                                    }`}
+                                                                className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
+                                                                    isDarkMode
+                                                                        ? "bg-gray-700 text-gray-200"
+                                                                        : "bg-gray-100 text-gray-800"
+                                                                }`}
                                                             >
-                                                                {post.comments.map((comment) => (
-                                                                    <div
-                                                                        key={comment._id}
-                                                                        className="flex items-start space-x-2"
-                                                                    >
+                                                                {post.comments.map(
+                                                                    (
+                                                                        comment
+                                                                    ) => (
                                                                         <div
-                                                                            className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                                                                            onClick={() => {
-                                                                                if (comment.userId?._id === currentUserProfile?._id) {
-                                                                                    navigate("/profile");
-                                                                                } else {
-                                                                                    navigate(`/user/${comment.userId?._id}`);
-                                                                                }
-                                                                            }}
+                                                                            key={
+                                                                                comment._id
+                                                                            }
+                                                                            className="flex items-start space-x-2"
                                                                         >
-                                                                            {comment.userId?.profilePic ? (
-                                                                                <img
-                                                                                    src={comment.userId.profilePic}
-                                                                                    alt={comment.userId.username}
-                                                                                    className="w-full h-full object-cover"
-                                                                                    onError={(e) => {
-                                                                                        e.target.style.display = "none";
-                                                                                    }}
-                                                                                />
-                                                                            ) : null}
-                                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${comment.userId?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                                {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="flex-1">
-                                                                            <div className="flex items-center space-x-2">
-                                                                                <span
-                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                                    onClick={() => {
-                                                                                        if (comment.userId?._id === currentUserProfile?._id) {
-                                                                                            navigate("/profile");
-                                                                                        } else {
-                                                                                            navigate(`/user/${comment.userId?._id}`);
-                                                                                        }
-                                                                                    }}
-                                                                                >
-                                                                                    {comment.userId?.username || "Unknown"}
-                                                                                </span>
-                                                                                <span
-                                                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                                        }`}
-                                                                                >
-                                                                                    {formatDate(comment.createdAt)}
-                                                                                </span>
-                                                                            </div>
-                                                                            <p
-                                                                                className={`text-sm whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
-                                                                                    }`}
+                                                                            <div
+                                                                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                                                                                onClick={() => {
+                                                                                    if (
+                                                                                        comment
+                                                                                            .userId
+                                                                                            ?._id ===
+                                                                                        currentUserProfile?._id
+                                                                                    ) {
+                                                                                        navigate(
+                                                                                            "/profile"
+                                                                                        );
+                                                                                    } else {
+                                                                                        navigate(
+                                                                                            `/user/${comment.userId?._id}`
+                                                                                        );
+                                                                                    }
+                                                                                }}
                                                                             >
-                                                                                {comment.content}
-                                                                            </p>
-                                                                            <div className="mt-1 flex items-center justify-between">
-                                                                                <button
-                                                                                    className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                                                                    onClick={(e) => handleLikeComment(comment._id, post._id, e)}
-                                                                                    disabled={isLikingComment[comment._id]}
+                                                                                {comment
+                                                                                    .userId
+                                                                                    ?.profilePic ? (
+                                                                                    <img
+                                                                                        src={
+                                                                                            comment
+                                                                                                .userId
+                                                                                                .profilePic
+                                                                                        }
+                                                                                        alt={
+                                                                                            comment
+                                                                                                .userId
+                                                                                                .username
+                                                                                        }
+                                                                                        className="w-full h-full object-cover"
+                                                                                        onError={(
+                                                                                            e
+                                                                                        ) => {
+                                                                                            e.target.style.display =
+                                                                                                "none";
+                                                                                        }}
+                                                                                    />
+                                                                                ) : null}
+                                                                                <div
+                                                                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${
+                                                                                        comment
+                                                                                            .userId
+                                                                                            ?.profilePic
+                                                                                            ? "hidden"
+                                                                                            : "flex"
+                                                                                    }`}
                                                                                 >
-                                                                                    {isLikingComment[comment._id] ? (
-                                                                                        <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                                                                    ) : comment.hasUserLiked ? (
-                                                                                        <FaHeart className="text-xs text-red-500" />
-                                                                                    ) : (
-                                                                                        <FaRegHeart
-                                                                                            className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                                                }`}
-                                                                                        />
-                                                                                    )}
+                                                                                    {comment.userId?.username
+                                                                                        ?.charAt(
+                                                                                            0
+                                                                                        )
+                                                                                        .toUpperCase() ||
+                                                                                        "U"}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center space-x-2">
                                                                                     <span
-                                                                                        className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
-                                                                                            }`}
+                                                                                        className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                        onClick={() => {
+                                                                                            if (
+                                                                                                comment
+                                                                                                    .userId
+                                                                                                    ?._id ===
+                                                                                                currentUserProfile?._id
+                                                                                            ) {
+                                                                                                navigate(
+                                                                                                    "/profile"
+                                                                                                );
+                                                                                            } else {
+                                                                                                navigate(
+                                                                                                    `/user/${comment.userId?._id}`
+                                                                                                );
+                                                                                            }
+                                                                                        }}
                                                                                     >
-                                                                                        {comment.likes?.length || 0}
+                                                                                        {comment
+                                                                                            .userId
+                                                                                            ?.username ||
+                                                                                            "Unknown"}
                                                                                     </span>
-                                                                                </button>
-
-                                                                                <div className="flex space-x-2">
-                                                                                    <button
-                                                                                        className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
-                                                                                        onClick={(e) => toggleReplyInput(comment._id, e)}
-                                                                                        title="Reply to comment"
+                                                                                    <span
+                                                                                        className={`text-xs ${
+                                                                                            isDarkMode
+                                                                                                ? "text-gray-400"
+                                                                                                : "text-gray-500"
+                                                                                        }`}
                                                                                     >
-                                                                                        <FaReply />
+                                                                                        {formatDate(
+                                                                                            comment.createdAt
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <p
+                                                                                    className={`text-sm whitespace-pre-line mt-1 ${
+                                                                                        isDarkMode
+                                                                                            ? "text-gray-200"
+                                                                                            : "text-gray-700"
+                                                                                    }`}
+                                                                                >
+                                                                                    {
+                                                                                        comment.content
+                                                                                    }
+                                                                                </p>
+                                                                                <div className="mt-1 flex items-center justify-between">
+                                                                                    <button
+                                                                                        className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                                        onClick={(
+                                                                                            e
+                                                                                        ) =>
+                                                                                            handleLikeComment(
+                                                                                                comment._id,
+                                                                                                post._id,
+                                                                                                e
+                                                                                            )
+                                                                                        }
+                                                                                        disabled={
+                                                                                            isLikingComment[
+                                                                                                comment
+                                                                                                    ._id
+                                                                                            ]
+                                                                                        }
+                                                                                    >
+                                                                                        {isLikingComment[
+                                                                                            comment
+                                                                                                ._id
+                                                                                        ] ? (
+                                                                                            <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                        ) : comment.hasUserLiked ? (
+                                                                                            <FaHeart className="text-xs text-red-500" />
+                                                                                        ) : (
+                                                                                            <FaRegHeart
+                                                                                                className={`text-xs ${
+                                                                                                    isDarkMode
+                                                                                                        ? "text-gray-400"
+                                                                                                        : "text-gray-500"
+                                                                                                }`}
+                                                                                            />
+                                                                                        )}
+                                                                                        <span
+                                                                                            className={`text-xs ${
+                                                                                                isDarkMode
+                                                                                                    ? "text-gray-400"
+                                                                                                    : "text-gray-600"
+                                                                                            }`}
+                                                                                        >
+                                                                                            {comment
+                                                                                                .likes
+                                                                                                ?.length ||
+                                                                                                0}
+                                                                                        </span>
                                                                                     </button>
 
-                                                                                    {(comment.userId?.username === username || post.userId?.username === username) && (
+                                                                                    <div className="flex space-x-2">
                                                                                         <button
-                                                                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                                                                            onClick={(e) => handleDeleteComment(comment._id, post._id, e)}
-                                                                                            disabled={isDeletingComment[comment._id]}
-                                                                                            title="Delete comment"
+                                                                                            className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                                                                            onClick={(
+                                                                                                e
+                                                                                            ) =>
+                                                                                                toggleReplyInput(
+                                                                                                    comment._id,
+                                                                                                    e
+                                                                                                )
+                                                                                            }
+                                                                                            title="Reply to comment"
                                                                                         >
-                                                                                            {isDeletingComment[comment._id] ? (
-                                                                                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                                                                            ) : (
-                                                                                                <FaTrashAlt />
-                                                                                            )}
+                                                                                            <FaReply />
                                                                                         </button>
-                                                                                    )}
 
-                                                                                    {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
-                                                                                    {comment.replyCount > 0 && (
-                                                                                        <button
-                                                                                            className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
-                                                                                            onClick={(e) => toggleReplies(comment._id, post._id, e)}
-                                                                                            title={activeReplies[comment._id] ? "Hide replies" : "Show replies"}
-                                                                                        >
-                                                                                            {activeReplies[comment._id] ? <FaChevronDown /> : <FaChevronRight />}
-                                                                                            <span>{comment.replyCount}</span>
-                                                                                        </button>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-
-                                                                            {/* Reply Input for Comment */}
-                                                                            {comment.showReplyInput && (
-                                                                                <div className="mt-2">
-                                                                                    <form
-                                                                                        onSubmit={(e) => handleAddReply(comment._id, post._id, e)}
-                                                                                        className="flex items-center space-x-2"
-                                                                                    >
-                                                                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                                                            {currentUserProfile?.profilePic || user?.profilePic ? (
-                                                                                                <img
-                                                                                                    src={currentUserProfile?.profilePic || user?.profilePic}
-                                                                                                    alt={username}
-                                                                                                    className="w-full h-full object-cover"
-                                                                                                    onError={(e) => {
-                                                                                                        e.target.style.display = "none";
-                                                                                                    }}
-                                                                                                />
-                                                                                            ) : null}
-                                                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                                                {username?.charAt(0).toUpperCase() || "U"}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                        <div className="flex-1 flex space-x-2">
-                                                                                            <input
-                                                                                                type="text"
-                                                                                                className={`flex-1 px-3 py-1 rounded-full text-xs border ${isDarkMode
-                                                                                                    ? "bg-gray-700 border-gray-600 text-white"
-                                                                                                    : "bg-white border-gray-300"
-                                                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                                                placeholder="Write a reply..."
-                                                                                                value={replyContent[comment._id] || ""}
-                                                                                                onChange={(e) =>
-                                                                                                    setReplyContent({
-                                                                                                        ...replyContent,
-                                                                                                        [comment._id]: e.target.value,
-                                                                                                    })
-                                                                                                }
-                                                                                            />
+                                                                                        {(comment
+                                                                                            .userId
+                                                                                            ?.username ===
+                                                                                            username ||
+                                                                                            post
+                                                                                                .userId
+                                                                                                ?.username ===
+                                                                                                username) && (
                                                                                             <button
-                                                                                                type="submit"
-                                                                                                className={`px-2 py-1 rounded-full text-xs ${!replyContent[comment._id]?.trim() || isReplying[comment._id]
-                                                                                                    ? "bg-blue-300 cursor-not-allowed"
-                                                                                                    : "bg-blue-500 hover:bg-blue-600"
-                                                                                                    } text-white transition-colors`}
-                                                                                                disabled={!replyContent[comment._id]?.trim() || isReplying[comment._id]}
+                                                                                                className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                                                                                onClick={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    handleDeleteComment(
+                                                                                                        comment._id,
+                                                                                                        post._id,
+                                                                                                        e
+                                                                                                    )
+                                                                                                }
+                                                                                                disabled={
+                                                                                                    isDeletingComment[
+                                                                                                        comment
+                                                                                                            ._id
+                                                                                                    ]
+                                                                                                }
+                                                                                                title="Delete comment"
                                                                                             >
-                                                                                                {isReplying[comment._id] ? (
-                                                                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                                                {isDeletingComment[
+                                                                                                    comment
+                                                                                                        ._id
+                                                                                                ] ? (
+                                                                                                    <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                                                                                                 ) : (
-                                                                                                    "Reply"
+                                                                                                    <FaTrashAlt />
                                                                                                 )}
                                                                                             </button>
-                                                                                        </div>
-                                                                                    </form>
-                                                                                </div>
-                                                                            )}
+                                                                                        )}
 
-                                                                            {/* Display Replies */}
-                                                                            {activeReplies[comment._id] && comment.replies && comment.replies.length > 0 && (
-                                                                                <div className="mt-2">
-                                                                                    {comment.replies.map((reply) => (
-                                                                                        <ReplyItem
-                                                                                            key={reply._id}
-                                                                                            reply={reply}
-                                                                                            commentId={comment._id}
-                                                                                            postId={post._id}
-                                                                                            commentOwner={comment.userId?.username}
-                                                                                        />
-                                                                                    ))}
+                                                                                        {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
+                                                                                        {comment.replyCount >
+                                                                                            0 && (
+                                                                                            <button
+                                                                                                className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
+                                                                                                onClick={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    toggleReplies(
+                                                                                                        comment._id,
+                                                                                                        post._id,
+                                                                                                        e
+                                                                                                    )
+                                                                                                }
+                                                                                                title={
+                                                                                                    activeReplies[
+                                                                                                        comment
+                                                                                                            ._id
+                                                                                                    ]
+                                                                                                        ? "Hide replies"
+                                                                                                        : "Show replies"
+                                                                                                }
+                                                                                            >
+                                                                                                {activeReplies[
+                                                                                                    comment
+                                                                                                        ._id
+                                                                                                ] ? (
+                                                                                                    <FaChevronDown />
+                                                                                                ) : (
+                                                                                                    <FaChevronRight />
+                                                                                                )}
+                                                                                                <span>
+                                                                                                    {
+                                                                                                        comment.replyCount
+                                                                                                    }
+                                                                                                </span>
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </div>
                                                                                 </div>
-                                                                            )}
+
+                                                                                {/* Reply Input for Comment */}
+                                                                                {comment.showReplyInput && (
+                                                                                    <div className="mt-2">
+                                                                                        <form
+                                                                                            onSubmit={(
+                                                                                                e
+                                                                                            ) =>
+                                                                                                handleAddReply(
+                                                                                                    comment._id,
+                                                                                                    post._id,
+                                                                                                    e
+                                                                                                )
+                                                                                            }
+                                                                                            className="flex items-center space-x-2"
+                                                                                        >
+                                                                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                                                                {currentUserProfile?.profilePic ||
+                                                                                                user?.profilePic ? (
+                                                                                                    <img
+                                                                                                        src={
+                                                                                                            currentUserProfile?.profilePic ||
+                                                                                                            user?.profilePic
+                                                                                                        }
+                                                                                                        alt={
+                                                                                                            username
+                                                                                                        }
+                                                                                                        className="w-full h-full object-cover"
+                                                                                                        onError={(
+                                                                                                            e
+                                                                                                        ) => {
+                                                                                                            e.target.style.display =
+                                                                                                                "none";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                ) : null}
+                                                                                                <div
+                                                                                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                                                                                        currentUserProfile?.profilePic ||
+                                                                                                        user?.profilePic
+                                                                                                            ? "hidden"
+                                                                                                            : "flex"
+                                                                                                    }`}
+                                                                                                >
+                                                                                                    {username
+                                                                                                        ?.charAt(
+                                                                                                            0
+                                                                                                        )
+                                                                                                        .toUpperCase() ||
+                                                                                                        "U"}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            <div className="flex-1 flex space-x-2">
+                                                                                                <input
+                                                                                                    type="text"
+                                                                                                    className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                                                                                        isDarkMode
+                                                                                                            ? "bg-gray-700 border-gray-600 text-white"
+                                                                                                            : "bg-white border-gray-300"
+                                                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                                                    placeholder="Write a reply..."
+                                                                                                    value={
+                                                                                                        replyContent[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ] ||
+                                                                                                        ""
+                                                                                                    }
+                                                                                                    onChange={(
+                                                                                                        e
+                                                                                                    ) =>
+                                                                                                        setReplyContent(
+                                                                                                            {
+                                                                                                                ...replyContent,
+                                                                                                                [comment._id]:
+                                                                                                                    e
+                                                                                                                        .target
+                                                                                                                        .value,
+                                                                                                            }
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <button
+                                                                                                    type="submit"
+                                                                                                    className={`px-2 py-1 rounded-full text-xs ${
+                                                                                                        !replyContent[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]?.trim() ||
+                                                                                                        isReplying[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]
+                                                                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                                                                            : "bg-blue-500 hover:bg-blue-600"
+                                                                                                    } text-white transition-colors`}
+                                                                                                    disabled={
+                                                                                                        !replyContent[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]?.trim() ||
+                                                                                                        isReplying[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]
+                                                                                                    }
+                                                                                                >
+                                                                                                    {isReplying[
+                                                                                                        comment
+                                                                                                            ._id
+                                                                                                    ] ? (
+                                                                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                                                    ) : (
+                                                                                                        "Reply"
+                                                                                                    )}
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </form>
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* Display Replies */}
+                                                                                {activeReplies[
+                                                                                    comment
+                                                                                        ._id
+                                                                                ] &&
+                                                                                    comment.replies &&
+                                                                                    comment
+                                                                                        .replies
+                                                                                        .length >
+                                                                                        0 && (
+                                                                                        <div className="mt-2">
+                                                                                            {comment.replies.map(
+                                                                                                (
+                                                                                                    reply
+                                                                                                ) => (
+                                                                                                    <ReplyItem
+                                                                                                        key={
+                                                                                                            reply._id
+                                                                                                        }
+                                                                                                        reply={
+                                                                                                            reply
+                                                                                                        }
+                                                                                                        commentId={
+                                                                                                            comment._id
+                                                                                                        }
+                                                                                                        postId={
+                                                                                                            post._id
+                                                                                                        }
+                                                                                                        commentOwner={
+                                                                                                            comment
+                                                                                                                .userId
+                                                                                                                ?.username
+                                                                                                        }
+                                                                                                    />
+                                                                                                )
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    )
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             <div
-                                                                className={`text-center py-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                    }`}
+                                                                className={`text-center py-4 ${
+                                                                    isDarkMode
+                                                                        ? "text-gray-400"
+                                                                        : "text-gray-500"
+                                                                }`}
                                                             >
-                                                                No comments yet. Be the first to comment!
+                                                                No comments yet.
+                                                                Be the first to
+                                                                comment!
                                                             </div>
                                                         )}
 
@@ -1867,50 +2542,106 @@ const UserProfile = () => {
                                                         <form
                                                             onSubmit={(e) => {
                                                                 e.preventDefault();
-                                                                handleCommentSubmit(post._id, e);
+                                                                handleCommentSubmit(
+                                                                    post._id,
+                                                                    e
+                                                                );
                                                             }}
                                                             className="flex items-center space-x-2"
                                                         >
                                                             <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                                {currentUserProfile?.profilePic || user?.profilePic ? (
+                                                                {currentUserProfile?.profilePic ||
+                                                                user?.profilePic ? (
                                                                     <img
-                                                                        src={currentUserProfile?.profilePic || user?.profilePic}
-                                                                        alt={username}
+                                                                        src={
+                                                                            currentUserProfile?.profilePic ||
+                                                                            user?.profilePic
+                                                                        }
+                                                                        alt={
+                                                                            username
+                                                                        }
                                                                         className="w-full h-full object-cover"
-                                                                        onError={(e) => {
-                                                                            e.target.style.display = "none";
+                                                                        onError={(
+                                                                            e
+                                                                        ) => {
+                                                                            e.target.style.display =
+                                                                                "none";
                                                                         }}
                                                                     />
                                                                 ) : null}
-                                                                <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                    {username?.charAt(0).toUpperCase() || "U"}
+                                                                <div
+                                                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                                                        currentUserProfile?.profilePic ||
+                                                                        user?.profilePic
+                                                                            ? "hidden"
+                                                                            : "flex"
+                                                                    }`}
+                                                                >
+                                                                    {username
+                                                                        ?.charAt(
+                                                                            0
+                                                                        )
+                                                                        .toUpperCase() ||
+                                                                        "U"}
                                                                 </div>
                                                             </div>
                                                             <div className="flex-1 flex space-x-2">
                                                                 <input
                                                                     type="text"
-                                                                    className={`flex-1 px-3 py-2 rounded-full text-sm border ${isDarkMode
-                                                                        ? "bg-gray-700 border-gray-600 text-white"
-                                                                        : "bg-white border-gray-300"
-                                                                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                    className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                                                        isDarkMode
+                                                                            ? "bg-gray-700 border-gray-600 text-white"
+                                                                            : "bg-white border-gray-300"
+                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
                                                                     placeholder="Write a comment..."
-                                                                    value={commentContent[post._id] || ""}
-                                                                    onChange={(e) =>
-                                                                        setCommentContent({
-                                                                            ...commentContent,
-                                                                            [post._id]: e.target.value,
-                                                                        })
+                                                                    value={
+                                                                        commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ] || ""
+                                                                    }
+                                                                    onChange={(
+                                                                        e
+                                                                    ) =>
+                                                                        setCommentContent(
+                                                                            {
+                                                                                ...commentContent,
+                                                                                [post._id]:
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                            }
+                                                                        )
                                                                     }
                                                                 />
                                                                 <button
                                                                     type="submit"
-                                                                    className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id]
-                                                                        ? "bg-blue-300 cursor-not-allowed"
-                                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                                        } text-white transition-colors`}
-                                                                    disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
+                                                                    className={`px-3 py-1 rounded-full text-sm ${
+                                                                        !commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ]?.trim() ||
+                                                                        isCommenting[
+                                                                            post
+                                                                                ._id
+                                                                        ]
+                                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                                            : "bg-blue-500 hover:bg-blue-600"
+                                                                    } text-white transition-colors`}
+                                                                    disabled={
+                                                                        !commentContent[
+                                                                            post
+                                                                                ._id
+                                                                        ]?.trim() ||
+                                                                        isCommenting[
+                                                                            post
+                                                                                ._id
+                                                                        ]
+                                                                    }
                                                                 >
-                                                                    {isCommenting[post._id] ? (
+                                                                    {isCommenting[
+                                                                        post._id
+                                                                    ] ? (
                                                                         <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                                                                     ) : (
                                                                         "Post"
