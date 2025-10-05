@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import config from "../../hooks/config";
-import { FiCalendar } from "react-icons/fi";
+import { FiUsers } from "react-icons/fi";
 import NotificationModal from "./NotificationModal";
-import CalendarDropdown from "./CalendarDropdown";
+import FriendsSidebar from "./FriendsSidebar";
 import SearchBar from "./SearchBar";
 import ProfileDropdown from "./ProfileDropDown";
 import NotificationBell from "./NotificationBell";
@@ -16,7 +16,7 @@ const Navbar = ({ onDarkModeChange }) => {
     });
     const [showProfileDropdown, setShowProfileDropdown] = useState(false);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
-    const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+    const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
 
     const { token, username, realname, logout } = useAuth();
@@ -30,7 +30,6 @@ const Navbar = ({ onDarkModeChange }) => {
     const profileDropdownRef = useRef(null);
     const mobileSearchRef = useRef(null);
     const profileTriggerRef = useRef(null);
-    const calendarDropdownRef = useRef(null);
 
     // Handle dark mode
     useEffect(() => {
@@ -64,23 +63,13 @@ const Navbar = ({ onDarkModeChange }) => {
             ) {
                 setShowMobileSearch(false);
             }
-
-            // Calendar dropdown close
-            if (
-                showCalendarDropdown &&
-                calendarDropdownRef.current &&
-                !calendarDropdownRef.current.contains(event.target) &&
-                !event.target.closest(".calendar-trigger")
-            ) {
-                setShowCalendarDropdown(false);
-            }
         };
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showMobileSearch, showProfileDropdown, showCalendarDropdown]);
+    }, [showMobileSearch, showProfileDropdown]);
 
     // Fetch user data
     useEffect(() => {
@@ -137,11 +126,11 @@ const Navbar = ({ onDarkModeChange }) => {
         setShowNotificationModal(true);
         setShowProfileDropdown(false);
         setShowMobileSearch(false);
-        setShowCalendarDropdown(false);
+        setShowFriendsSidebar(false);
     };
 
-    const handleCalendarClick = () => {
-        setShowCalendarDropdown(!showCalendarDropdown);
+    const handleFriendsClick = () => {
+        setShowFriendsSidebar(!showFriendsSidebar);
         setShowProfileDropdown(false);
         setShowMobileSearch(false);
     };
@@ -151,8 +140,8 @@ const Navbar = ({ onDarkModeChange }) => {
         fetchUnreadCount();
     };
 
-    const handleCalendarDropdownClose = () => {
-        setShowCalendarDropdown(false);
+    const handleFriendsSidebarClose = () => {
+        setShowFriendsSidebar(false);
     };
 
     const fetchUnreadCount = async () => {
@@ -180,14 +169,15 @@ const Navbar = ({ onDarkModeChange }) => {
     const toggleMobileSearch = () => {
         setShowMobileSearch(!showMobileSearch);
         setShowProfileDropdown(false);
-        setShowCalendarDropdown(false);
+        setShowFriendsSidebar(false);
     };
 
     const handleProfileClick = () => {
         setShowProfileDropdown(!showProfileDropdown);
         setShowMobileSearch(false);
-        setShowCalendarDropdown(false);
+        setShowFriendsSidebar(false);
     };
+
     const UserAvatar = ({ profilePic, username, size = "sm" }) => {
         const dimensions = size === "sm" ? "w-8 h-8" : "w-12 h-12";
         const textSize = size === "sm" ? "text-sm" : "text-lg";
@@ -242,7 +232,7 @@ const Navbar = ({ onDarkModeChange }) => {
                     </div>
 
                     {/* Right Section */}
-                    <div className="flex items-center space-x-3 md:space-x-4 px-1">
+                    <div className="flex items-center space-x-3 md:space-x-4 pr-4">
                         {/* Search Icon - Mobile */}
                         <button
                             className="md:hidden p-2 rounded-md mobile-search-icon"
@@ -274,37 +264,26 @@ const Navbar = ({ onDarkModeChange }) => {
                             />
                         </div>
 
-                        {/* Calendar Dropdown Trigger */}
+                        {/* Friends Icon */}
                         <div className="relative">
                             <button
-                                onClick={handleCalendarClick}
-                                className={`calendar-trigger p-2 rounded-md transition-colors ${
+                                onClick={handleFriendsClick}
+                                className={`friends-trigger p-2 rounded-md transition-colors ${
                                     darkMode
                                         ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
                                         : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
                                 }`}
-                                aria-label="Calendar"
+                                aria-label="Friends"
                             >
-                                <FiCalendar className="w-6 h-6" />
+                                <FiUsers className="w-6 h-6" />
                             </button>
-
-                            {/* Calendar Dropdown */}
-                            <CalendarDropdown
-                                showDropdown={showCalendarDropdown}
-                                onClose={handleCalendarDropdownClose}
-                                darkMode={darkMode}
-                                token={token}
-                                username={username}
-                                navigate={navigate}
-                                calendarRef={calendarDropdownRef}
-                            />
                         </div>
 
                         {/* Profile Section */}
                         <div className="relative">
                             <div
                                 ref={profileTriggerRef}
-                                className="profile-trigger cursor-pointer  border-2  border-blue-500 rounded-full p-1"
+                                className="profile-trigger cursor-pointer border-2 border-blue-500 rounded-full p-1"
                                 onClick={handleProfileClick}
                             >
                                 <UserAvatar
@@ -314,7 +293,7 @@ const Navbar = ({ onDarkModeChange }) => {
                                 />
                             </div>
 
-                            {/* ✅ Single ProfileDropdown for both Desktop & Mobile */}
+                            {/* Profile Dropdown */}
                             <ProfileDropdown
                                 darkMode={darkMode}
                                 profilePic={profilePic}
@@ -356,6 +335,14 @@ const Navbar = ({ onDarkModeChange }) => {
                 showModal={showNotificationModal}
                 onClose={handleNotificationModalClose}
                 darkMode={darkMode}
+            />
+
+            {/* Friends Sidebar */}
+            <FriendsSidebar
+                isOpen={showFriendsSidebar}
+                onClose={handleFriendsSidebarClose}
+                darkMode={darkMode}
+                token={token}
             />
         </>
     );
