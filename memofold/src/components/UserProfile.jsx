@@ -21,6 +21,7 @@ import { motion } from "framer-motion";
 import config from "../hooks/config";
 import Navbar from "./navbar/navbar";
 import { apiService } from "../services/api";
+import LikesModal from "./mainFeed/LikesModal";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -40,6 +41,12 @@ const UserProfile = () => {
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
+
+    // Likes modal state
+    const [likesModal, setLikesModal] = useState({
+        isOpen: false,
+        postId: null,
+    });
 
     // Reply states - Load from localStorage on component mount
     const [activeReplies, setActiveReplies] = useState(() => {
@@ -189,15 +196,18 @@ const UserProfile = () => {
             const postsData = Array.isArray(data) ? data : data.posts || [];
 
             const storedLikes = getStoredLikes();
+            const currentUsername = localStorage.getItem("username");
 
             const postsWithLikes = postsData.map((post) => {
-                const postLikes = storedLikes[post._id] || post.likes || [];
-                const hasUserLiked = postLikes.includes(user._id) || postLikes.includes(username);
+                // Check if current user has liked this post using likesPreview
+                const hasUserLiked = post.likesPreview?.some(
+                    (like) => like.username === currentUsername
+                );
 
                 return {
                     ...post,
-                    likes: postLikes,
-                    hasUserLiked: hasUserLiked,
+                    isLiked: hasUserLiked || false,
+                    likes: post.likeCount || 0,
                     comments: post.comments || [],
                     commentCount: post.commentCount || 0,
                 };
@@ -383,6 +393,21 @@ const UserProfile = () => {
         }
     };
 
+    // Likes modal handlers
+    const handleShowLikesModal = (postId) => {
+        setLikesModal({
+            isOpen: true,
+            postId: postId,
+        });
+    };
+
+    const handleCloseLikesModal = () => {
+        setLikesModal({
+            isOpen: false,
+            postId: null,
+        });
+    };
+
     const handleDeleteComment = async (commentId, postId, e) => {
         if (e) {
             e.preventDefault();
@@ -533,58 +558,92 @@ const UserProfile = () => {
             return;
         }
 
+        if (isLiking[postId]) return;
+
         setIsLiking((prev) => ({ ...prev, [postId]: true }));
 
         try {
+            const currentPost = userPosts.find((post) => post._id === postId);
+            if (!currentPost) return;
+
+            const isCurrentlyLiked = currentPost.isLiked;
+
+            // Optimistic update
             setUserPosts((posts) =>
                 posts.map((post) => {
                     if (post._id === postId) {
-                        const isLiked = post.hasUserLiked;
-                        let updatedLikes;
+                        const newLikeCount = isCurrentlyLiked
+                            ? Math.max(0, (post.likeCount || 1) - 1)
+                            : (post.likeCount || 0) + 1;
 
-                        if (isLiked) {
-                            updatedLikes = post.likes.filter(
-                                (like) => like !== user._id && like !== username
+                        let newLikesPreview = [...(post.likesPreview || [])];
+
+                        if (isCurrentlyLiked) {
+                            // Remove current user from likesPreview
+                            newLikesPreview = newLikesPreview.filter(
+                                (like) => like.username !== username
                             );
                         } else {
-                            updatedLikes = [...post.likes, user._id];
-
-                            if (e) {
-                                const rect = e.target.getBoundingClientRect();
-                                const heartCount = 5;
-
-                                for (let i = 0; i < heartCount; i++) {
-                                    setTimeout(() => {
-                                        setFloatingHearts((hearts) => [
-                                            ...hearts,
-                                            {
-                                                id: Date.now() + i,
-                                                x: rect.left + rect.width / 2,
-                                                y: rect.top + rect.height / 2,
-                                            },
-                                        ]);
-                                    }, i * 100);
-                                }
-                            }
+                            // Add current user to likesPreview
+                            newLikesPreview.unshift({
+                                username: username,
+                                realname: currentUserProfile?.realname || user?.realname || username,
+                                profilePic: currentUserProfile?.profilePic || user?.profilePic,
+                            });
                         }
-
-                        updateStoredLikes(postId, updatedLikes);
 
                         return {
                             ...post,
-                            likes: updatedLikes,
-                            hasUserLiked: !isLiked,
+                            isLiked: !isCurrentlyLiked,
+                            likeCount: newLikeCount,
+                            likesPreview: newLikesPreview,
                         };
                     }
                     return post;
                 })
             );
 
+            // API call
             await apiService.likePost(postId, user._id, token);
+
+            // Add floating hearts if liking
+            if (!isCurrentlyLiked && e) {
+                const rect = e.target.getBoundingClientRect();
+                const heartCount = 5;
+                for (let i = 0; i < heartCount; i++) {
+                    setTimeout(() => {
+                        setFloatingHearts((hearts) => [
+                            ...hearts,
+                            {
+                                id: Date.now() + i,
+                                x: rect.left + rect.width / 2,
+                                y: rect.top + rect.height / 2,
+                            },
+                        ]);
+                    }, i * 100);
+                }
+            }
+
         } catch (err) {
             console.error("Error liking post:", err);
+            
+            // Revert optimistic update on error
+            setUserPosts((prev) => ({
+                ...prev,
+                posts: prev.map((post) => {
+                    if (post._id === postId) {
+                        return {
+                            ...post,
+                            isLiked: currentPost.isLiked,
+                            likeCount: currentPost.likeCount,
+                            likesPreview: currentPost.likesPreview,
+                        };
+                    }
+                    return post;
+                }),
+            }));
+            
             setError(err.message);
-            await fetchUserPosts(userData.username);
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
@@ -1025,6 +1084,23 @@ const UserProfile = () => {
         }
     };
 
+    // Get liked users for display
+    const getLikedUsers = (post) => {
+        // Use likesPreview from API
+        if (post.likesPreview && post.likesPreview.length > 0) {
+            return post.likesPreview;
+        }
+        return [];
+    };
+
+    // Handle likes modal
+    const handleShowLikes = (postId, e) => {
+        e.stopPropagation();
+        if (postId) {
+            handleShowLikesModal(postId);
+        }
+    };
+
     // Reply Item Component
     const ReplyItem = ({ reply, commentId, postId, commentOwner }) => {
         return (
@@ -1196,6 +1272,15 @@ const UserProfile = () => {
         >
             {/* Floating Hearts Animation */}
             <FloatingHearts />
+
+            {/* Likes Modal */}
+            <LikesModal
+                postId={likesModal.postId}
+                isOpen={likesModal.isOpen}
+                onClose={handleCloseLikesModal}
+                token={token}
+                isDarkMode={isDarkMode}
+            />
 
             {/* Image Preview Modal */}
             {showImagePreview && (
@@ -1371,410 +1456,475 @@ const UserProfile = () => {
                         </div>
                     ) : (
                         <div className="grid gap-4">
-                            {userPosts.map((post) => (
-                                <div
-                                    key={post._id}
-                                    className={`rounded-lg p-4 shadow-sm ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
-                                            {userData.profilePic ? (
+                            {userPosts.map((post) => {
+                                const likedUsers = getLikedUsers(post);
+                                const totalLikes = post.likeCount || 0;
+                                const isPostLiked = post.isLiked || false;
+
+                                return (
+                                    <div
+                                        key={post._id}
+                                        className={`rounded-lg p-4 shadow-sm ${isDarkMode ? "bg-gray-800 text-gray-100" : "bg-white text-gray-900"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
+                                                {userData.profilePic ? (
+                                                    <img
+                                                        src={userData.profilePic}
+                                                        alt={userData.username}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            e.target.style.display = "none";
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userData.profilePic ? 'hidden' : 'flex'}`}>
+                                                    {userData.username?.charAt(0).toUpperCase() || "U"}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h3
+                                                    className={`text-base font-semibold ${isDarkMode ? "text-white" : "text-gray-800"
+                                                        }`}
+                                                >
+                                                    {userData.realname || userData.username}
+                                                </h3>
+                                                <p
+                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                        }`}
+                                                >
+                                                    @{userData.username}{" "}
+                                                    {post.createdAt &&
+                                                        `· ${formatDate(post.createdAt)}`}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <p
+                                            className={`leading-relaxed mb-3 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                                }`}
+                                        >
+                                            {post.content}
+                                        </p>
+
+                                        {/* Fixed Image Container with Border Radius */}
+                                        {post.image && (
+                                            <div className="w-full mb-3 overflow-hidden flex justify-center">
                                                 <img
-                                                    src={userData.profilePic}
-                                                    alt={userData.username}
-                                                    className="w-full h-full object-cover"
+                                                    src={post.image}
+                                                    alt="Post"
+                                                    className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
+                                                    onClick={() => {
+                                                        setPreviewImage(post.image);
+                                                        setShowImagePreview(true);
+                                                    }}
                                                     onError={(e) => {
                                                         e.target.style.display = "none";
                                                     }}
                                                 />
-                                            ) : null}
-                                            <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userData.profilePic ? 'hidden' : 'flex'}`}>
-                                                {userData.username?.charAt(0).toUpperCase() || "U"}
                                             </div>
-                                        </div>
+                                        )}
 
-                                        <div>
-                                            <h3
-                                                className={`text-base font-semibold ${isDarkMode ? "text-white" : "text-gray-800"
-                                                    }`}
-                                            >
-                                                {userData.realname || userData.username}
-                                            </h3>
-                                            <p
-                                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                    }`}
-                                            >
-                                                @{userData.username}{" "}
-                                                {post.createdAt &&
-                                                    `· ${formatDate(post.createdAt)}`}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <p
-                                        className={`leading-relaxed mb-3 ${isDarkMode ? "text-gray-200" : "text-gray-700"
-                                            }`}
-                                    >
-                                        {post.content}
-                                    </p>
-
-                                    {/* Fixed Image Container with Border Radius */}
-                                    {post.image && (
-                                        <div className="w-full mb-3 overflow-hidden flex justify-center">
-                                            <img
-                                                src={post.image}
-                                                alt="Post"
-                                                className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
-                                                onClick={() => {
-                                                    setPreviewImage(post.image);
-                                                    setShowImagePreview(true);
-                                                }}
-                                                onError={(e) => {
-                                                    e.target.style.display = "none";
-                                                }}
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div
-                                        className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? "border-gray-700" : "border-gray-200"
-                                            }`}
-                                    >
-                                        <motion.button
-                                            whileTap={{ scale: 0.9 }}
-                                            onClick={(e) => handleLike(post._id, e)}
-                                            disabled={isLiking[post._id]}
-                                            className={`flex items-center gap-1 ${isLiking[post._id]
-                                                ? "opacity-50 cursor-not-allowed"
-                                                : "cursor-pointer"
-                                                } hover:text-red-500 transition-colors`}
-                                        >
-                                            {isLiking[post._id] ? (
-                                                <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                            ) : post.hasUserLiked ? (
-                                                <FaHeart className="text-xl text-red-500" />
-                                            ) : (
-                                                <FaRegHeart
-                                                    className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                        }`}
-                                                />
-                                            )}
-                                            <motion.span
-                                                key={post.likes?.length || 0}
-                                                initial={{ scale: 1 }}
-                                                animate={{ scale: [1.2, 1] }}
-                                                transition={{ duration: 0.2 }}
-                                                className={`text-sm font-medium ${post.hasUserLiked
-                                                    ? "text-red-500"
-                                                    : isDarkMode
-                                                        ? "text-gray-400"
-                                                        : "text-gray-500"
-                                                    }`}
-                                            >
-                                                {post.likes?.length || 0}
-                                            </motion.span>
-                                        </motion.button>
-
-                                        <button
-                                            className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                        <div
+                                            className={`flex items-center justify-between border-t pt-3 ${isDarkMode ? "border-gray-700" : "border-gray-200"
                                                 }`}
-                                            onClick={(e) => toggleCommentDropdown(post._id, e)}
-                                            disabled={loadingComments[post._id]}
                                         >
-                                            <FaComment />
-                                            <span className="text-sm">
-                                                {post.commentCount || 0}
-                                            </span>
-                                            {loadingComments[post._id] && (
-                                                <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
-                                            )}
-                                        </button>
-                                    </div>
-
-                                    {/* Comment Section */}
-                                    {activeCommentPostId === post._id && (
-                                        <div className="mt-4">
-                                            {loadingComments[post._id] ? (
-                                                <div className="text-center py-4">
-                                                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                    <p
-                                                        className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                            <div className="flex items-center gap-3">
+                                                <motion.button
+                                                    whileTap={{ scale: 0.9 }}
+                                                    onClick={(e) => handleLike(post._id, e)}
+                                                    disabled={isLiking[post._id]}
+                                                    className={`flex items-center gap-1 ${isLiking[post._id]
+                                                        ? "opacity-50 cursor-not-allowed"
+                                                        : "cursor-pointer"
+                                                        } hover:text-red-500 transition-colors`}
+                                                >
+                                                    {isLiking[post._id] ? (
+                                                        <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    ) : isPostLiked ? (
+                                                        <FaHeart className="text-xl text-red-500" />
+                                                    ) : (
+                                                        <FaRegHeart
+                                                            className={`text-xl ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                }`}
+                                                        />
+                                                    )}
+                                                    <motion.span
+                                                        key={totalLikes}
+                                                        initial={{ scale: 1 }}
+                                                        animate={{ scale: [1.2, 1] }}
+                                                        transition={{ duration: 0.2 }}
+                                                        className={`text-sm font-medium ${isPostLiked
+                                                            ? "text-red-500"
+                                                            : isDarkMode
+                                                                ? "text-gray-400"
+                                                                : "text-gray-500"
                                                             }`}
                                                     >
-                                                        Loading comments...
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {post.comments && post.comments.length > 0 ? (
-                                                        <div
-                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${isDarkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
-                                                                }`}
-                                                        >
-                                                            {post.comments.map((comment) => (
-                                                                <div
-                                                                    key={comment._id}
-                                                                    className="flex items-start space-x-2"
-                                                                >
-                                                                    <div
-                                                                        className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                                                                        onClick={() => {
-                                                                            if (comment.userId?._id === currentUserProfile?._id) {
-                                                                                navigate("/profile");
-                                                                            } else {
-                                                                                navigate(`/user/${comment.userId?._id}`);
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        {comment.userId?.profilePic ? (
-                                                                            <img
-                                                                                src={comment.userId.profilePic}
-                                                                                alt={comment.userId.username}
-                                                                                className="w-full h-full object-cover"
-                                                                                onError={(e) => {
-                                                                                    e.target.style.display = "none";
-                                                                                }}
-                                                                            />
-                                                                        ) : null}
-                                                                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${comment.userId?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                            {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center space-x-2">
-                                                                            <span
-                                                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                                onClick={() => {
-                                                                                    if (comment.userId?._id === currentUserProfile?._id) {
-                                                                                        navigate("/profile");
-                                                                                    } else {
-                                                                                        navigate(`/user/${comment.userId?._id}`);
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                {comment.userId?.username || "Unknown"}
-                                                                            </span>
-                                                                            <span
-                                                                                className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                                    }`}
-                                                                            >
-                                                                                {formatDate(comment.createdAt)}
-                                                                            </span>
-                                                                        </div>
-                                                                        <p
-                                                                            className={`text-sm whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                                        {totalLikes}
+                                                    </motion.span>
+                                                </motion.button>
+
+                                                {/* Liked by text - turant update hoga */}
+                                                {totalLikes > 0 && (
+                                                    <div className="text-sm">
+                                                        <div className="flex items-center flex-wrap">
+                                                            {likedUsers.length > 0 ? (
+                                                                <>
+                                                                    {likedUsers.slice(0, 2).map((user, index) => (
+                                                                        <span
+                                                                            key={index}
+                                                                            className={`font-medium mr-1 ${isDarkMode
+                                                                                ? "text-gray-300"
+                                                                                : "text-gray-700"
                                                                                 }`}
                                                                         >
-                                                                            {comment.content}
-                                                                        </p>
-                                                                        <div className="mt-1 flex items-center justify-between">
-                                                                            <button
-                                                                                className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                                                                                onClick={(e) => handleLikeComment(comment._id, post._id, e)}
-                                                                                disabled={isLikingComment[comment._id]}
-                                                                            >
-                                                                                {isLikingComment[comment._id] ? (
-                                                                                    <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                                                                ) : comment.hasUserLiked ? (
-                                                                                    <FaHeart className="text-xs text-red-500" />
-                                                                                ) : (
-                                                                                    <FaRegHeart
-                                                                                        className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                                            }`}
-                                                                                    />
-                                                                                )}
-                                                                                <span
-                                                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
-                                                                                        }`}
-                                                                                >
-                                                                                    {comment.likes?.length || 0}
-                                                                                </span>
-                                                                            </button>
+                                                                            {user.username}
+                                                                            {index < Math.min(2, likedUsers.length - 1) ? "," : ""}
+                                                                        </span>
+                                                                    ))}
 
-                                                                            <div className="flex space-x-2">
-                                                                                <button
-                                                                                    className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
-                                                                                    onClick={(e) => toggleReplyInput(comment._id, e)}
-                                                                                    title="Reply to comment"
-                                                                                >
-                                                                                    <FaReply />
-                                                                                </button>
+                                                                    {totalLikes > 2 && (
+                                                                        <button
+                                                                            onClick={(e) => handleShowLikes(post._id, e)}
+                                                                            className={`font-medium cursor-pointer ${isDarkMode
+                                                                                ? "text-blue-300"
+                                                                                : "text-blue-500"
+                                                                                } hover:underline`}
+                                                                        >
+                                                                            and {totalLikes - 2} others
+                                                                        </button>
+                                                                    )}
 
-                                                                                {(comment.userId?.username === username || post.userId?.username === username) && (
-                                                                                    <button
-                                                                                        className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                                                                        onClick={(e) => handleDeleteComment(comment._id, post._id, e)}
-                                                                                        disabled={isDeletingComment[comment._id]}
-                                                                                        title="Delete comment"
-                                                                                    >
-                                                                                        {isDeletingComment[comment._id] ? (
-                                                                                            <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                                                                        ) : (
-                                                                                            <FaTrashAlt />
-                                                                                        )}
-                                                                                    </button>
-                                                                                )}
-
-                                                                                {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
-                                                                                {comment.replyCount > 0 && (
-                                                                                    <button
-                                                                                        className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
-                                                                                        onClick={(e) => toggleReplies(comment._id, post._id, e)}
-                                                                                        title={activeReplies[comment._id] ? "Hide replies" : "Show replies"}
-                                                                                    >
-                                                                                        {activeReplies[comment._id] ? <FaChevronDown /> : <FaChevronRight />}
-                                                                                        <span>{comment.replyCount}</span>
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* Reply Input for Comment */}
-                                                                        {comment.showReplyInput && (
-                                                                            <div className="mt-2">
-                                                                                <form
-                                                                                    onSubmit={(e) => handleAddReply(comment._id, post._id, e)}
-                                                                                    className="flex items-center space-x-2"
-                                                                                >
-                                                                                    <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                                                        {currentUserProfile?.profilePic || user?.profilePic ? (
-                                                                                            <img
-                                                                                                src={currentUserProfile?.profilePic || user?.profilePic}
-                                                                                                alt={username}
-                                                                                                className="w-full h-full object-cover"
-                                                                                                onError={(e) => {
-                                                                                                    e.target.style.display = "none";
-                                                                                                }}
-                                                                                            />
-                                                                                        ) : null}
-                                                                                        <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                                            {username?.charAt(0).toUpperCase() || "U"}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="flex-1 flex space-x-2">
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            className={`flex-1 px-3 py-1 rounded-full text-xs border ${isDarkMode
-                                                                                                ? "bg-gray-700 border-gray-600 text-white"
-                                                                                                : "bg-white border-gray-300"
-                                                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                                            placeholder="Write a reply..."
-                                                                                            value={replyContent[comment._id] || ""}
-                                                                                            onChange={(e) =>
-                                                                                                setReplyContent({
-                                                                                                    ...replyContent,
-                                                                                                    [comment._id]: e.target.value,
-                                                                                                })
-                                                                                            }
-                                                                                        />
-                                                                                        <button
-                                                                                            type="submit"
-                                                                                            className={`px-2 py-1 rounded-full text-xs ${!replyContent[comment._id]?.trim() || isReplying[comment._id]
-                                                                                                ? "bg-blue-300 cursor-not-allowed"
-                                                                                                : "bg-blue-500 hover:bg-blue-600"
-                                                                                                } text-white transition-colors`}
-                                                                                            disabled={!replyContent[comment._id]?.trim() || isReplying[comment._id]}
-                                                                                        >
-                                                                                            {isReplying[comment._id] ? (
-                                                                                                <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                                                            ) : (
-                                                                                                "Reply"
-                                                                                            )}
-                                                                                        </button>
-                                                                                    </div>
-                                                                                </form>
-                                                                            </div>
-                                                                        )}
-
-                                                                        {/* Display Replies */}
-                                                                        {activeReplies[comment._id] && comment.replies && comment.replies.length > 0 && (
-                                                                            <div className="mt-2">
-                                                                                {comment.replies.map((reply) => (
-                                                                                    <ReplyItem
-                                                                                        key={reply._id}
-                                                                                        reply={reply}
-                                                                                        commentId={comment._id}
-                                                                                        postId={post._id}
-                                                                                        commentOwner={comment.userId?.username}
-                                                                                    />
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
+                                                                    {totalLikes === 2 && likedUsers.length === 1 && (
+                                                                        <span
+                                                                            className={`font-medium mr-1 ${isDarkMode
+                                                                                ? "text-gray-300"
+                                                                                : "text-gray-700"
+                                                                                }`}
+                                                                        >
+                                                                            and 1 other
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={(e) => handleShowLikes(post._id, e)}
+                                                                    className={`font-medium cursor-pointer ${isDarkMode
+                                                                        ? "text-blue-300"
+                                                                        : "text-blue-500"
+                                                                        } hover:underline`}
+                                                                >
+                                                                    {totalLikes} {totalLikes === 1 ? "like" : "likes"}
+                                                                </button>
+                                                            )}
                                                         </div>
-                                                    ) : (
-                                                        <div
-                                                            className={`text-center py-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                                    }`}
+                                                onClick={(e) => toggleCommentDropdown(post._id, e)}
+                                                disabled={loadingComments[post._id]}
+                                            >
+                                                <FaComment />
+                                                <span className="text-sm">
+                                                    {post.commentCount || 0}
+                                                </span>
+                                                {loadingComments[post._id] && (
+                                                    <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        {/* Comment Section */}
+                                        {activeCommentPostId === post._id && (
+                                            <div className="mt-4">
+                                                {loadingComments[post._id] ? (
+                                                    <div className="text-center py-4">
+                                                        <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                        <p
+                                                            className={`text-sm mt-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"
                                                                 }`}
                                                         >
-                                                            No comments yet. Be the first to comment!
-                                                        </div>
-                                                    )}
-
-                                                    {/* Add Comment Input */}
-                                                    <form
-                                                        onSubmit={(e) => {
-                                                            e.preventDefault();
-                                                            handleCommentSubmit(post._id, e);
-                                                        }}
-                                                        className="flex items-center space-x-2"
-                                                    >
-                                                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                                            {currentUserProfile?.profilePic || user?.profilePic ? (
-                                                                <img
-                                                                    src={currentUserProfile?.profilePic || user?.profilePic}
-                                                                    alt={username}
-                                                                    className="w-full h-full object-cover"
-                                                                    onError={(e) => {
-                                                                        e.target.style.display = "none";
-                                                                    }}
-                                                                />
-                                                            ) : null}
-                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
-                                                                {username?.charAt(0).toUpperCase() || "U"}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex-1 flex space-x-2">
-                                                            <input
-                                                                type="text"
-                                                                className={`flex-1 px-3 py-2 rounded-full text-sm border ${isDarkMode
-                                                                    ? "bg-gray-700 border-gray-600 text-white"
-                                                                    : "bg-white border-gray-300"
-                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                placeholder="Write a comment..."
-                                                                value={commentContent[post._id] || ""}
-                                                                onChange={(e) =>
-                                                                    setCommentContent({
-                                                                        ...commentContent,
-                                                                        [post._id]: e.target.value,
-                                                                    })
-                                                                }
-                                                            />
-                                                            <button
-                                                                type="submit"
-                                                                className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id]
-                                                                    ? "bg-blue-300 cursor-not-allowed"
-                                                                    : "bg-blue-500 hover:bg-blue-600"
-                                                                    } text-white transition-colors`}
-                                                                disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
+                                                            Loading comments...
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        {post.comments && post.comments.length > 0 ? (
+                                                            <div
+                                                                className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${isDarkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
+                                                                    }`}
                                                             >
-                                                                {isCommenting[post._id] ? (
-                                                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                                ) : (
-                                                                    "Post"
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    </form>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                                                {post.comments.map((comment) => (
+                                                                    <div
+                                                                        key={comment._id}
+                                                                        className="flex items-start space-x-2"
+                                                                    >
+                                                                        <div
+                                                                            className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                                                                            onClick={() => {
+                                                                                if (comment.userId?._id === currentUserProfile?._id) {
+                                                                                    navigate("/profile");
+                                                                                } else {
+                                                                                    navigate(`/user/${comment.userId?._id}`);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {comment.userId?.profilePic ? (
+                                                                                <img
+                                                                                    src={comment.userId.profilePic}
+                                                                                    alt={comment.userId.username}
+                                                                                    className="w-full h-full object-cover"
+                                                                                    onError={(e) => {
+                                                                                        e.target.style.display = "none";
+                                                                                    }}
+                                                                                />
+                                                                            ) : null}
+                                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${comment.userId?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                                {comment.userId?.username?.charAt(0).toUpperCase() || "U"}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <span
+                                                                                    className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                                    onClick={() => {
+                                                                                        if (comment.userId?._id === currentUserProfile?._id) {
+                                                                                            navigate("/profile");
+                                                                                        } else {
+                                                                                            navigate(`/user/${comment.userId?._id}`);
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    {comment.userId?.username || "Unknown"}
+                                                                                </span>
+                                                                                <span
+                                                                                    className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                                        }`}
+                                                                                >
+                                                                                    {formatDate(comment.createdAt)}
+                                                                                </span>
+                                                                            </div>
+                                                                            <p
+                                                                                className={`text-sm whitespace-pre-line mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"
+                                                                                    }`}
+                                                                            >
+                                                                                {comment.content}
+                                                                            </p>
+                                                                            <div className="mt-1 flex items-center justify-between">
+                                                                                <button
+                                                                                    className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                                                                    onClick={(e) => handleLikeComment(comment._id, post._id, e)}
+                                                                                    disabled={isLikingComment[comment._id]}
+                                                                                >
+                                                                                    {isLikingComment[comment._id] ? (
+                                                                                        <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                    ) : comment.hasUserLiked ? (
+                                                                                        <FaHeart className="text-xs text-red-500" />
+                                                                                    ) : (
+                                                                                        <FaRegHeart
+                                                                                            className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                                                }`}
+                                                                                        />
+                                                                                    )}
+                                                                                    <span
+                                                                                        className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"
+                                                                                            }`}
+                                                                                    >
+                                                                                        {comment.likes?.length || 0}
+                                                                                    </span>
+                                                                                </button>
+
+                                                                                <div className="flex space-x-2">
+                                                                                    <button
+                                                                                        className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                                                                        onClick={(e) => toggleReplyInput(comment._id, e)}
+                                                                                        title="Reply to comment"
+                                                                                    >
+                                                                                        <FaReply />
+                                                                                    </button>
+
+                                                                                    {(comment.userId?.username === username || post.userId?.username === username) && (
+                                                                                        <button
+                                                                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                                                                            onClick={(e) => handleDeleteComment(comment._id, post._id, e)}
+                                                                                            disabled={isDeletingComment[comment._id]}
+                                                                                            title="Delete comment"
+                                                                                        >
+                                                                                            {isDeletingComment[comment._id] ? (
+                                                                                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                                                                            ) : (
+                                                                                                <FaTrashAlt />
+                                                                                            )}
+                                                                                        </button>
+                                                                                    )}
+
+                                                                                    {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
+                                                                                    {comment.replyCount > 0 && (
+                                                                                        <button
+                                                                                            className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
+                                                                                            onClick={(e) => toggleReplies(comment._id, post._id, e)}
+                                                                                            title={activeReplies[comment._id] ? "Hide replies" : "Show replies"}
+                                                                                        >
+                                                                                            {activeReplies[comment._id] ? <FaChevronDown /> : <FaChevronRight />}
+                                                                                            <span>{comment.replyCount}</span>
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Reply Input for Comment */}
+                                                                            {comment.showReplyInput && (
+                                                                                <div className="mt-2">
+                                                                                    <form
+                                                                                        onSubmit={(e) => handleAddReply(comment._id, post._id, e)}
+                                                                                        className="flex items-center space-x-2"
+                                                                                    >
+                                                                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                                                            {currentUserProfile?.profilePic || user?.profilePic ? (
+                                                                                                <img
+                                                                                                    src={currentUserProfile?.profilePic || user?.profilePic}
+                                                                                                    alt={username}
+                                                                                                    className="w-full h-full object-cover"
+                                                                                                    onError={(e) => {
+                                                                                                        e.target.style.display = "none";
+                                                                                                    }}
+                                                                                                />
+                                                                                            ) : null}
+                                                                                            <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                                                {username?.charAt(0).toUpperCase() || "U"}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="flex-1 flex space-x-2">
+                                                                                            <input
+                                                                                                type="text"
+                                                                                                className={`flex-1 px-3 py-1 rounded-full text-xs border ${isDarkMode
+                                                                                                    ? "bg-gray-700 border-gray-600 text-white"
+                                                                                                    : "bg-white border-gray-300"
+                                                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                                                placeholder="Write a reply..."
+                                                                                                value={replyContent[comment._id] || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    setReplyContent({
+                                                                                                        ...replyContent,
+                                                                                                        [comment._id]: e.target.value,
+                                                                                                    })
+                                                                                                }
+                                                                                            />
+                                                                                            <button
+                                                                                                type="submit"
+                                                                                                className={`px-2 py-1 rounded-full text-xs ${!replyContent[comment._id]?.trim() || isReplying[comment._id]
+                                                                                                    ? "bg-blue-300 cursor-not-allowed"
+                                                                                                    : "bg-blue-500 hover:bg-blue-600"
+                                                                                                    } text-white transition-colors`}
+                                                                                                disabled={!replyContent[comment._id]?.trim() || isReplying[comment._id]}
+                                                                                            >
+                                                                                                {isReplying[comment._id] ? (
+                                                                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                                                ) : (
+                                                                                                    "Reply"
+                                                                                                )}
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </form>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Display Replies */}
+                                                                            {activeReplies[comment._id] && comment.replies && comment.replies.length > 0 && (
+                                                                                <div className="mt-2">
+                                                                                    {comment.replies.map((reply) => (
+                                                                                        <ReplyItem
+                                                                                            key={reply._id}
+                                                                                            reply={reply}
+                                                                                            commentId={comment._id}
+                                                                                            postId={post._id}
+                                                                                            commentOwner={comment.userId?.username}
+                                                                                        />
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                className={`text-center py-4 ${isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                    }`}
+                                                            >
+                                                                No comments yet. Be the first to comment!
+                                                            </div>
+                                                        )}
+
+                                                        {/* Add Comment Input */}
+                                                        <form
+                                                            onSubmit={(e) => {
+                                                                e.preventDefault();
+                                                                handleCommentSubmit(post._id, e);
+                                                            }}
+                                                            className="flex items-center space-x-2"
+                                                        >
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                                {currentUserProfile?.profilePic || user?.profilePic ? (
+                                                                    <img
+                                                                        src={currentUserProfile?.profilePic || user?.profilePic}
+                                                                        alt={username}
+                                                                        className="w-full h-full object-cover"
+                                                                        onError={(e) => {
+                                                                            e.target.style.display = "none";
+                                                                        }}
+                                                                    />
+                                                                ) : null}
+                                                                <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${currentUserProfile?.profilePic || user?.profilePic ? 'hidden' : 'flex'}`}>
+                                                                    {username?.charAt(0).toUpperCase() || "U"}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-1 flex space-x-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className={`flex-1 px-3 py-2 rounded-full text-sm border ${isDarkMode
+                                                                        ? "bg-gray-700 border-gray-600 text-white"
+                                                                        : "bg-white border-gray-300"
+                                                                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                    placeholder="Write a comment..."
+                                                                    value={commentContent[post._id] || ""}
+                                                                    onChange={(e) =>
+                                                                        setCommentContent({
+                                                                            ...commentContent,
+                                                                            [post._id]: e.target.value,
+                                                                        })
+                                                                    }
+                                                                />
+                                                                <button
+                                                                    type="submit"
+                                                                    className={`px-3 py-1 rounded-full text-sm ${!commentContent[post._id]?.trim() || isCommenting[post._id]
+                                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                                        } text-white transition-colors`}
+                                                                    disabled={!commentContent[post._id]?.trim() || isCommenting[post._id]}
+                                                                >
+                                                                    {isCommenting[post._id] ? (
+                                                                        <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                    ) : (
+                                                                        "Post"
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </form>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

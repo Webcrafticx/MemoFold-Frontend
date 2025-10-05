@@ -1,4 +1,3 @@
-// src/components/mainFeed/CommentSection.jsx
 import CommentItem from "./CommentItem";
 
 const CommentSection = ({

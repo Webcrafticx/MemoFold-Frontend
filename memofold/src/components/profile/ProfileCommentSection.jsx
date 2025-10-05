@@ -70,6 +70,23 @@ const ProfileCommentSection = ({
     );
   };
 
+  // Improved reply count detection
+  const getReplyCount = (comment) => {
+    // Priority: API replyCount -> actual replies length -> 0
+    return comment.replyCount || (comment.replies && comment.replies.length) || 0;
+  };
+
+  // Improved hasReplies check
+  const hasReplies = (comment) => {
+    return getReplyCount(comment) > 0;
+  };
+
+  // Handle chevron click - always trigger API call
+  const handleChevronClick = (postId, commentId, comment) => {
+    // Always call the API when toggling replies
+    onToggleReplies(postId, commentId);
+  };
+
   if (isFetchingComments) {
     return (
       <div className="text-center py-4">
@@ -94,7 +111,9 @@ const ProfileCommentSection = ({
             const commentUserProfilePic = getCommentUserProfilePic(comment);
             const commentUserId = getCommentUserId(comment);
             const replyKey = comment._id;
-            const hasReplies = comment.replies && comment.replies.length > 0;
+            
+            const replyCount = getReplyCount(comment);
+            const isRepliesVisible = comment.showReplies;
 
             return (
               <div key={comment._id} className="space-y-2">
@@ -141,14 +160,22 @@ const ProfileCommentSection = ({
                           Reply
                         </button>
 
-                        {/* View Replies Button */}
-                        {hasReplies && (
+                        {/* View Replies Button - ONLY CHEVRON + COUNT */}
+                        {hasReplies(comment) && (
                           <button
-                            onClick={() => onToggleReplies(post._id, comment._id)}
+                            onClick={() => handleChevronClick(post._id, comment._id, comment)}
                             className="text-gray-500 hover:text-gray-700 text-xs flex items-center cursor-pointer"
+                            disabled={isFetchingReplies[comment._id]}
                           >
-                            {comment.showReplies ? <FaChevronUp className="mr-1" /> : <FaChevronDown className="mr-1" />}
-                            {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                            {isRepliesVisible ? (
+                              <FaChevronUp className="mr-1" />
+                            ) : (
+                              <FaChevronDown className="mr-1" />
+                            )}
+                            <span className="ml-1">{replyCount}</span>
+                            {isFetchingReplies[comment._id] && (
+                              <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            )}
                           </button>
                         )}
                       </div>
@@ -165,7 +192,6 @@ const ProfileCommentSection = ({
                           title="Delete comment"
                         >
                           <FaTrashAlt className="mr-1" />
-                          Delete
                         </button>
                       )}
                     </div>
@@ -210,7 +236,7 @@ const ProfileCommentSection = ({
                     )}
 
                     {/* Replies Section */}
-                    {comment.showReplies && (
+                    {isRepliesVisible && (
                       <div className="mt-2 space-y-2">
                         {isFetchingReplies[comment._id] ? (
                           <div className="text-center py-2">
@@ -218,7 +244,7 @@ const ProfileCommentSection = ({
                             <p className="text-xs mt-1">Loading replies...</p>
                           </div>
                         ) : (
-                          comment.replies.map((reply) => (
+                          comment.replies?.map((reply) => (
                             <ReplyItem
                               key={reply._id}
                               reply={reply}

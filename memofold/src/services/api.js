@@ -203,7 +203,7 @@ export const apiService = {
 
   likeReply: async (replyId, userId, token) => {
     const response = await fetch(
-      `${config.apiUrl}/posts/comments/${commentId}/like`,
+      `${config.apiUrl}/posts/comments/${replyId}/like`,
       {
         method: "POST",
         headers: {
@@ -216,7 +216,7 @@ export const apiService = {
     return response.json();
   },
 
-  deleteReply: async (replyId, token) => {
+   deleteReply: async (commentId, token) => {
     const response = await fetch(
       `${config.apiUrl}/posts/comments/${commentId}`,
       {
