@@ -12,7 +12,11 @@ const ReplyItem = ({
   isLikingReply,
   isDeletingReply,
   navigateToUserProfile,
+
+
 }) => {
+    console.log("🔍 REPLYITEM - CommentId:", commentId);
+  console.log("🔍 REPLYITEM - ReplyId:", reply._id);
   const handleProfilePicError = (e) => {
     e.target.style.display = "none";
     if (e.target.nextSibling) {

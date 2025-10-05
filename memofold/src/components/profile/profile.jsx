@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     FaTimes,
@@ -20,20 +21,41 @@ import CreatePostSection from "./CreatePostSection";
 import ProfilePostCard from "./ProfilePostCard";
 import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
+import ConfirmationModal from "../../common/ConfirmationModal";
+import LikesModal from "../mainFeed/LikesModal";
 
 // Services
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 import { formatDate, getIndianDateString } from "../../services/dateUtils";
 
+// Utility function for better error handling
+const handleApiError = (error, defaultMessage = "Something went wrong") => {
+    console.error("API Error:", error);
+    
+    if (error.response?.status >= 500) {
+        return "Server error: Please try again later";
+    } else if (error.response?.status === 401) {
+        return "Please login again";
+    } else if (error.response?.status === 400) {
+        return error.response.data?.message || "Invalid request";
+    } else if (error.response?.status === 404) {
+        return "Resource not found";
+    } else if (error.response?.status === 403) {
+        return "You don't have permission to perform this action";
+    } else if (error.message) {
+        return error.message;
+    } else {
+        return defaultMessage;
+    }
+};
+
 const ProfilePage = () => {
     // State management
     const [profileData, setProfileData] = useState({
-        profilePic:
-            localStorage.getItem("profilePic") ||
-            "https://ui-avatars.com/api/?name=User&background=random",
-        username: localStorage.getItem("username") || "",
-        realName: localStorage.getItem("realname") || "",
+        profilePic: "https://ui-avatars.com/api/?name=User&background=random",
+        username: "",
+        realName: "",
         bio: "",
         posts: [],
         stats: { posts: 0, followers: 0, following: 0 },
@@ -76,13 +98,29 @@ const ProfilePage = () => {
         editingPostId: null,
         editContent: "",
         editFiles: [],
+        existingImage: null,
         isUpdatingPost: false,
         isDeletingPost: false,
+    });
+
+    // Confirmation modal state
+    const [confirmationModal, setConfirmationModal] = useState({
+        isOpen: false,
+        postId: null,
+        isLoading: false,
+        postContent: ""
+    });
+
+    // Likes modal state
+    const [likesModal, setLikesModal] = useState({
+        isOpen: false,
+        postId: null,
     });
 
     const [floatingHearts, setFloatingHearts] = useState([]);
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
+    const [isLiking, setIsLiking] = useState({});
 
     const navigate = useNavigate();
     const mobileMenuRef = useRef(null);
@@ -108,15 +146,18 @@ const ProfilePage = () => {
             setUiState((prev) => ({ ...prev, loading: true }));
             await Promise.all([
                 fetchUserData(token),
-                fetchUserPosts(token, profileData.username),
+                fetchUserPosts(token),
                 fetchCurrentUserData(token),
             ]);
+            toast.success("Profile loaded successfully!");
         } catch (error) {
             console.error("Initialization error:", error);
+            const errorMessage = handleApiError(error, "Failed to load profile data");
             setUiState((prev) => ({
                 ...prev,
-                error: "Failed to load profile data",
+                error: errorMessage,
             }));
+            toast.error(errorMessage);
         } finally {
             setUiState((prev) => ({ ...prev, loading: false }));
         }
@@ -126,15 +167,20 @@ const ProfilePage = () => {
     const fetchCurrentUserData = async (token) => {
         try {
             const result = await apiService.fetchCurrentUser(token);
+            
+            if (!result || result.success === false) {
+                throw new Error(result?.message || "Failed to fetch user data");
+            }
+
             const userData = result.user;
 
-            if (userData.profilePic) {
-                setProfileData((prev) => ({
-                    ...prev,
-                    profilePic: userData.profilePic,
-                }));
-                localStorage.setItem("profilePic", userData.profilePic);
-            }
+            // Set profile data from API response only
+            setProfileData((prev) => ({
+                ...prev,
+                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
+                username: userData.username || "",
+                realName: userData.realname || "",
+            }));
 
             if (result.profile?.description) {
                 setProfileData((prev) => ({
@@ -156,68 +202,68 @@ const ProfilePage = () => {
             setCurrentUserProfile(userData);
         } catch (error) {
             console.error("Error fetching current user data:", error);
-            throw error;
+            const errorMessage = handleApiError(error, "Failed to load user data");
+            throw new Error(errorMessage);
         }
     };
 
     const fetchUserData = async (token) => {
         try {
             const result = await apiService.fetchCurrentUser(token);
+            
+            if (!result || result.success === false) {
+                throw new Error(result?.message || "Failed to fetch user data");
+            }
+
             const userData = result.user;
 
-            if (userData.profilePic) {
-                setProfileData((prev) => ({
-                    ...prev,
-                    profilePic: userData.profilePic,
-                }));
-                localStorage.setItem("profilePic", userData.profilePic);
-            }
+            // Update profile data from API
+            setProfileData((prev) => ({
+                ...prev,
+                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
+                username: userData.username || "",
+                realName: userData.realname || "",
+            }));
         } catch (error) {
             console.error("Error fetching user data:", error);
-            throw error;
+            const errorMessage = handleApiError(error, "Failed to load user data");
+            throw new Error(errorMessage);
         }
     };
 
-    const fetchUserPosts = async (token, username) => {
+    const fetchUserPosts = async (token) => {
         try {
-            const responseData = await apiService.fetchUserPosts(
-                token,
-                username
-            );
+            const username = localStorage.getItem("username");
+            const responseData = await apiService.fetchUserPosts(token, username);
+            
+            if (!responseData || responseData.success === false) {
+                throw new Error(responseData?.message || "Failed to fetch posts");
+            }
+
             const postsData = responseData.posts || [];
 
             const storedLikes = localStorageService.getStoredLikes();
+            const currentUsername = localStorage.getItem("username");
 
             const postsWithComments = postsData.map((post) => {
-                const postLikes = storedLikes[post._id] || post.likes || [];
-                const currentUserId = localStorage.getItem("userId");
-                const currentUsername = localStorage.getItem("username");
-                const hasUserLiked =
-                    postLikes.includes(currentUserId) ||
-                    postLikes.includes(currentUsername);
+                // Check if current user has liked this post using likesPreview
+                const hasUserLiked = post.likesPreview?.some(
+                    (like) => like.username === currentUsername
+                );
 
-                // API se milne wale data ko properly map karo
                 return {
                     ...post,
-                    isLiked: hasUserLiked,
-                    likes: post.likeCount || postLikes.length, // likeCount use karo
-                    comments: post.comments
-                        ? post.comments.map((comment) => ({
-                              ...comment,
-                              replies: comment.replies || [],
-                              showReplies: false,
-                          }))
-                        : [],
-                    commentCount: post.commentCount || 0, // commentCount use karo
+                    isLiked: hasUserLiked || false,
+                    likes: post.likeCount || 0,
+                    comments: [], // Start with empty comments array
+                    commentCount: post.commentCount || 0,
                     userId: {
-                        _id: post.userId?._id || currentUserId,
+                        _id: post.userId?._id || currentUserProfile?._id,
                         username: post.userId?.username || username,
                         realname: post.userId?.realname || profileData.realName,
-                        profilePic:
-                            post.userId?.profilePic || profileData.profilePic,
+                        profilePic: post.userId?.profilePic || profileData.profilePic,
                     },
-                    profilePic:
-                        post.userId?.profilePic || profileData.profilePic,
+                    profilePic: post.userId?.profilePic || profileData.profilePic,
                     username: post.userId?.username || username,
                 };
             });
@@ -225,7 +271,8 @@ const ProfilePage = () => {
             setProfileData((prev) => ({ ...prev, posts: postsWithComments }));
         } catch (error) {
             console.error("Error fetching posts:", error);
-            throw error;
+            const errorMessage = handleApiError(error, "Failed to load posts");
+            throw new Error(errorMessage);
         }
     };
 
@@ -261,10 +308,16 @@ const ProfilePage = () => {
         try {
             const token = localStorage.getItem("token");
             const responseData = await apiService.fetchComments(postId, token);
+            
+            if (!responseData || responseData.success === false) {
+                throw new Error(responseData?.message || "Failed to load comments");
+            }
+
             const comments = (responseData.comments || []).map((comment) => ({
                 ...comment,
                 replies: comment.replies || [],
                 showReplies: false,
+                replyCount: comment.replyCount || comment.replies?.length || 0,
             }));
 
             setProfileData((prev) => ({
@@ -272,16 +325,16 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                              ...post,
-                              comments,
-                              commentCount: comments.length,
-                          }
+                            ...post,
+                            comments,
+                        }
                         : post
                 ),
             }));
         } catch (error) {
             console.error("Error fetching comments:", error);
-            toast.error("Failed to load comments");
+            const errorMessage = handleApiError(error, "Failed to load comments");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -303,14 +356,34 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
-            await apiService.addComment(
+            const response = await apiService.addComment(
                 postId,
                 commentState.commentContent[postId],
                 token
             );
 
-            // Refresh comments
-            await handleToggleCommentDropdown(postId);
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to add comment");
+            }
+
+            // Update comment count immediately
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            commentCount: (post.commentCount || 0) + 1,
+                        }
+                        : post
+                ),
+            }));
+
+            // Refresh comments if comments section is open
+            if (commentState.activeCommentPostId === postId) {
+                await handleToggleCommentDropdown(postId);
+            }
 
             setCommentState((prev) => ({
                 ...prev,
@@ -320,7 +393,8 @@ const ProfilePage = () => {
             toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
-            toast.error(error.message);
+            const errorMessage = handleApiError(error, "Failed to add comment");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -345,15 +419,36 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
-            await apiService.deleteComment(commentId, postId, token);
+            const response = await apiService.deleteComment(commentId, postId, token);
 
-            // Refresh comments
-            await handleToggleCommentDropdown(postId);
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to delete comment");
+            }
+
+            // Update comment count immediately
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
+                        }
+                        : post
+                ),
+            }));
+
+            // Refresh comments if comments section is open
+            if (commentState.activeCommentPostId === postId) {
+                await handleToggleCommentDropdown(postId);
+            }
 
             toast.success("Comment deleted successfully!");
         } catch (error) {
             console.error("Error deleting comment:", error);
-            toast.error("Failed to delete comment");
+            const errorMessage = handleApiError(error, "Failed to delete comment");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -363,27 +458,22 @@ const ProfilePage = () => {
     };
 
     // Reply handlers
-    const handleToggleReplyInput = (commentId, parentReplyId = null) => {
-        const key = parentReplyId ? `${commentId}-${parentReplyId}` : commentId;
+    const handleToggleReplyInput = (commentId) => {
         setCommentState((prev) => ({
             ...prev,
             activeReplyInputs: {
                 ...prev.activeReplyInputs,
-                [key]: !prev.activeReplyInputs[key],
+                [commentId]: !prev.activeReplyInputs[commentId],
             },
             replyContent: {
                 ...prev.replyContent,
-                [key]: prev.replyContent[key] || "",
+                [commentId]: prev.replyContent[commentId] || "",
             },
         }));
     };
 
-    const handleReplySubmit = async (
-        postId,
-        commentId,
-        parentReplyId = null
-    ) => {
-        const key = parentReplyId ? `${commentId}-${parentReplyId}` : commentId;
+    const handleReplySubmit = async (postId, commentId) => {
+        const key = commentId;
         const content = commentState.replyContent[key];
 
         if (!content?.trim()) {
@@ -398,27 +488,104 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
+            const currentUsername = localStorage.getItem("username");
+            const currentRealName = localStorage.getItem("realname");
+            const currentProfilePic = localStorage.getItem("profilePic");
+            const currentUserId = localStorage.getItem("userId");
+            
+            // Optimistically add the reply with proper user data
+            const optimisticReply = {
+                _id: `temp-${Date.now()}`, // Temporary ID
+                content: content,
+                likes: [],
+                hasUserLiked: false,
+                createdAt: new Date().toISOString(),
+                userId: {
+                    _id: currentUserId,
+                    username: currentUsername,
+                    realname: currentRealName,
+                    profilePic: currentProfilePic
+                },
+                username: currentUsername,
+                profilePic: currentProfilePic,
+                user: {
+                    username: currentUsername
+                }
+            };
 
-            if (parentReplyId) {
-                // This is a reply to another reply
-                await apiService.addCommentReply(
-                    postId,
-                    content,
-                    parentReplyId,
-                    token
-                );
-            } else {
-                // This is a reply to a comment
-                await apiService.addCommentReply(
-                    postId,
-                    content,
-                    commentId,
-                    token
-                );
+            // Optimistically update the UI
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            commentCount: (post.commentCount || 0) + 1,
+                            comments: post.comments.map((comment) =>
+                                comment._id === commentId
+                                    ? {
+                                        ...comment,
+                                        replies: [...(comment.replies || []), optimisticReply],
+                                        replyCount: (comment.replyCount || 0) + 1,
+                                        showReplies: true // Automatically show replies
+                                    }
+                                    : comment
+                            ),
+                        }
+                        : post
+                ),
+            }));
+
+            // API call
+            const response = await apiService.addCommentReply(
+                commentId,
+                content,    
+                postId,     
+                token
+            );
+
+            // ✅ Check if API call was successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to add reply");
             }
 
-            // Refresh comments to show the new reply
-            await handleToggleCommentDropdown(postId);
+            // If API returns the created reply, update with real data
+            if (response.comment) {
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: prev.posts.map((post) =>
+                        post._id === postId
+                            ? {
+                                ...post,
+                                comments: post.comments.map((comment) =>
+                                    comment._id === commentId
+                                        ? {
+                                            ...comment,
+                                            replies: comment.replies.map(reply => 
+                                                reply._id === optimisticReply._id 
+                                                    ? {
+                                                        ...response.comment,
+                                                        userId: response.comment.userId || {
+                                                            _id: currentUserId,
+                                                            username: currentUsername,
+                                                            realname: currentRealName,
+                                                            profilePic: currentProfilePic
+                                                        },
+                                                        username: response.comment.username || currentUsername,
+                                                        profilePic: response.comment.profilePic || currentProfilePic,
+                                                        hasUserLiked: false,
+                                                        likes: response.comment.likes || []
+                                                    }
+                                                    : reply
+                                            )
+                                        }
+                                        : comment
+                                ),
+                            }
+                            : post
+                    ),
+                }));
+            }
 
             setCommentState((prev) => ({
                 ...prev,
@@ -429,7 +596,31 @@ const ProfilePage = () => {
             toast.success("Reply added successfully!");
         } catch (error) {
             console.error("Error adding reply:", error);
-            toast.error(error.message);
+            
+            // Revert optimistic update on error
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                            ...post,
+                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
+                            comments: post.comments.map((comment) =>
+                                comment._id === commentId
+                                    ? {
+                                        ...comment,
+                                        replies: comment.replies.filter(reply => !reply._id.startsWith('temp-')),
+                                        replyCount: Math.max(0, (comment.replyCount || 0) - 1)
+                                    }
+                                    : comment
+                            ),
+                        }
+                        : post
+                ),
+            }));
+            
+            const errorMessage = handleApiError(error, "Failed to add reply");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -446,30 +637,31 @@ const ProfilePage = () => {
     };
 
     const handleToggleReplies = async (postId, commentId) => {
+        // Toggle showReplies state immediately
         setProfileData((prev) => ({
             ...prev,
             posts: prev.posts.map((post) =>
                 post._id === postId
                     ? {
-                          ...post,
-                          comments: post.comments.map((comment) =>
-                              comment._id === commentId
-                                  ? {
-                                        ...comment,
-                                        showReplies: !comment.showReplies,
-                                    }
-                                  : comment
-                          ),
-                      }
+                        ...post,
+                        comments: post.comments.map((comment) =>
+                            comment._id === commentId
+                                ? {
+                                    ...comment,
+                                    showReplies: !comment.showReplies,
+                                }
+                                : comment
+                        ),
+                    }
                     : post
             ),
         }));
 
-        // Fetch replies if not already loaded
         const post = profileData.posts.find((p) => p._id === postId);
         const comment = post?.comments.find((c) => c._id === commentId);
 
-        if (comment && (!comment.replies || comment.replies.length === 0)) {
+        // ALWAYS fetch replies when toggling (as requested)
+        if (comment && comment.showReplies) {
             try {
                 setCommentState((prev) => ({
                     ...prev,
@@ -480,30 +672,56 @@ const ProfilePage = () => {
                 }));
 
                 const token = localStorage.getItem("token");
-                const response = await apiService.fetchCommentReplies(
-                    commentId,
-                    token
-                );
-                const replies = response.replies || [];
+                const response = await apiService.fetchCommentReplies(commentId, token);
+                
+                if (!response || response.success === false) {
+                    throw new Error(response?.message || "Failed to load replies");
+                }
+
+                // Properly map the API response to ensure user data is correct
+                const replies = (response.replies || []).map(reply => ({
+                    ...reply,
+                    // Map user data from response - use actual API data
+                    userId: reply.user ? {
+                        _id: reply.user._id,
+                        username: reply.user.username,
+                        realname: reply.user.realname,
+                        profilePic: reply.user.profilePic
+                    } : {
+                        _id: reply.userId?._id || 'unknown',
+                        username: reply.username || 'unknown',
+                        realname: reply.userId?.realname || 'Unknown User',
+                        profilePic: reply.userId?.profilePic || reply.profilePic
+                    },
+                    username: reply.user?.username || reply.username || 'unknown',
+                    profilePic: reply.user?.profilePic || reply.profilePic,
+                    hasUserLiked: reply.likes && reply.likes.includes(localStorage.getItem("userId")),
+                    likes: reply.likes || []
+                }));
 
                 setProfileData((prev) => ({
                     ...prev,
                     posts: prev.posts.map((post) =>
                         post._id === postId
                             ? {
-                                  ...post,
-                                  comments: post.comments.map((comment) =>
-                                      comment._id === commentId
-                                          ? { ...comment, replies }
-                                          : comment
-                                  ),
-                              }
+                                ...post,
+                                comments: post.comments.map((comment) =>
+                                    comment._id === commentId
+                                        ? {
+                                            ...comment,
+                                            replies,
+                                            replyCount: replies.length
+                                        }
+                                        : comment
+                                ),
+                            }
                             : post
                     ),
                 }));
             } catch (error) {
                 console.error("Error fetching replies:", error);
-                toast.error("Failed to load replies");
+                const errorMessage = handleApiError(error, "Failed to load replies");
+                toast.error(errorMessage);
             } finally {
                 setCommentState((prev) => ({
                     ...prev,
@@ -525,9 +743,13 @@ const ProfilePage = () => {
 
             const token = localStorage.getItem("token");
             const currentUserId = localStorage.getItem("userId");
-            await apiService.likeReply(replyId, currentUserId, token);
+            const response = await apiService.likeReply(replyId, currentUserId, token);
 
-            // Update local state
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to like reply");
+            }
+
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) => ({
@@ -537,17 +759,17 @@ const ProfilePage = () => {
                         replies: comment.replies.map((reply) =>
                             reply._id === replyId
                                 ? {
-                                      ...reply,
-                                      hasUserLiked: !reply.hasUserLiked,
-                                      likes: reply.hasUserLiked
-                                          ? (reply.likes || []).filter(
-                                                (id) => id !== currentUserId
-                                            )
-                                          : [
-                                                ...(reply.likes || []),
-                                                currentUserId,
-                                            ],
-                                  }
+                                    ...reply,
+                                    hasUserLiked: !reply.hasUserLiked,
+                                    likes: reply.hasUserLiked
+                                        ? (reply.likes || []).filter(
+                                            (id) => id !== currentUserId
+                                        )
+                                        : [
+                                            ...(reply.likes || []),
+                                            currentUserId,
+                                        ],
+                                }
                                 : reply
                         ),
                     })),
@@ -572,7 +794,8 @@ const ProfilePage = () => {
             }
         } catch (error) {
             console.error("Error liking reply:", error);
-            toast.error("Failed to like reply");
+            const errorMessage = handleApiError(error, "Failed to like reply");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -593,21 +816,27 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
-            await apiService.deleteReply(replyId, token);
+            const response = await apiService.deleteReply(replyId, token);
 
-            // Update local state
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to delete reply");
+            }
+
+            // Update comment count for replies
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) => ({
                     ...post,
+                    commentCount: Math.max(0, (post.commentCount || 0) - 1),
                     comments: post.comments.map((comment) =>
                         comment._id === commentId
                             ? {
-                                  ...comment,
-                                  replies: comment.replies.filter(
-                                      (reply) => reply._id !== replyId
-                                  ),
-                              }
+                                ...comment,
+                                replies: comment.replies.filter(
+                                    (reply) => reply._id !== replyId
+                                ),
+                            }
                             : comment
                     ),
                 })),
@@ -616,13 +845,29 @@ const ProfilePage = () => {
             toast.success("Reply deleted successfully!");
         } catch (error) {
             console.error("Error deleting reply:", error);
-            toast.error("Failed to delete reply");
+            const errorMessage = handleApiError(error, "Failed to delete reply");
+            toast.error(errorMessage);
         } finally {
             setCommentState((prev) => ({
                 ...prev,
                 isDeletingReply: { ...prev.isDeletingReply, [replyId]: false },
             }));
         }
+    };
+
+    // Likes modal handlers
+    const handleShowLikesModal = (postId) => {
+        setLikesModal({
+            isOpen: true,
+            postId: postId,
+        });
+    };
+
+    const handleCloseLikesModal = () => {
+        setLikesModal({
+            isOpen: false,
+            postId: null,
+        });
     };
 
     // Event handlers
@@ -635,22 +880,23 @@ const ProfilePage = () => {
             const formData = new FormData();
             formData.append("image", file);
 
-            const responseData = await apiService.uploadProfilePic(
-                token,
-                formData
-            );
+            const responseData = await apiService.uploadProfilePic(token, formData);
+
+            if (!responseData || responseData.success === false) {
+                throw new Error(responseData?.message || "Failed to update profile picture");
+            }
 
             if (responseData.profilePicUrl) {
                 const imageUrl = responseData.profilePicUrl;
                 setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
-                localStorage.setItem("profilePic", imageUrl);
-
+                // Don't store in localStorage - always fetch from API
                 toast.success("Profile picture updated successfully!");
             }
         } catch (error) {
             console.error("Upload error:", error);
-            setUiState((prev) => ({ ...prev, error: error.message }));
-            toast.error(error.message);
+            const errorMessage = handleApiError(error, "Failed to update profile picture");
+            setUiState((prev) => ({ ...prev, error: errorMessage }));
+            toast.error(errorMessage);
         } finally {
             setUploadingProfilePic(false);
         }
@@ -663,6 +909,10 @@ const ProfilePage = () => {
                 description: newBio,
             });
 
+            if (!result || result.success === false) {
+                throw new Error(result?.message || "Failed to update bio");
+            }
+
             setProfileData((prev) => ({
                 ...prev,
                 bio: result.description || newBio,
@@ -670,6 +920,8 @@ const ProfilePage = () => {
             toast.success("Bio updated successfully!");
         } catch (error) {
             console.error("Bio update failed:", error);
+            const errorMessage = handleApiError(error, "Failed to update bio");
+            toast.error(errorMessage);
             throw error;
         }
     };
@@ -701,85 +953,126 @@ const ProfilePage = () => {
                 image: imageData,
             };
 
-            await apiService.createPost(token, postData);
+            const response = await apiService.createPost(token, postData);
 
-            await fetchUserPosts(token, profileData.username);
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to create post");
+            }
+
+            await fetchUserPosts(token);
             toast.success("Post created successfully!");
         } catch (error) {
             console.error("Post error:", error);
-            setUiState((prev) => ({ ...prev, error: error.message }));
-            toast.error(error.message);
+            const errorMessage = handleApiError(error, "Failed to create post");
+            setUiState((prev) => ({ ...prev, error: errorMessage }));
+            toast.error(errorMessage);
         } finally {
             setPostState((prev) => ({ ...prev, isCreatingPost: false }));
         }
     };
 
     const handleLike = async (postId, event) => {
+        if (isLiking[postId]) return;
+
+        setIsLiking((prev) => ({ ...prev, [postId]: true }));
+
         try {
             const token = localStorage.getItem("token");
             const currentUserId = localStorage.getItem("userId");
-
-            await apiService.likePost(postId, currentUserId, token);
-
-            const storedLikes = localStorageService.getStoredLikes();
-            const currentPostLikes = storedLikes[postId] || [];
             const currentUsername = localStorage.getItem("username");
 
+            // Find the current post
+            const currentPost = profileData.posts.find((post) => post._id === postId);
+            if (!currentPost) return;
+
+            const isCurrentlyLiked = currentPost.isLiked;
+
+            // Optimistic update
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) => {
                     if (post._id === postId) {
-                        const isCurrentlyLiked = post.isLiked;
-                        let updatedLikes;
+                        const newLikeCount = isCurrentlyLiked
+                            ? Math.max(0, (post.likeCount || 1) - 1)
+                            : (post.likeCount || 0) + 1;
+
+                        let newLikesPreview = [...(post.likesPreview || [])];
 
                         if (isCurrentlyLiked) {
-                            updatedLikes = currentPostLikes.filter(
-                                (like) =>
-                                    like !== currentUserId &&
-                                    like !== currentUsername
+                            // Remove current user from likesPreview
+                            newLikesPreview = newLikesPreview.filter(
+                                (like) => like.username !== currentUsername
                             );
                         } else {
-                            updatedLikes = [...currentPostLikes, currentUserId];
-
-                            if (event) {
-                                const rect =
-                                    event.target.getBoundingClientRect();
-                                const heartCount = 5;
-                                for (let i = 0; i < heartCount; i++) {
-                                    setTimeout(() => {
-                                        setFloatingHearts((hearts) => [
-                                            ...hearts,
-                                            {
-                                                id: Date.now() + i,
-                                                x: rect.left + rect.width / 2,
-                                                y: rect.top + rect.height / 2,
-                                            },
-                                        ]);
-                                    }, i * 100);
-                                }
-                            }
+                            // Add current user to likesPreview
+                            newLikesPreview.unshift({
+                                username: currentUsername,
+                                realname: profileData.realName,
+                                profilePic: profileData.profilePic,
+                            });
                         }
-
-                        storedLikes[postId] = updatedLikes;
-                        localStorage.setItem(
-                            "postLikes",
-                            JSON.stringify(storedLikes)
-                        );
 
                         return {
                             ...post,
                             isLiked: !isCurrentlyLiked,
-                            likes: updatedLikes.length,
-                            likeCount: updatedLikes.length, // dono fields update karo
+                            likeCount: newLikeCount,
+                            likesPreview: newLikesPreview,
                         };
                     }
                     return post;
                 }),
             }));
+
+            // API call
+            const response = await apiService.likePost(postId, currentUserId, token);
+
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to like post");
+            }
+
+            // Add floating hearts if liking
+            if (!isCurrentlyLiked && event) {
+                const rect = event.target.getBoundingClientRect();
+                const heartCount = 5;
+                for (let i = 0; i < heartCount; i++) {
+                    setTimeout(() => {
+                        setFloatingHearts((hearts) => [
+                            ...hearts,
+                            {
+                                id: Date.now() + i,
+                                x: rect.left + rect.width / 2,
+                                y: rect.top + rect.height / 2,
+                            },
+                        ]);
+                    }, i * 100);
+                }
+            }
+
         } catch (error) {
             console.error("Error toggling like:", error);
-            setUiState((prev) => ({ ...prev, error: error.message }));
-            toast.error(error.message);
+            
+            // Revert optimistic update on error
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) => {
+                    if (post._id === postId) {
+                        return {
+                            ...post,
+                            isLiked: currentPost.isLiked,
+                            likeCount: currentPost.likeCount,
+                            likesPreview: currentPost.likesPreview,
+                        };
+                    }
+                    return post;
+                }),
+            }));
+            
+            const errorMessage = handleApiError(error, "Failed to like post");
+            toast.error(errorMessage);
+        } finally {
+            setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
     };
 
@@ -794,12 +1087,13 @@ const ProfilePage = () => {
                 editingPostId: postId,
                 editContent: postToEdit.content,
                 editFiles: [],
+                existingImage: postToEdit.image || null,
             }));
         }
     };
 
     const handleUpdatePost = async (postId) => {
-        if (!editState.editContent.trim() && editState.editFiles.length === 0) {
+        if (!editState.editContent.trim() && editState.editFiles.length === 0 && !editState.existingImage) {
             toast.error("Post content or image cannot be empty");
             return;
         }
@@ -808,7 +1102,8 @@ const ProfilePage = () => {
             setEditState((prev) => ({ ...prev, isUpdatingPost: true }));
             const token = localStorage.getItem("token");
 
-            let imageData = null;
+            let imageData = editState.existingImage;
+            
             if (editState.editFiles.length > 0) {
                 const file = editState.editFiles[0];
                 imageData = await new Promise((resolve, reject) => {
@@ -824,17 +1119,22 @@ const ProfilePage = () => {
                 ...(imageData && { image: imageData }),
             };
 
-            await apiService.updatePost(token, postId, postData);
+            const response = await apiService.updatePost(token, postId, postData);
+
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to update post");
+            }
 
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                              ...post,
-                              content: editState.editContent,
-                              ...(imageData && { image: imageData }),
-                          }
+                            ...post,
+                            content: editState.editContent,
+                            image: imageData,
+                        }
                         : post
                 ),
             }));
@@ -844,11 +1144,13 @@ const ProfilePage = () => {
                 editingPostId: null,
                 editContent: "",
                 editFiles: [],
+                existingImage: null,
             }));
             toast.success("Post updated successfully!");
         } catch (error) {
             console.error("Error updating post:", error);
-            toast.error("Failed to update post");
+            const errorMessage = handleApiError(error, "Failed to update post");
+            toast.error(errorMessage);
         } finally {
             setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
         }
@@ -859,20 +1161,46 @@ const ProfilePage = () => {
             editingPostId: null,
             editContent: "",
             editFiles: [],
+            existingImage: null,
             isUpdatingPost: false,
             isDeletingPost: false,
         });
     };
 
-    const handleDeletePost = async (postId) => {
-        if (!window.confirm("Are you sure you want to delete this post?")) {
-            return;
-        }
+    const handleRemoveExistingImage = () => {
+        setEditState((prev) => ({
+            ...prev,
+            existingImage: null,
+        }));
+    };
 
+    // Delete post with confirmation modal
+    const handleDeletePostClick = (postId) => {
+        const postToDelete = profileData.posts.find(post => post._id === postId);
+        const postContentPreview = postToDelete?.content 
+            ? `"${postToDelete.content.substring(0, 100)}${postToDelete.content.length > 100 ? '...' : ''}"`
+            : "this post";
+            
+        setConfirmationModal({
+            isOpen: true,
+            postId: postId,
+            isLoading: false,
+            postContent: `Are you sure you want to delete ${postContentPreview}? This action cannot be undone.`
+        });
+    };
+
+    const handleConfirmDelete = async () => {
+        const { postId } = confirmationModal;
+        
         try {
-            setEditState((prev) => ({ ...prev, isDeletingPost: true }));
+            setConfirmationModal(prev => ({ ...prev, isLoading: true }));
             const token = localStorage.getItem("token");
-            await apiService.deletePost(token, postId);
+            const response = await apiService.deletePost(token, postId);
+
+            // Check if API call was actually successful
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to delete post");
+            }
 
             setProfileData((prev) => ({
                 ...prev,
@@ -884,12 +1212,22 @@ const ProfilePage = () => {
             localStorage.setItem("postLikes", JSON.stringify(storedLikes));
 
             toast.success("Post deleted successfully!");
+            handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting post:", error);
-            toast.error("Failed to delete post");
-        } finally {
-            setEditState((prev) => ({ ...prev, isDeletingPost: false }));
+            const errorMessage = handleApiError(error, "Failed to delete post");
+            toast.error(errorMessage);
+            setConfirmationModal(prev => ({ ...prev, isLoading: false }));
         }
+    };
+
+    const handleCloseConfirmationModal = () => {
+        setConfirmationModal({
+            isOpen: false,
+            postId: null,
+            isLoading: false,
+            postContent: ""
+        });
     };
 
     const handleDarkModeChange = (darkMode) => {
@@ -909,10 +1247,10 @@ const ProfilePage = () => {
     const joinedDate = localStorage.getItem("createdAt");
     const formattedDate = joinedDate
         ? new Date(joinedDate).toLocaleDateString("en-IN", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-          })
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })
         : "";
 
     if (uiState.loading) {
@@ -948,6 +1286,9 @@ const ProfilePage = () => {
                     draggable
                     pauseOnHover
                     theme={uiState.darkMode ? "dark" : "light"}
+                    style={{
+                        zIndex: 9999,
+                    }}
                 />
 
                 {uiState.showImagePreview && (
@@ -961,6 +1302,29 @@ const ProfilePage = () => {
                         }
                     />
                 )}
+
+                {/* Likes Modal */}
+                <LikesModal
+                    postId={likesModal.postId}
+                    isOpen={likesModal.isOpen}
+                    onClose={handleCloseLikesModal}
+                    token={localStorage.getItem("token")}
+                    isDarkMode={uiState.darkMode}
+                />
+
+                {/* Confirmation Modal for Post Deletion */}
+                <ConfirmationModal
+                    isOpen={confirmationModal.isOpen}
+                    onClose={handleCloseConfirmationModal}
+                    onConfirm={handleConfirmDelete}
+                    title="Delete Post"
+                    message={confirmationModal.postContent}
+                    confirmText="Delete Post"
+                    cancelText="Keep Post"
+                    isDarkMode={uiState.darkMode}
+                    isLoading={confirmationModal.isLoading}
+                    type="delete"
+                />
 
                 <Navbar onDarkModeChange={handleDarkModeChange} />
 
@@ -1034,7 +1398,7 @@ const ProfilePage = () => {
                                         onEditPost={handleEditPost}
                                         onUpdatePost={handleUpdatePost}
                                         onCancelEdit={handleCancelEdit}
-                                        onDeletePost={handleDeletePost}
+                                        onDeletePost={handleDeletePostClick}
                                         onImagePreview={(image) =>
                                             setUiState((prev) => ({
                                                 ...prev,
@@ -1069,6 +1433,10 @@ const ProfilePage = () => {
                                             commentState.isFetchingComments
                                         }
                                         token={localStorage.getItem("token")}
+                                        // Likes modal prop
+                                        onShowLikesModal={handleShowLikesModal}
+                                        // Like loading state
+                                        isLiking={isLiking[post._id]}
                                         // Edit state props
                                         editingPostId={editState.editingPostId}
                                         editContent={editState.editContent}
@@ -1088,6 +1456,9 @@ const ProfilePage = () => {
                                         editFiles={editState.editFiles}
                                         onEditFileSelect={handleEditFileSelect}
                                         onRemoveEditFile={handleRemoveEditFile}
+                                        // Existing image props
+                                        existingImage={editState.existingImage}
+                                        onRemoveExistingImage={handleRemoveExistingImage}
                                         // Reply functionality props
                                         activeReplyInputs={
                                             commentState.activeReplyInputs

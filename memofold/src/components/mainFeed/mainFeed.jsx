@@ -36,7 +36,7 @@ const MainFeed = () => {
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
 
-    // Reply functionality states
+    // Reply functionality states - FIXED: Use localStorageService methods
     const [activeReplies, setActiveReplies] = useState(() => {
         return localStorageService.getActiveReplies() || {};
     });
@@ -58,7 +58,7 @@ const MainFeed = () => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
 
-    // Load activeReplies from localStorage on component mount
+    // Load activeReplies from localStorage on component mount - FIXED
     useEffect(() => {
         const storedActiveReplies = localStorageService.getActiveReplies();
         if (storedActiveReplies && Object.keys(storedActiveReplies).length > 0) {
@@ -66,7 +66,7 @@ const MainFeed = () => {
         }
     }, []);
 
-    // Save activeReplies to localStorage whenever it changes
+    // Save activeReplies to localStorage whenever it changes - FIXED
     useEffect(() => {
         localStorageService.setActiveReplies(activeReplies);
     }, [activeReplies]);
@@ -125,7 +125,7 @@ const MainFeed = () => {
 
             setPosts(postsWithLikes);
 
-            // Update localStorage with current data
+            // Update localStorage with current data using localStorageService methods
             const likesByPost = {};
             const likesPreviewByPost = {};
             const likesCountByPost = {};
@@ -136,9 +136,9 @@ const MainFeed = () => {
                 likesCountByPost[post._id] = post.likesCount || storedLikesCount[post._id] || likesByPost[post._id].length;
             });
 
-            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-            localStorage.setItem("postLikesPreview", JSON.stringify(likesPreviewByPost));
-            localStorage.setItem("postLikesCount", JSON.stringify(likesCountByPost));
+            localStorageService.updateStoredLikes(likesByPost);
+            localStorageService.updateStoredLikesPreview(likesPreviewByPost);
+            localStorageService.updateStoredLikesCount(likesCountByPost);
 
         } catch (err) {
             setError(err.message);
@@ -793,80 +793,89 @@ const MainFeed = () => {
         }
     };
 
-  const handleDeleteReply = async (replyId, commentId, e) => {
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    // FIXED: Better way to find the reply and its comment
-    let replyOwner = "";
-    let foundPostId = "";
-    let foundCommentId = "";
-
-    for (const post of posts) {
-        for (const comment of post.comments || []) {
-            const reply = comment.replies?.find((r) => r._id === replyId);
-            if (reply) {
-                replyOwner = reply.userId?.username;
-                foundPostId = post._id;
-                foundCommentId = comment._id;
-                break;
-            }
+    const handleDeleteReply = async (replyId, commentId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
         }
-        if (foundPostId) break;
-    }
 
-    if (!replyOwner) {
-        setError("Reply not found");
-        return;
-    }
+        console.log("🚀 DELETE REPLY - ReplyId:", replyId, "CommentId:", commentId);
 
-    const isReplyOwner = replyOwner === username;
+        // Find reply owner and post ID
+        let replyOwner = "";
+        let foundPostId = "";
 
-    if (!isReplyOwner) {
-        setError("You don't have permission to delete this reply");
-        return;
-    }
+        for (const post of posts) {
+            for (const comment of post.comments || []) {
+                const reply = comment.replies?.find((r) => r._id === replyId);
+                if (reply && comment._id === commentId) {
+                    replyOwner = reply.userId?.username;
+                    foundPostId = post._id;
+                    break;
+                }
+            }
+            if (foundPostId) break;
+        }
 
-    if (!window.confirm("Are you sure you want to delete this reply?")) {
-        return;
-    }
+        if (!replyOwner) {
+            setError("Reply not found");
+            return;
+        }
 
-    setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+        const isReplyOwner = replyOwner === username;
 
-    try {
-        // Optimistic UI update
-        setPosts(
-            posts.map((post) =>
-                post._id === foundPostId
-                    ? {
-                          ...post,
-                          comments: post.comments?.map((comment) =>
-                              comment._id === foundCommentId
-                                  ? {
-                                        ...comment,
-                                        replies: comment.replies?.filter((reply) => reply._id !== replyId) || [],
-                                        replyCount: Math.max(0, (comment.replyCount || 1) - 1),
-                                    }
-                                  : comment
-                          ) || [],
-                      }
-                    : post
-            )
-        );
+        if (!isReplyOwner) {
+            setError("You don't have permission to delete this reply");
+            return;
+        }
 
-        await apiService.deleteReply(replyId, token);
-        setSuccessMessage("Reply deleted successfully!");
-        setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-        setError(err.message || "Failed to delete reply");
-        // Re-fetch the comments to get accurate data
-        if (foundPostId) await fetchComments(foundPostId);
-    } finally {
-        setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
-    }
-};
+        if (!window.confirm("Are you sure you want to delete this reply?")) {
+            return;
+        }
+
+        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        const originalPosts = [...posts];
+
+        try {
+            // Optimistic UI update
+            setPosts(
+                posts.map((post) =>
+                    post._id === foundPostId
+                        ? {
+                              ...post,
+                              comments: post.comments?.map((comment) =>
+                                  comment._id === commentId
+                                      ? {
+                                            ...comment,
+                                            replies: comment.replies?.filter((reply) => reply._id !== replyId) || [],
+                                            replyCount: Math.max(0, (comment.replyCount || 1) - 1),
+                                        }
+                                      : comment
+                              ) || [],
+                          }
+                        : post
+                )
+            );
+
+            console.log("📞 Calling deleteReply API with replyId:", replyId);
+            const result = await apiService.deleteReply(replyId, token);
+            console.log("📩 API Response:", result);
+
+            if (result.success) {
+                setSuccessMessage("Reply deleted successfully!");
+                setTimeout(() => setSuccessMessage(null), 3000);
+            } else {
+                throw new Error(result.message || "Failed to delete reply");
+            }
+        } catch (err) {
+            console.error("❌ Delete reply error:", err);
+            setError(err.message || "Failed to delete reply");
+            setPosts(originalPosts);
+        } finally {
+            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
+        }
+    };
 
     const navigateToUserProfile = (userId, e) => {
         if (e) {

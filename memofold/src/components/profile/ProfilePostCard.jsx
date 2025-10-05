@@ -1,5 +1,5 @@
 import React from "react";
-import { FaHeart, FaRegHeart, FaComment, FaEdit, FaTrashAlt, FaCheck, FaTimes, FaPaperclip } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaComment, FaEdit, FaTrashAlt, FaPaperclip, FaCheck, FaTimes } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate } from "../../services/dateUtils";
 import ProfileCommentSection from "./ProfileCommentSection";
@@ -25,6 +25,10 @@ const ProfilePostCard = ({
   onDeleteComment,
   isFetchingComments,
   token,
+  // Likes modal prop
+  onShowLikesModal,
+  // Like loading state
+  isLiking,
   // Edit state props
   editingPostId,
   editContent,
@@ -35,6 +39,9 @@ const ProfilePostCard = ({
   editFiles = [],
   onEditFileSelect,
   onRemoveEditFile,
+  // Existing image prop
+  existingImage,
+  onRemoveExistingImage,
   // Reply functionality props
   activeReplyInputs,
   replyContent,
@@ -52,32 +59,14 @@ const ProfilePostCard = ({
   const isOwner = post.userId?._id === currentUserProfile?._id;
   const isEditing = editingPostId === post._id;
 
-  // Properly handle like count - multiple sources se
+  // Properly handle like count
   const getLikeCount = () => {
-    // Priority 1: API se aaya likeCount
-    if (post.likeCount !== undefined && post.likeCount !== null) {
-      return post.likeCount;
-    }
-    // Priority 2: Local likes array ki length
-    if (post.likes && Array.isArray(post.likes)) {
-      return post.likes.length;
-    }
-    // Priority 3: Default 0
-    return 0;
+    return post.likeCount || 0;
   };
 
-  // Properly handle comment count - multiple sources se
+  // Properly handle comment count
   const getCommentCount = () => {
-    // Priority 1: API se aaya commentCount
-    if (post.commentCount !== undefined && post.commentCount !== null) {
-      return post.commentCount;
-    }
-    // Priority 2: Local comments array ki length
-    if (post.comments && Array.isArray(post.comments)) {
-      return post.comments.length;
-    }
-    // Priority 3: Default 0
-    return 0;
+    return post.commentCount || 0;
   };
 
   // Profile picture source properly handle karein - multiple fallbacks
@@ -110,6 +99,19 @@ const ProfilePostCard = ({
     return post.userId?._id || currentUserProfile?._id;
   };
 
+  // Get liked users for display - same logic as main feed
+  const getLikedUsers = () => {
+    // Use likesPreview from API
+    if (post.likesPreview && post.likesPreview.length > 0) {
+      return post.likesPreview;
+    }
+    return [];
+  };
+
+  const likedUsers = getLikedUsers();
+  const totalLikes = getLikeCount();
+  const isPostLiked = post.isLiked || false;
+
   const handleEditClick = () => {
     onEditPost(post._id);
   };
@@ -120,6 +122,14 @@ const ProfilePostCard = ({
 
   const handleCancelClick = () => {
     onCancelEdit();
+  };
+
+  // Handle likes modal
+  const handleShowLikes = (e) => {
+    e.stopPropagation();
+    if (onShowLikesModal && totalLikes > 0) {
+      onShowLikesModal(post._id);
+    }
   };
 
   // File preview rendering function
@@ -152,6 +162,34 @@ const ProfilePostCard = ({
         >
           <FaTimes />
         </button>
+      </div>
+    );
+  };
+
+  // Render existing image in edit mode
+  const renderExistingImage = () => {
+    if (!existingImage) return null;
+
+    return (
+      <div className="relative mb-3">
+        <p className={`text-sm mb-2 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+          Current Image:
+        </p>
+        <div className="relative inline-block">
+          <img
+            src={existingImage}
+            alt="Current post"
+            className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
+            onClick={() => onImagePreview(existingImage)}
+          />
+          <button
+            onClick={onRemoveExistingImage}
+            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
+            title="Remove image"
+          >
+            <FaTimes />
+          </button>
+        </div>
       </div>
     );
   };
@@ -278,6 +316,9 @@ const ProfilePostCard = ({
             disabled={isUpdatingPost}
           />
           
+          {/* Show existing image with remove option */}
+          {renderExistingImage()}
+          
           {/* File Upload Section */}
           <div className="mt-3 flex items-center justify-between">
             <label className={`p-2 rounded-full ${
@@ -288,11 +329,12 @@ const ProfilePostCard = ({
                 className="hidden"
                 onChange={onEditFileSelect}
                 accept="image/*"
+                disabled={isUpdatingPost}
               />
               <FaPaperclip className="text-gray-500 text-sm" />
             </label>
             
-            {/* File Previews */}
+            {/* New File Previews */}
             {editFiles.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {editFiles.map((file, index) => (
@@ -319,6 +361,7 @@ const ProfilePostCard = ({
             </button>
             <button
               onClick={handleCancelClick}
+              disabled={isUpdatingPost}
               className="px-4 py-2 rounded-lg font-medium bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
             >
               Cancel
@@ -355,54 +398,129 @@ const ProfilePostCard = ({
 
       {/* Post Actions - Hide when editing */}
       {!isEditing && (
-        <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
-          <motion.button
-            onClick={(e) => onLike(post._id, e)}
-            whileTap={{ scale: 0.9 }}
-            className={`flex items-center gap-1 ${
-              post.isLiked
-                ? "text-red-500 hover:text-red-600"
-                : isDarkMode
-                ? "text-gray-400 hover:text-gray-300"
-                : "text-gray-500 hover:text-gray-700"
-            } transition-colors cursor-pointer text-xs sm:text-sm`}
-          >
-            <motion.div
-              animate={{
-                scale: post.isLiked ? [1, 1.2, 1] : 1,
-              }}
-              transition={{
-                duration: 0.3,
-              }}
+        <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => onLike(post._id, e)}
+              disabled={isLiking}
+              className={`flex items-center gap-1 ${
+                isLiking
+                  ? "opacity-50 cursor-not-allowed"
+                  : isPostLiked
+                  ? "text-red-500 hover:text-red-600"
+                  : isDarkMode
+                  ? "text-gray-400 hover:text-gray-300"
+                  : "text-gray-500 hover:text-gray-700"
+              } transition-colors cursor-pointer text-xs sm:text-sm`}
             >
-              {post.isLiked ? (
-                <FaHeart className="text-red-500" />
+              {isLiking ? (
+                <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
               ) : (
-                <FaRegHeart />
+                <motion.div
+                  animate={{
+                    scale: isPostLiked ? [1, 1.2, 1] : 1,
+                  }}
+                  transition={{
+                    duration: 0.3,
+                  }}
+                >
+                  {isPostLiked ? (
+                    <FaHeart className="text-red-500" />
+                  ) : (
+                    <FaRegHeart />
+                  )}
+                </motion.div>
               )}
-            </motion.div>
-            <motion.span
-              key={likeCount}
-              initial={{ scale: 1 }}
-              animate={{
-                scale: [1.2, 1],
-              }}
-              transition={{
-                duration: 0.2,
-              }}
-            >
-              {likeCount}
-            </motion.span>
-          </motion.button>
+              <motion.span
+                key={likeCount}
+                initial={{ scale: 1 }}
+                animate={{ scale: [1.2, 1] }}
+                transition={{ duration: 0.2 }}
+                className={`text-sm font-medium ${
+                  isPostLiked
+                    ? "text-red-500"
+                    : "text-gray-400"
+                }`}
+              >
+                {likeCount}
+              </motion.span>
+            </motion.button>
+
+            {/* Liked by text - turant update hoga - SAME AS MAIN FEED */}
+            {totalLikes > 0 && (
+              <div className="text-sm">
+                <div className="flex items-center flex-wrap">
+                  {likedUsers.length > 0 ? (
+                    <>
+                      {likedUsers.slice(0, 2).map((user, index) => (
+                        <span
+                          key={index}
+                          className={`font-medium mr-1 ${
+                            isDarkMode
+                              ? "text-gray-300"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {user.username}
+                          {index < Math.min(2, likedUsers.length - 1) ? "," : ""}
+                        </span>
+                      ))}
+
+                      {totalLikes > 2 && (
+                        <button
+                          onClick={handleShowLikes}
+                          className={`font-medium cursor-pointer ${
+                            isDarkMode
+                              ? "text-blue-300"
+                              : "text-blue-500"
+                          } hover:underline`}
+                        >
+                          and {totalLikes - 2} others
+                        </button>
+                      )}
+
+                      {totalLikes === 2 && likedUsers.length === 1 && (
+                        <span
+                          className={`font-medium mr-1 ${
+                            isDarkMode
+                              ? "text-gray-300"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          and 1 other
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleShowLikes}
+                      className={`font-medium cursor-pointer ${
+                        isDarkMode
+                          ? "text-blue-300"
+                          : "text-blue-500"
+                      } hover:underline`}
+                    >
+                      {totalLikes} {totalLikes === 1 ? "like" : "likes"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
+            className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
             onClick={() => onToggleCommentDropdown(post._id)}
-            className={`flex items-center gap-1 ${
-              isDarkMode ? "text-gray-400 hover:text-gray-300" : "text-gray-500 hover:text-gray-700"
-            } transition-colors cursor-pointer text-xs sm:text-base`}
+            disabled={isFetchingComments}
           >
             <FaComment />
-            <span>{commentCount}</span>
+            <span className="text-sm">
+              {commentCount}
+            </span>
+            {isFetchingComments && (
+              <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+            )}
           </button>
         </div>
       )}
