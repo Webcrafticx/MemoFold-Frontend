@@ -459,7 +459,7 @@ const ProfilePostCard = ({
                             <img
                                 src={post.image}
                                 alt="Post"
-                                className="max-h-96 max-w-full object-contain cursor-pointer"
+                                className="max-h-96 max-w-full object-contain rounded-lg cursor-pointer"
                                 onClick={() => onImagePreview(post.image)}
                                 onError={(e) => {
                                     e.target.style.display = "none";
@@ -603,9 +603,6 @@ const ProfilePostCard = ({
                     >
                         <FaComment />
                         <span className="text-sm">{commentCount}</span>
-                        {isFetchingComments && (
-                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
-                        )}
                     </button>
                 </div>
             )}

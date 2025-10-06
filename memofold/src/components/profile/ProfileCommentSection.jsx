@@ -81,10 +81,17 @@ const ProfileCommentSection = ({
     return getReplyCount(comment) > 0;
   };
 
-  // Handle chevron click - always trigger API call
+  // Handle chevron click - API hit only when showing replies (chevron UP → DOWN)
   const handleChevronClick = (postId, commentId, comment) => {
-    // Always call the API when toggling replies
-    onToggleReplies(postId, commentId);
+    const isRepliesVisible = comment.showReplies;
+    
+    if (!isRepliesVisible) {
+      // Chevron UP → DOWN: API hit to fetch replies
+      onToggleReplies(postId, commentId);
+    } else {
+      // Chevron DOWN → UP: Just hide replies, no API hit
+      onToggleReplies(postId, commentId);
+    }
   };
 
   if (isFetchingComments) {
@@ -148,37 +155,36 @@ const ProfileCommentSection = ({
                       {comment.content}
                     </p>
                     
-                    {/* Comment Actions */}
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="flex items-center space-x-3">
-                        {/* Reply Button */}
-                        <button
-                          onClick={() => onToggleReplyInput(comment._id)}
-                          className="text-blue-500 hover:text-blue-700 text-xs flex items-center cursor-pointer"
-                        >
-                          <FaReply className="mr-1" />
-                          Reply
-                        </button>
+                    {/* Comment Actions - Aligned to the right */}
+                    <div className="flex items-center justify-end space-x-3 mt-1">
+                      {/* Reply Button */}
+                      <button
+                        onClick={() => onToggleReplyInput(comment._id)}
+                        className="text-blue-500 hover:text-blue-700 text-xs flex items-center cursor-pointer"
+                      >
+                        <FaReply className="mr-1" />
+                      </button>
 
-                        {/* View Replies Button - ONLY CHEVRON + COUNT */}
-                        {hasReplies(comment) && (
-                          <button
-                            onClick={() => handleChevronClick(post._id, comment._id, comment)}
-                            className="text-gray-500 hover:text-gray-700 text-xs flex items-center cursor-pointer"
-                            disabled={isFetchingReplies[comment._id]}
-                          >
-                            {isRepliesVisible ? (
-                              <FaChevronUp className="mr-1" />
-                            ) : (
-                              <FaChevronDown className="mr-1" />
-                            )}
-                            <span className="ml-1">{replyCount}</span>
-                            {isFetchingReplies[comment._id] && (
-                              <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                            )}
-                          </button>
-                        )}
-                      </div>
+                      {/* View Replies Button - ONLY CHEVRON + COUNT */}
+                      {hasReplies(comment) && (
+                        <button
+                          onClick={() => handleChevronClick(post._id, comment._id, comment)}
+                          className="text-gray-500 hover:text-gray-700 text-xs flex items-center cursor-pointer"
+                          disabled={isFetchingReplies[comment._id]}
+                        >
+                          {isRepliesVisible ? (
+                            // Chevron DOWN (replies visible) - clicking will hide without API
+                            <FaChevronDown className="mr-1" />
+                          ) : (
+                            // Chevron UP (replies hidden) - clicking will fetch with API
+                            <FaChevronUp className="mr-1" />
+                          )}
+                          <span className="ml-1">{replyCount}</span>
+                          {isFetchingReplies[comment._id] && (
+                            <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </button>
+                      )}
 
                       {/* Delete button */}
                       {canDeleteComment(comment, post) && (
@@ -216,7 +222,7 @@ const ProfileCommentSection = ({
                           }}
                         />
                         <button
-                          className={`px-2 py-1 rounded-full text-xs ${
+                          className={`px-2 py-1 rounded-full cursor-pointer text-xs ${
                             !replyContent[replyKey]?.trim() || isReplying[replyKey]
                               ? "bg-blue-300 cursor-not-allowed"
                               : "bg-blue-500 hover:bg-blue-600 cursor-pointer"

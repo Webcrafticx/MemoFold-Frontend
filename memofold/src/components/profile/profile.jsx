@@ -149,7 +149,6 @@ const ProfilePage = () => {
                 fetchUserPosts(token),
                 fetchCurrentUserData(token),
             ]);
-            toast.success("Profile loaded successfully!");
         } catch (error) {
             console.error("Initialization error:", error);
             const errorMessage = handleApiError(error, "Failed to load profile data");
@@ -157,7 +156,7 @@ const ProfilePage = () => {
                 ...prev,
                 error: errorMessage,
             }));
-            toast.error(errorMessage);
+            toast.error("Unable to load profile data.");
         } finally {
             setUiState((prev) => ({ ...prev, loading: false }));
         }
@@ -333,8 +332,7 @@ const ProfilePage = () => {
             }));
         } catch (error) {
             console.error("Error fetching comments:", error);
-            const errorMessage = handleApiError(error, "Failed to load comments");
-            toast.error(errorMessage);
+            toast.error("Unable to load comments.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -389,12 +387,9 @@ const ProfilePage = () => {
                 ...prev,
                 commentContent: { ...prev.commentContent, [postId]: "" },
             }));
-
-            toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
-            const errorMessage = handleApiError(error, "Failed to add comment");
-            toast.error(errorMessage);
+            toast.error("Unable to add comment.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -443,12 +438,9 @@ const ProfilePage = () => {
             if (commentState.activeCommentPostId === postId) {
                 await handleToggleCommentDropdown(postId);
             }
-
-            toast.success("Comment deleted successfully!");
         } catch (error) {
             console.error("Error deleting comment:", error);
-            const errorMessage = handleApiError(error, "Failed to delete comment");
-            toast.error(errorMessage);
+            toast.error("Unable to delete comment.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -592,8 +584,6 @@ const ProfilePage = () => {
                 replyContent: { ...prev.replyContent, [key]: "" },
                 activeReplyInputs: { ...prev.activeReplyInputs, [key]: false },
             }));
-
-            toast.success("Reply added successfully!");
         } catch (error) {
             console.error("Error adding reply:", error);
             
@@ -619,8 +609,7 @@ const ProfilePage = () => {
                 ),
             }));
             
-            const errorMessage = handleApiError(error, "Failed to add reply");
-            toast.error(errorMessage);
+            toast.error("Unable to add reply.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -720,8 +709,7 @@ const ProfilePage = () => {
                 }));
             } catch (error) {
                 console.error("Error fetching replies:", error);
-                const errorMessage = handleApiError(error, "Failed to load replies");
-                toast.error(errorMessage);
+                toast.error("Unable to load replies.");
             } finally {
                 setCommentState((prev) => ({
                     ...prev,
@@ -794,8 +782,7 @@ const ProfilePage = () => {
             }
         } catch (error) {
             console.error("Error liking reply:", error);
-            const errorMessage = handleApiError(error, "Failed to like reply");
-            toast.error(errorMessage);
+            toast.error("Unable to like reply.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -841,12 +828,9 @@ const ProfilePage = () => {
                     ),
                 })),
             }));
-
-            toast.success("Reply deleted successfully!");
         } catch (error) {
             console.error("Error deleting reply:", error);
-            const errorMessage = handleApiError(error, "Failed to delete reply");
-            toast.error(errorMessage);
+            toast.error("Unable to delete reply.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -889,14 +873,11 @@ const ProfilePage = () => {
             if (responseData.profilePicUrl) {
                 const imageUrl = responseData.profilePicUrl;
                 setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
-                // Don't store in localStorage - always fetch from API
                 toast.success("Profile picture updated successfully!");
             }
         } catch (error) {
             console.error("Upload error:", error);
-            const errorMessage = handleApiError(error, "Failed to update profile picture");
-            setUiState((prev) => ({ ...prev, error: errorMessage }));
-            toast.error(errorMessage);
+            toast.error("Unable to update profile picture.");
         } finally {
             setUploadingProfilePic(false);
         }
@@ -920,8 +901,7 @@ const ProfilePage = () => {
             toast.success("Bio updated successfully!");
         } catch (error) {
             console.error("Bio update failed:", error);
-            const errorMessage = handleApiError(error, "Failed to update bio");
-            toast.error(errorMessage);
+            toast.error("Unable to update bio.");
             throw error;
         }
     };
@@ -964,9 +944,7 @@ const ProfilePage = () => {
             toast.success("Post created successfully!");
         } catch (error) {
             console.error("Post error:", error);
-            const errorMessage = handleApiError(error, "Failed to create post");
-            setUiState((prev) => ({ ...prev, error: errorMessage }));
-            toast.error(errorMessage);
+            toast.error("Unable to create post.");
         } finally {
             setPostState((prev) => ({ ...prev, isCreatingPost: false }));
         }
@@ -1069,8 +1047,7 @@ const ProfilePage = () => {
                 }),
             }));
             
-            const errorMessage = handleApiError(error, "Failed to like post");
-            toast.error(errorMessage);
+            toast.error("Unable to like post.");
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }
@@ -1149,8 +1126,7 @@ const ProfilePage = () => {
             toast.success("Post updated successfully!");
         } catch (error) {
             console.error("Error updating post:", error);
-            const errorMessage = handleApiError(error, "Failed to update post");
-            toast.error(errorMessage);
+            toast.error("Unable to update post.");
         } finally {
             setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
         }
@@ -1215,8 +1191,7 @@ const ProfilePage = () => {
             handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting post:", error);
-            const errorMessage = handleApiError(error, "Failed to delete post");
-            toast.error(errorMessage);
+            toast.error("Unable to delete post.");
             setConfirmationModal(prev => ({ ...prev, isLoading: false }));
         }
     };
