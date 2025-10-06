@@ -1,3 +1,5 @@
+// dateUtils.js
+
 // Utility function to get current Indian date in YYYY-MM-DD format
 export const getIndianDateString = () => {
     const now = new Date();
@@ -13,48 +15,70 @@ export const getIndianDateString = () => {
 };
 
 export const formatDate = (dateString) => {
-  try {
-    const utcDate = new Date(dateString);
-    const istDate = new Date(
-      utcDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-    );
+    try {
+        if (!dateString) return "Just now";
 
-    if (isNaN(istDate.getTime())) {
-      return "Just now";
+        const serverDate = new Date(dateString);
+
+        // Check if date is valid
+        if (isNaN(serverDate.getTime())) {
+            return "Just now";
+        }
+
+        // Server time (UTC) ko Indian time mein convert karen
+        const indianOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+        const indianTime = new Date(serverDate.getTime() + indianOffset);
+        const now = new Date();
+
+        const diffInSeconds = Math.floor((now - indianTime) / 1000);
+
+        if (diffInSeconds < 0) {
+            return "Just now";
+        }
+
+        if (diffInSeconds < 10) {
+            return "Just now";
+        }
+        if (diffInSeconds < 60) {
+            return `${diffInSeconds}s ago`;
+        } else if (diffInSeconds < 3600) {
+            const minutes = Math.floor(diffInSeconds / 60);
+            return `${minutes}m ago`;
+        } else if (diffInSeconds < 86400) {
+            const hours = Math.floor(diffInSeconds / 3600);
+            return `${hours}h ago`;
+        } else if (diffInSeconds < 604800) {
+            const days = Math.floor(diffInSeconds / 86400);
+            return `${days}d ago`;
+        } else {
+            return indianTime.toLocaleDateString("en-IN", {
+                timeZone: "Asia/Kolkata",
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+            });
+        }
+    } catch (e) {
+        console.error("Date formatting error:", e);
+        return "Just now";
     }
+};
 
-    const now = new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-    );
+// NEW FUNCTION: Current Indian time in ISO format
+export const getCurrentIndianTimeISO = () => {
+    const now = new Date();
+    const indianOffset = 5.5 * 60 * 60 * 1000; // IST offset
+    return new Date(now.getTime() + indianOffset).toISOString();
+};
 
-    const diffInSeconds = Math.floor((now - istDate) / 1000);
-
-    if (diffInSeconds < 0) {
-      return "Just now";
+// NEW FUNCTION: Convert any date to Indian time
+export const convertToIndianTime = (dateString) => {
+    try {
+        const date = new Date(dateString);
+        const indianOffset = 5.5 * 60 * 60 * 1000;
+        return new Date(date.getTime() + indianOffset).toISOString();
+    } catch (error) {
+        console.error("Time conversion error:", error);
+        return dateString;
     }
-
-    if (diffInSeconds < 10) {
-      return "Just now";
-    }
-    if (diffInSeconds < 60) {
-      return `${diffInSeconds}s ago`;
-    } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60);
-      return `${minutes}m ago`;
-    } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600);
-      return `${hours}h ago`;
-    } else if (diffInSeconds < 604800) {
-      const days = Math.floor(diffInSeconds / 86400);
-      return `${days}d ago`;
-    } else {
-      return istDate.toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    }
-  } catch (e) {
-    return "Just now";
-  }
 };
