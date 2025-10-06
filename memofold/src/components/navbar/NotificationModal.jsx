@@ -146,12 +146,16 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     const markAsRead = async (notificationId) => {
         try {
             const response = await fetch(
-                `${config.apiUrl}/notifications/notification/${notificationId}/read`,
+                `${config.apiUrl}/notifications/notification/read/${notificationId}`,
                 {
                     method: "PUT",
                     headers: {
+                        "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
+                    body: JSON.stringify({
+                        notificationId: notificationId,
+                    }),
                 }
             );
 
@@ -164,73 +168,75 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                     )
                 );
                 setUnreadCount((prev) => Math.max(0, prev - 1));
+            } else {
+                console.error("Failed to mark notification as read");
             }
         } catch (error) {
             console.error("Error marking notification as read:", error);
         }
     };
 
+    const markMultipleAsRead = async (notificationIds) => {
+        try {
+            // Use Promise.all to mark multiple notifications as read
+            const markPromises = notificationIds.map((notificationId) =>
+                fetch(
+                    `${config.apiUrl}/notifications/notification/read/${notificationId}`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            notificationId: notificationId,
+                        }),
+                    }
+                )
+            );
+
+            const results = await Promise.all(markPromises);
+            const allSuccessful = results.every((response) => response.ok);
+
+            if (allSuccessful) {
+                // Update local state for all marked notifications
+                setNotifications((prev) =>
+                    prev.map((notif) =>
+                        notificationIds.includes(notif._id)
+                            ? { ...notif, read: true }
+                            : notif
+                    )
+                );
+                setUnreadCount((prev) =>
+                    Math.max(0, prev - notificationIds.length)
+                );
+            } else {
+                console.error("Failed to mark some notifications as read");
+            }
+        } catch (error) {
+            console.error("Error marking notifications as read:", error);
+        }
+    };
+
     const markAllAsRead = async () => {
         try {
-            // Only mark unread notifications
+            // Get all unread notification IDs
             const unreadNotifications = notifications.filter(
                 (notif) => !notif.read
             );
 
             if (unreadNotifications.length === 0) return;
 
-            // Create promises for all unread notifications
-            const markPromises = unreadNotifications.map((notif) =>
-                fetch(
-                    `${config.apiUrl}/notifications/notification/${notif._id}/read`,
-                    {
-                        method: "PUT",
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    }
-                )
+            const unreadNotificationIds = unreadNotifications.map(
+                (notif) => notif._id
             );
 
-            await Promise.all(markPromises);
-
-            // Update local state
-            setNotifications((prev) =>
-                prev.map((notif) => ({ ...notif, read: true }))
-            );
-            setUnreadCount(0);
+            // Use the multiple mark function
+            await markMultipleAsRead(unreadNotificationIds);
         } catch (error) {
             console.error("Error marking all notifications as read:", error);
         }
     };
-
-    // Commented out delete functionality as it's not commonly used
-    /*
-    const deleteNotification = async (notificationId) => {
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/notifications/${notificationId}`,
-                {
-                    method: "DELETE",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            if (response.ok) {
-                const deletedNotif = notifications.find(notif => notif._id === notificationId);
-                setNotifications(prev => prev.filter(notif => notif._id !== notificationId));
-                
-                if (deletedNotif && !deletedNotif.read) {
-                    setUnreadCount(prev => Math.max(0, prev - 1));
-                }
-            }
-        } catch (error) {
-            console.error("Error deleting notification:", error);
-        }
-    };
-    */
 
     const handleFriendRequest = async (notificationId, action) => {
         try {
@@ -283,14 +289,30 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
             markAsRead(notification._id);
         }
 
+        // Handle post redirection based on notification type and available data
         switch (notification.type) {
-            case "comment_like":
+            case "like":
             case "comment":
-                if (notification.postId) {
+            case "comment_like":
+            case "share":
+                // Check if postid is available in the notification
+                if (notification.postid && notification.postid._id) {
+                    // Redirect to post page with post ID
+                    navigate(`/post/${notification.postid._id}`);
+                    onClose();
+                } else if (notification.postId) {
+                    // Alternative field name for post ID
                     navigate(`/post/${notification.postId}`);
                     onClose();
+                } else {
+                    // Fallback: navigate to sender's profile
+                    if (notification.sender?._id) {
+                        navigate(`/user/${notification.sender._id}`);
+                        onClose();
+                    }
                 }
                 break;
+
             case "friend_request":
             case "friend_accept":
                 if (notification.sender?._id) {
@@ -298,7 +320,9 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                     onClose();
                 }
                 break;
+
             default:
+                // Default behavior for unknown notification types
                 if (notification.sender?._id) {
                     navigate(`/user/${notification.sender._id}`);
                     onClose();
@@ -368,6 +392,11 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         if (diffInSeconds < 86400)
             return `${Math.floor(diffInSeconds / 3600)}h ago`;
         return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    };
+
+    // Check if notification has post data for redirection
+    const hasPostData = (notification) => {
+        return notification.postid && notification.postid._id;
     };
 
     if (!showModal) return null;
@@ -471,6 +500,10 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                         darkMode
                                             ? "hover:bg-gray-700/50"
                                             : "hover:bg-gray-50"
+                                    } ${
+                                        hasPostData(notification)
+                                            ? "border-l-4 border-blue-500"
+                                            : ""
                                     }`}
                                     onClick={() =>
                                         handleNotificationClick(notification)
@@ -544,6 +577,23 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                         notification.createdAt
                                                     )}
                                                 </p>
+
+                                                {/* Show post preview for notifications with post data */}
+                                                {hasPostData(notification) && (
+                                                    <div
+                                                        className={`mt-2 p-2 rounded-lg text-xs ${
+                                                            darkMode
+                                                                ? "bg-gray-700 text-gray-300"
+                                                                : "bg-gray-100 text-gray-600"
+                                                        }`}
+                                                    >
+                                                        <p className="truncate">
+                                                            {notification.postid
+                                                                .content ||
+                                                                "View post"}
+                                                        </p>
+                                                    </div>
+                                                )}
 
                                                 {/* Friend Request Actions */}
                                                 {notification.type ===

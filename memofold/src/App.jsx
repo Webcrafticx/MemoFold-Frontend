@@ -23,6 +23,7 @@ import ApiDocumentation from "./components/ApiDocumentation";
 import TermsOfService from "./components/terms/terms";
 import { useAuth } from "./hooks/useAuth";
 import UserProfile from "./components/UserProfile";
+import Post from "./components/post/Post";
 
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
@@ -131,6 +132,7 @@ function App() {
                         />
                         <Route path="/survey" element={<Survey />} />
                         <Route path="/user/:userId" element={<UserProfile />} />
+                        <Route path="/post/:postId" element={<Post />} />
 
                         {/* Protected Routes */}
                         <Route

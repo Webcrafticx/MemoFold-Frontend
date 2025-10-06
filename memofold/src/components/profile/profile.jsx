@@ -1,1473 +1,671 @@
-import React, { useState, useEffect, useRef } from "react";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { motion, AnimatePresence } from "framer-motion";
+// components/Post/Post.jsx
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import config from "../../hooks/config";
+import { motion } from "framer-motion";
 import {
+    FaHeart,
+    FaRegHeart,
+    FaComment,
+    FaShare,
+    FaBookmark,
+    FaRegBookmark,
+    FaEllipsisH,
+    FaArrowLeft,
     FaTimes,
-    FaBars,
-    FaSun,
-    FaMoon,
-    FaEdit,
-    FaTrashAlt,
-    FaPaperclip,
 } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-
-// Components
-import ErrorBoundary from "./ErrorBoundary";
-import Navbar from "../navbar/navbar";
-import ProfileHeader from "./ProfileHeader";
-import CreatePostSection from "./CreatePostSection";
-import ProfilePostCard from "./ProfilePostCard";
-import FloatingHearts from "../mainFeed/FloatingHearts";
-import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
-import ConfirmationModal from "../../common/ConfirmationModal";
+import { formatDate } from "../../services/dateUtils";
 import LikesModal from "../mainFeed/LikesModal";
+import CommentSection from "../mainFeed/CommentSection";
 
-// Services
-import { apiService } from "../../services/api";
-import { localStorageService } from "../../services/localStorage";
-import { formatDate, getIndianDateString } from "../../services/dateUtils";
-
-// Utility function for better error handling
-const handleApiError = (error, defaultMessage = "Something went wrong") => {
-    console.error("API Error:", error);
-    
-    if (error.response?.status >= 500) {
-        return "Server error: Please try again later";
-    } else if (error.response?.status === 401) {
-        return "Please login again";
-    } else if (error.response?.status === 400) {
-        return error.response.data?.message || "Invalid request";
-    } else if (error.response?.status === 404) {
-        return "Resource not found";
-    } else if (error.response?.status === 403) {
-        return "You don't have permission to perform this action";
-    } else if (error.message) {
-        return error.message;
-    } else {
-        return defaultMessage;
-    }
-};
-
-const ProfilePage = () => {
-    // State management
-    const [profileData, setProfileData] = useState({
-        profilePic: "https://ui-avatars.com/api/?name=User&background=random",
-        username: "",
-        realName: "",
-        bio: "",
-        posts: [],
-        stats: { posts: 0, followers: 0, following: 0 },
-    });
-
-    const [uiState, setUiState] = useState({
-        darkMode: localStorage.getItem("darkMode") === "true",
-        loading: true,
-        showMobileMenu: false,
-        error: null,
-        showImagePreview: false,
-        previewImage: "",
-    });
-
-    const [postState, setPostState] = useState({
-        postContent: "",
-        selectedDate: getIndianDateString(),
-        selectedFile: null,
-        filePreview: null,
-        isCreatingPost: false,
-    });
-
-    const [commentState, setCommentState] = useState({
-        activeCommentPostId: null,
-        commentContent: {},
-        isCommenting: {},
-        isFetchingComments: false,
-        isAddingComment: false,
-        isDeletingComment: false,
-        // Reply states
-        activeReplyInputs: {},
-        replyContent: {},
-        isReplying: {},
-        isFetchingReplies: {},
-        isLikingReply: {},
-        isDeletingReply: {},
-    });
-
-    const [editState, setEditState] = useState({
-        editingPostId: null,
-        editContent: "",
-        editFiles: [],
-        existingImage: null,
-        isUpdatingPost: false,
-        isDeletingPost: false,
-    });
-
-    // Confirmation modal state
-    const [confirmationModal, setConfirmationModal] = useState({
-        isOpen: false,
-        postId: null,
-        isLoading: false,
-        postContent: ""
-    });
-
-    // Likes modal state
-    const [likesModal, setLikesModal] = useState({
-        isOpen: false,
-        postId: null,
-    });
-
-    const [floatingHearts, setFloatingHearts] = useState([]);
-    const [currentUserProfile, setCurrentUserProfile] = useState(null);
-    const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
-    const [isLiking, setIsLiking] = useState({});
-
+const Post = () => {
+    const { postId } = useParams();
     const navigate = useNavigate();
-    const mobileMenuRef = useRef(null);
+    const { token, user: currentUser } = useAuth();
+    const [post, setPost] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [isDarkMode, setIsDarkMode] = useState(false);
 
-    // Initialize app
+    // States for interactions
+    const [isLiking, setIsLiking] = useState(false);
+    const [likeCooldown, setLikeCooldown] = useState(false);
+    const [activeCommentPostId, setActiveCommentPostId] = useState(null);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [commentContent, setCommentContent] = useState("");
+    const [isCommenting, setIsCommenting] = useState(false);
+    const [isLikingComment, setIsLikingComment] = useState({});
+    const [isDeletingComment, setIsDeletingComment] = useState({});
+    const [activeReplies, setActiveReplies] = useState({});
+    const [replyContent, setReplyContent] = useState({});
+    const [isReplying, setIsReplying] = useState({});
+    const [isLikingReply, setIsLikingReply] = useState({});
+    const [isDeletingReply, setIsDeletingReply] = useState({});
+
+    // Modal states
+    const [showLikesModal, setShowLikesModal] = useState(false);
+    const [showImagePreview, setShowImagePreview] = useState(false);
+    const [previewImage, setPreviewImage] = useState("");
+
     useEffect(() => {
-        initializeApp();
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, []);
-
-    const initializeApp = async () => {
-        const token = localStorage.getItem("token");
-        if (!token) {
-            navigate("/login");
-            return;
+        if (postId && token) {
+            fetchPost();
         }
+        // Detect dark mode
+        setIsDarkMode(
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+        );
+    }, [postId, token]);
 
+    const fetchPost = async () => {
         try {
-            setUiState((prev) => ({ ...prev, loading: true }));
-            await Promise.all([
-                fetchUserData(token),
-                fetchUserPosts(token),
-                fetchCurrentUserData(token),
-            ]);
-        } catch (error) {
-            console.error("Initialization error:", error);
-            const errorMessage = handleApiError(error, "Failed to load profile data");
-            setUiState((prev) => ({
-                ...prev,
-                error: errorMessage,
-            }));
-            toast.error("Unable to load profile data.");
-        } finally {
-            setUiState((prev) => ({ ...prev, loading: false }));
-        }
-    };
-
-    // API functions
-    const fetchCurrentUserData = async (token) => {
-        try {
-            const result = await apiService.fetchCurrentUser(token);
-            
-            if (!result || result.success === false) {
-                throw new Error(result?.message || "Failed to fetch user data");
-            }
-
-            const userData = result.user;
-
-            // Set profile data from API response only
-            setProfileData((prev) => ({
-                ...prev,
-                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
-                username: userData.username || "",
-                realName: userData.realname || "",
-            }));
-
-            if (result.profile?.description) {
-                setProfileData((prev) => ({
-                    ...prev,
-                    bio: result.profile.description,
-                }));
-            }
-
-            setProfileData((prev) => ({
-                ...prev,
-                stats: {
-                    posts: result.stats?.postCount || userData.postCount || 0,
-                    followers: userData.followerCount || 0,
-                    following: userData.followingCount || 0,
-                    friends: result.stats?.friendsCount || 0,
+            setLoading(true);
+            const response = await fetch(`${config.apiUrl}/posts/${postId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
                 },
-            }));
-
-            setCurrentUserProfile(userData);
-        } catch (error) {
-            console.error("Error fetching current user data:", error);
-            const errorMessage = handleApiError(error, "Failed to load user data");
-            throw new Error(errorMessage);
-        }
-    };
-
-    const fetchUserData = async (token) => {
-        try {
-            const result = await apiService.fetchCurrentUser(token);
-            
-            if (!result || result.success === false) {
-                throw new Error(result?.message || "Failed to fetch user data");
-            }
-
-            const userData = result.user;
-
-            // Update profile data from API
-            setProfileData((prev) => ({
-                ...prev,
-                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
-                username: userData.username || "",
-                realName: userData.realname || "",
-            }));
-        } catch (error) {
-            console.error("Error fetching user data:", error);
-            const errorMessage = handleApiError(error, "Failed to load user data");
-            throw new Error(errorMessage);
-        }
-    };
-
-    const fetchUserPosts = async (token) => {
-        try {
-            const username = localStorage.getItem("username");
-            const responseData = await apiService.fetchUserPosts(token, username);
-            
-            if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to fetch posts");
-            }
-
-            const postsData = responseData.posts || [];
-
-            const storedLikes = localStorageService.getStoredLikes();
-            const currentUsername = localStorage.getItem("username");
-
-            const postsWithComments = postsData.map((post) => {
-                // Check if current user has liked this post using likesPreview
-                const hasUserLiked = post.likesPreview?.some(
-                    (like) => like.username === currentUsername
-                );
-
-                return {
-                    ...post,
-                    isLiked: hasUserLiked || false,
-                    likes: post.likeCount || 0,
-                    comments: [], // Start with empty comments array
-                    commentCount: post.commentCount || 0,
-                    userId: {
-                        _id: post.userId?._id || currentUserProfile?._id,
-                        username: post.userId?.username || username,
-                        realname: post.userId?.realname || profileData.realName,
-                        profilePic: post.userId?.profilePic || profileData.profilePic,
-                    },
-                    profilePic: post.userId?.profilePic || profileData.profilePic,
-                    username: post.userId?.username || username,
-                };
             });
 
-            setProfileData((prev) => ({ ...prev, posts: postsWithComments }));
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.post) {
+                    setPost(result.post);
+                } else {
+                    setError("Post not found");
+                }
+            } else {
+                setError("Failed to load post");
+            }
         } catch (error) {
-            console.error("Error fetching posts:", error);
-            const errorMessage = handleApiError(error, "Failed to load posts");
-            throw new Error(errorMessage);
+            console.error("Error fetching post:", error);
+            setError("Failed to load post");
+        } finally {
+            setLoading(false);
         }
     };
 
-    // File upload handlers for edit mode
-    const handleEditFileSelect = (e) => {
-        const files = Array.from(e.target.files);
-        setEditState((prev) => ({
-            ...prev,
-            editFiles: [...prev.editFiles, ...files],
-        }));
+    // Check if current user has liked the post
+    const checkIfUserLiked = () => {
+        if (!post || !currentUser || !post.likesPreview) return false;
+        return post.likesPreview.some(
+            (like) => like.username === currentUser.username
+        );
     };
 
-    const handleRemoveEditFile = (index) => {
-        setEditState((prev) => ({
-            ...prev,
-            editFiles: prev.editFiles.filter((_, i) => i !== index),
-        }));
-    };
+    // Like/Unlike post
+    const handleLike = async (e) => {
+        if (e) e.stopPropagation();
 
-    // Comment handlers
-    const handleToggleCommentDropdown = async (postId) => {
-        if (commentState.activeCommentPostId === postId) {
-            setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
-            return;
-        }
+        if (isLiking || likeCooldown) return;
 
-        setCommentState((prev) => ({
-            ...prev,
-            activeCommentPostId: postId,
-            isFetchingComments: true,
-        }));
+        setIsLiking(true);
+        setLikeCooldown(true);
 
         try {
-            const token = localStorage.getItem("token");
-            const responseData = await apiService.fetchComments(postId, token);
-            
-            if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to load comments");
+            const response = await fetch(
+                `${config.apiUrl}/posts/${postId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (response.ok) {
+                // Update local state
+                const hasUserLiked = checkIfUserLiked();
+                setPost((prev) => ({
+                    ...prev,
+                    likeCount: hasUserLiked
+                        ? prev.likeCount - 1
+                        : prev.likeCount + 1,
+                    // Update likesPreview to reflect the change
+                    likesPreview: hasUserLiked
+                        ? prev.likesPreview.filter(
+                              (like) => like.username !== currentUser?.username
+                          )
+                        : [
+                              ...prev.likesPreview,
+                              {
+                                  username: currentUser?.username,
+                                  profilePic: currentUser?.profilePic,
+                                  realname: currentUser?.realname,
+                              },
+                          ],
+                }));
             }
+        } catch (error) {
+            console.error("Error liking post:", error);
+        } finally {
+            setIsLiking(false);
+            setTimeout(() => {
+                setLikeCooldown(false);
+            }, 1000);
+        }
+    };
 
-            const comments = (responseData.comments || []).map((comment) => ({
-                ...comment,
-                replies: comment.replies || [],
-                showReplies: false,
-                replyCount: comment.replyCount || comment.replies?.length || 0,
-            }));
+    // Toggle comment section
+    const handleToggleCommentDropdown = async (e) => {
+        if (e) e.stopPropagation();
 
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            comments,
-                        }
-                        : post
-                ),
-            }));
+        if (activeCommentPostId === postId) {
+            setActiveCommentPostId(null);
+        } else {
+            setActiveCommentPostId(postId);
+            if (!post.comments) {
+                await fetchComments();
+            }
+        }
+    };
+
+    // Fetch comments
+    const fetchComments = async () => {
+        setLoadingComments(true);
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/posts/${postId}/comments`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (response.ok) {
+                const commentsData = await response.json();
+                setPost((prev) => ({
+                    ...prev,
+                    comments: commentsData.comments || [],
+                }));
+            }
         } catch (error) {
             console.error("Error fetching comments:", error);
-            toast.error("Unable to load comments.");
         } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isFetchingComments: false,
-            }));
+            setLoadingComments(false);
         }
     };
 
-    const handleCommentSubmit = async (postId) => {
-        if (!commentState.commentContent[postId]?.trim()) {
-            toast.error("Comment cannot be empty");
-            return;
-        }
+    // Submit comment
+    const handleCommentSubmit = async (e) => {
+        if (e) e.preventDefault();
+        if (!commentContent.trim()) return;
 
+        setIsCommenting(true);
         try {
-            setCommentState((prev) => ({
-                ...prev,
-                isCommenting: { ...prev.isCommenting, [postId]: true },
-            }));
-
-            const token = localStorage.getItem("token");
-            const response = await apiService.addComment(
-                postId,
-                commentState.commentContent[postId],
-                token
+            const response = await fetch(
+                `${config.apiUrl}/posts/${postId}/comment`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ content: commentContent }),
+                }
             );
 
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to add comment");
-            }
-
-            // Update comment count immediately
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            commentCount: (post.commentCount || 0) + 1,
-                        }
-                        : post
-                ),
-            }));
-
-            // Refresh comments if comments section is open
-            if (commentState.activeCommentPostId === postId) {
-                await handleToggleCommentDropdown(postId);
-            }
-
-            setCommentState((prev) => ({
-                ...prev,
-                commentContent: { ...prev.commentContent, [postId]: "" },
-            }));
-        } catch (error) {
-            console.error("Error adding comment:", error);
-            toast.error("Unable to add comment.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isCommenting: { ...prev.isCommenting, [postId]: false },
-            }));
-        }
-    };
-
-    const handleSetCommentContent = (content) => {
-        setCommentState((prev) => ({ ...prev, commentContent: content }));
-    };
-
-    const handleDeleteComment = async (commentId, postId) => {
-        if (!window.confirm("Are you sure you want to delete this comment?")) {
-            return;
-        }
-
-        try {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingComment: true,
-            }));
-
-            const token = localStorage.getItem("token");
-            const response = await apiService.deleteComment(commentId, postId, token);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to delete comment");
-            }
-
-            // Update comment count immediately
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                        }
-                        : post
-                ),
-            }));
-
-            // Refresh comments if comments section is open
-            if (commentState.activeCommentPostId === postId) {
-                await handleToggleCommentDropdown(postId);
+            if (response.ok) {
+                const newComment = await response.json();
+                setPost((prev) => ({
+                    ...prev,
+                    comments: [newComment, ...(prev.comments || [])],
+                    commentCount: (prev.commentCount || 0) + 1,
+                }));
+                setCommentContent("");
             }
         } catch (error) {
-            console.error("Error deleting comment:", error);
-            toast.error("Unable to delete comment.");
+            console.error("Error posting comment:", error);
         } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingComment: false,
-            }));
+            setIsCommenting(false);
         }
     };
 
-    // Reply handlers
-    const handleToggleReplyInput = (commentId) => {
-        setCommentState((prev) => ({
-            ...prev,
-            activeReplyInputs: {
-                ...prev.activeReplyInputs,
-                [commentId]: !prev.activeReplyInputs[commentId],
-            },
-            replyContent: {
-                ...prev.replyContent,
-                [commentId]: prev.replyContent[commentId] || "",
-            },
-        }));
-    };
+    // Like comment
+    const handleLikeComment = async (commentId, e) => {
+        if (e) e.stopPropagation();
+        if (isLikingComment[commentId]) return;
 
-    const handleReplySubmit = async (postId, commentId) => {
-        const key = commentId;
-        const content = commentState.replyContent[key];
-
-        if (!content?.trim()) {
-            toast.error("Reply cannot be empty");
-            return;
-        }
-
+        setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
         try {
-            setCommentState((prev) => ({
-                ...prev,
-                isReplying: { ...prev.isReplying, [key]: true },
-            }));
-
-            const token = localStorage.getItem("token");
-            const currentUsername = localStorage.getItem("username");
-            const currentRealName = localStorage.getItem("realname");
-            const currentProfilePic = localStorage.getItem("profilePic");
-            const currentUserId = localStorage.getItem("userId");
-            
-            // Optimistically add the reply with proper user data
-            const optimisticReply = {
-                _id: `temp-${Date.now()}`, // Temporary ID
-                content: content,
-                likes: [],
-                hasUserLiked: false,
-                createdAt: new Date().toISOString(),
-                userId: {
-                    _id: currentUserId,
-                    username: currentUsername,
-                    realname: currentRealName,
-                    profilePic: currentProfilePic
-                },
-                username: currentUsername,
-                profilePic: currentProfilePic,
-                user: {
-                    username: currentUsername
+            const response = await fetch(
+                `${config.apiUrl}/comments/${commentId}/like`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
                 }
-            };
-
-            // Optimistically update the UI
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            commentCount: (post.commentCount || 0) + 1,
-                            comments: post.comments.map((comment) =>
-                                comment._id === commentId
-                                    ? {
-                                        ...comment,
-                                        replies: [...(comment.replies || []), optimisticReply],
-                                        replyCount: (comment.replyCount || 0) + 1,
-                                        showReplies: true // Automatically show replies
-                                    }
-                                    : comment
-                            ),
-                        }
-                        : post
-                ),
-            }));
-
-            // API call
-            const response = await apiService.addCommentReply(
-                commentId,
-                content,    
-                postId,     
-                token
             );
 
-            // ✅ Check if API call was successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to add reply");
-            }
-
-            // If API returns the created reply, update with real data
-            if (response.comment) {
-                setProfileData((prev) => ({
+            if (response.ok) {
+                setPost((prev) => ({
                     ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                ...post,
-                                comments: post.comments.map((comment) =>
-                                    comment._id === commentId
-                                        ? {
-                                            ...comment,
-                                            replies: comment.replies.map(reply => 
-                                                reply._id === optimisticReply._id 
-                                                    ? {
-                                                        ...response.comment,
-                                                        userId: response.comment.userId || {
-                                                            _id: currentUserId,
-                                                            username: currentUsername,
-                                                            realname: currentRealName,
-                                                            profilePic: currentProfilePic
-                                                        },
-                                                        username: response.comment.username || currentUsername,
-                                                        profilePic: response.comment.profilePic || currentProfilePic,
-                                                        hasUserLiked: false,
-                                                        likes: response.comment.likes || []
-                                                    }
-                                                    : reply
-                                            )
-                                        }
-                                        : comment
-                                ),
-                            }
-                            : post
-                    ),
-                }));
-            }
-
-            setCommentState((prev) => ({
-                ...prev,
-                replyContent: { ...prev.replyContent, [key]: "" },
-                activeReplyInputs: { ...prev.activeReplyInputs, [key]: false },
-            }));
-        } catch (error) {
-            console.error("Error adding reply:", error);
-            
-            // Revert optimistic update on error
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                            comments: post.comments.map((comment) =>
-                                comment._id === commentId
-                                    ? {
-                                        ...comment,
-                                        replies: comment.replies.filter(reply => !reply._id.startsWith('temp-')),
-                                        replyCount: Math.max(0, (comment.replyCount || 0) - 1)
-                                    }
-                                    : comment
-                            ),
-                        }
-                        : post
-                ),
-            }));
-            
-            toast.error("Unable to add reply.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isReplying: { ...prev.isReplying, [key]: false },
-            }));
-        }
-    };
-
-    const handleSetReplyContent = (key, content) => {
-        setCommentState((prev) => ({
-            ...prev,
-            replyContent: { ...prev.replyContent, [key]: content },
-        }));
-    };
-
-    const handleToggleReplies = async (postId, commentId) => {
-        // Toggle showReplies state immediately
-        setProfileData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) =>
-                post._id === postId
-                    ? {
-                        ...post,
-                        comments: post.comments.map((comment) =>
-                            comment._id === commentId
-                                ? {
-                                    ...comment,
-                                    showReplies: !comment.showReplies,
-                                }
-                                : comment
-                        ),
-                    }
-                    : post
-            ),
-        }));
-
-        const post = profileData.posts.find((p) => p._id === postId);
-        const comment = post?.comments.find((c) => c._id === commentId);
-
-        // ALWAYS fetch replies when toggling (as requested)
-        if (comment && comment.showReplies) {
-            try {
-                setCommentState((prev) => ({
-                    ...prev,
-                    isFetchingReplies: {
-                        ...prev.isFetchingReplies,
-                        [commentId]: true,
-                    },
-                }));
-
-                const token = localStorage.getItem("token");
-                const response = await apiService.fetchCommentReplies(commentId, token);
-                
-                if (!response || response.success === false) {
-                    throw new Error(response?.message || "Failed to load replies");
-                }
-
-                // Properly map the API response to ensure user data is correct
-                const replies = (response.replies || []).map(reply => ({
-                    ...reply,
-                    // Map user data from response - use actual API data
-                    userId: reply.user ? {
-                        _id: reply.user._id,
-                        username: reply.user.username,
-                        realname: reply.user.realname,
-                        profilePic: reply.user.profilePic
-                    } : {
-                        _id: reply.userId?._id || 'unknown',
-                        username: reply.username || 'unknown',
-                        realname: reply.userId?.realname || 'Unknown User',
-                        profilePic: reply.userId?.profilePic || reply.profilePic
-                    },
-                    username: reply.user?.username || reply.username || 'unknown',
-                    profilePic: reply.user?.profilePic || reply.profilePic,
-                    hasUserLiked: reply.likes && reply.likes.includes(localStorage.getItem("userId")),
-                    likes: reply.likes || []
-                }));
-
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                ...post,
-                                comments: post.comments.map((comment) =>
-                                    comment._id === commentId
-                                        ? {
-                                            ...comment,
-                                            replies,
-                                            replyCount: replies.length
-                                        }
-                                        : comment
-                                ),
-                            }
-                            : post
-                    ),
-                }));
-            } catch (error) {
-                console.error("Error fetching replies:", error);
-                toast.error("Unable to load replies.");
-            } finally {
-                setCommentState((prev) => ({
-                    ...prev,
-                    isFetchingReplies: {
-                        ...prev.isFetchingReplies,
-                        [commentId]: false,
-                    },
-                }));
-            }
-        }
-    };
-
-    const handleLikeReply = async (replyId, commentId, event) => {
-        try {
-            setCommentState((prev) => ({
-                ...prev,
-                isLikingReply: { ...prev.isLikingReply, [replyId]: true },
-            }));
-
-            const token = localStorage.getItem("token");
-            const currentUserId = localStorage.getItem("userId");
-            const response = await apiService.likeReply(replyId, currentUserId, token);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to like reply");
-            }
-
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) => ({
-                    ...post,
-                    comments: post.comments.map((comment) => ({
-                        ...comment,
-                        replies: comment.replies.map((reply) =>
-                            reply._id === replyId
-                                ? {
-                                    ...reply,
-                                    hasUserLiked: !reply.hasUserLiked,
-                                    likes: reply.hasUserLiked
-                                        ? (reply.likes || []).filter(
-                                            (id) => id !== currentUserId
-                                        )
-                                        : [
-                                            ...(reply.likes || []),
-                                            currentUserId,
-                                        ],
-                                }
-                                : reply
-                        ),
-                    })),
-                })),
-            }));
-
-            if (event) {
-                const rect = event.target.getBoundingClientRect();
-                const heartCount = 3;
-                for (let i = 0; i < heartCount; i++) {
-                    setTimeout(() => {
-                        setFloatingHearts((hearts) => [
-                            ...hearts,
-                            {
-                                id: Date.now() + i,
-                                x: rect.left + rect.width / 2,
-                                y: rect.top + rect.height / 2,
-                            },
-                        ]);
-                    }, i * 100);
-                }
-            }
-        } catch (error) {
-            console.error("Error liking reply:", error);
-            toast.error("Unable to like reply.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isLikingReply: { ...prev.isLikingReply, [replyId]: false },
-            }));
-        }
-    };
-
-    const handleDeleteReply = async (replyId, commentId) => {
-        if (!window.confirm("Are you sure you want to delete this reply?")) {
-            return;
-        }
-
-        try {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingReply: { ...prev.isDeletingReply, [replyId]: true },
-            }));
-
-            const token = localStorage.getItem("token");
-            const response = await apiService.deleteReply(replyId, token);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to delete reply");
-            }
-
-            // Update comment count for replies
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) => ({
-                    ...post,
-                    commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                    comments: post.comments.map((comment) =>
+                    comments: prev.comments.map((comment) =>
                         comment._id === commentId
                             ? {
-                                ...comment,
-                                replies: comment.replies.filter(
-                                    (reply) => reply._id !== replyId
-                                ),
-                            }
+                                  ...comment,
+                                  hasUserLiked: !comment.hasUserLiked,
+                                  likeCount: comment.hasUserLiked
+                                      ? comment.likeCount - 1
+                                      : comment.likeCount + 1,
+                              }
                             : comment
                     ),
-                })),
-            }));
+                }));
+            }
         } catch (error) {
-            console.error("Error deleting reply:", error);
-            toast.error("Unable to delete reply.");
+            console.error("Error liking comment:", error);
         } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingReply: { ...prev.isDeletingReply, [replyId]: false },
-            }));
+            setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
         }
     };
 
-    // Likes modal handlers
-    const handleShowLikesModal = (postId) => {
-        setLikesModal({
-            isOpen: true,
-            postId: postId,
-        });
-    };
+    // Add reply to comment
+    const handleAddReply = async (commentId, e) => {
+        if (e) e.preventDefault();
+        if (!replyContent[commentId]?.trim()) return;
 
-    const handleCloseLikesModal = () => {
-        setLikesModal({
-            isOpen: false,
-            postId: null,
-        });
-    };
-
-    // Event handlers
-    const handleProfilePicUpdate = async (file) => {
-        if (!file) return;
-
+        setIsReplying((prev) => ({ ...prev, [commentId]: true }));
         try {
-            setUploadingProfilePic(true);
-            const token = localStorage.getItem("token");
-            const formData = new FormData();
-            formData.append("image", file);
-
-            const responseData = await apiService.uploadProfilePic(token, formData);
-
-            if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to update profile picture");
-            }
-
-            if (responseData.profilePicUrl) {
-                const imageUrl = responseData.profilePicUrl;
-                setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
-                toast.success("Profile picture updated successfully!");
-            }
-        } catch (error) {
-            console.error("Upload error:", error);
-            toast.error("Unable to update profile picture.");
-        } finally {
-            setUploadingProfilePic(false);
-        }
-    };
-
-    const handleBioUpdate = async (newBio) => {
-        try {
-            const token = localStorage.getItem("token");
-            const result = await apiService.updateUserProfile(token, {
-                description: newBio,
-            });
-
-            if (!result || result.success === false) {
-                throw new Error(result?.message || "Failed to update bio");
-            }
-
-            setProfileData((prev) => ({
-                ...prev,
-                bio: result.description || newBio,
-            }));
-            toast.success("Bio updated successfully!");
-        } catch (error) {
-            console.error("Bio update failed:", error);
-            toast.error("Unable to update bio.");
-            throw error;
-        }
-    };
-
-    const handleCreatePost = async (content, file, date) => {
-        if (!content.trim() && !file) {
-            toast.error("Post content or image cannot be empty");
-            return;
-        }
-
-        try {
-            setPostState((prev) => ({ ...prev, isCreatingPost: true }));
-            const token = localStorage.getItem("token");
-
-            let imageData = null;
-            if (file) {
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = (error) => reject(error);
-                    reader.readAsDataURL(file);
-                });
-            }
-
-            const postData = {
-                content,
-                createdAt: new Date(date).toISOString(),
-                date: new Date(date).toISOString(),
-                image: imageData,
-            };
-
-            const response = await apiService.createPost(token, postData);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to create post");
-            }
-
-            await fetchUserPosts(token);
-            toast.success("Post created successfully!");
-        } catch (error) {
-            console.error("Post error:", error);
-            toast.error("Unable to create post.");
-        } finally {
-            setPostState((prev) => ({ ...prev, isCreatingPost: false }));
-        }
-    };
-
-    const handleLike = async (postId, event) => {
-        if (isLiking[postId]) return;
-
-        setIsLiking((prev) => ({ ...prev, [postId]: true }));
-
-        try {
-            const token = localStorage.getItem("token");
-            const currentUserId = localStorage.getItem("userId");
-            const currentUsername = localStorage.getItem("username");
-
-            // Find the current post
-            const currentPost = profileData.posts.find((post) => post._id === postId);
-            if (!currentPost) return;
-
-            const isCurrentlyLiked = currentPost.isLiked;
-
-            // Optimistic update
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) => {
-                    if (post._id === postId) {
-                        const newLikeCount = isCurrentlyLiked
-                            ? Math.max(0, (post.likeCount || 1) - 1)
-                            : (post.likeCount || 0) + 1;
-
-                        let newLikesPreview = [...(post.likesPreview || [])];
-
-                        if (isCurrentlyLiked) {
-                            // Remove current user from likesPreview
-                            newLikesPreview = newLikesPreview.filter(
-                                (like) => like.username !== currentUsername
-                            );
-                        } else {
-                            // Add current user to likesPreview
-                            newLikesPreview.unshift({
-                                username: currentUsername,
-                                realname: profileData.realName,
-                                profilePic: profileData.profilePic,
-                            });
-                        }
-
-                        return {
-                            ...post,
-                            isLiked: !isCurrentlyLiked,
-                            likeCount: newLikeCount,
-                            likesPreview: newLikesPreview,
-                        };
-                    }
-                    return post;
-                }),
-            }));
-
-            // API call
-            const response = await apiService.likePost(postId, currentUserId, token);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to like post");
-            }
-
-            // Add floating hearts if liking
-            if (!isCurrentlyLiked && event) {
-                const rect = event.target.getBoundingClientRect();
-                const heartCount = 5;
-                for (let i = 0; i < heartCount; i++) {
-                    setTimeout(() => {
-                        setFloatingHearts((hearts) => [
-                            ...hearts,
-                            {
-                                id: Date.now() + i,
-                                x: rect.left + rect.width / 2,
-                                y: rect.top + rect.height / 2,
-                            },
-                        ]);
-                    }, i * 100);
+            const response = await fetch(
+                `${config.apiUrl}/comments/${commentId}/reply`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ content: replyContent[commentId] }),
                 }
-            }
+            );
 
+            if (response.ok) {
+                const newReply = await response.json();
+                setPost((prev) => ({
+                    ...prev,
+                    comments: prev.comments.map((comment) =>
+                        comment._id === commentId
+                            ? {
+                                  ...comment,
+                                  replies: [
+                                      newReply,
+                                      ...(comment.replies || []),
+                                  ],
+                                  replyCount: (comment.replyCount || 0) + 1,
+                              }
+                            : comment
+                    ),
+                }));
+                setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
+                setActiveReplies((prev) => ({ ...prev, [commentId]: true }));
+            }
         } catch (error) {
-            console.error("Error toggling like:", error);
-            
-            // Revert optimistic update on error
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) => {
-                    if (post._id === postId) {
-                        return {
-                            ...post,
-                            isLiked: currentPost.isLiked,
-                            likeCount: currentPost.likeCount,
-                            likesPreview: currentPost.likesPreview,
-                        };
-                    }
-                    return post;
-                }),
-            }));
-            
-            toast.error("Unable to like post.");
+            console.error("Error posting reply:", error);
         } finally {
-            setIsLiking((prev) => ({ ...prev, [postId]: false }));
+            setIsReplying((prev) => ({ ...prev, [commentId]: false }));
         }
     };
 
-    // Profile-specific post functions
-    const handleEditPost = (postId) => {
-        const postToEdit = profileData.posts.find(
-            (post) => post._id === postId
-        );
-        if (postToEdit) {
-            setEditState((prev) => ({
-                ...prev,
-                editingPostId: postId,
-                editContent: postToEdit.content,
-                editFiles: [],
-                existingImage: postToEdit.image || null,
-            }));
-        }
+    // Navigation
+    const navigateToUserProfile = (userId, e) => {
+        if (e) e.stopPropagation();
+        navigate(`/user/${userId}`);
     };
 
-    const handleUpdatePost = async (postId) => {
-        if (!editState.editContent.trim() && editState.editFiles.length === 0 && !editState.existingImage) {
-            toast.error("Post content or image cannot be empty");
-            return;
-        }
-
-        try {
-            setEditState((prev) => ({ ...prev, isUpdatingPost: true }));
-            const token = localStorage.getItem("token");
-
-            let imageData = editState.existingImage;
-            
-            if (editState.editFiles.length > 0) {
-                const file = editState.editFiles[0];
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = (error) => reject(error);
-                    reader.readAsDataURL(file);
-                });
-            }
-
-            const postData = {
-                content: editState.editContent,
-                ...(imageData && { image: imageData }),
-            };
-
-            const response = await apiService.updatePost(token, postId, postData);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to update post");
-            }
-
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                            ...post,
-                            content: editState.editContent,
-                            image: imageData,
-                        }
-                        : post
-                ),
-            }));
-
-            setEditState((prev) => ({
-                ...prev,
-                editingPostId: null,
-                editContent: "",
-                editFiles: [],
-                existingImage: null,
-            }));
-            toast.success("Post updated successfully!");
-        } catch (error) {
-            console.error("Error updating post:", error);
-            toast.error("Unable to update post.");
-        } finally {
-            setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
-        }
+    // Image preview
+    const handleImagePreview = (imageUrl) => {
+        setPreviewImage(imageUrl);
+        setShowImagePreview(true);
     };
 
-    const handleCancelEdit = () => {
-        setEditState({
-            editingPostId: null,
-            editContent: "",
-            editFiles: [],
-            existingImage: null,
-            isUpdatingPost: false,
-            isDeletingPost: false,
-        });
+    // Get liked users for display
+    const getLikedUsers = () => {
+        return post?.likesPreview || [];
     };
 
-    const handleRemoveExistingImage = () => {
-        setEditState((prev) => ({
-            ...prev,
-            existingImage: null,
-        }));
+    // Safe user data access
+    const getCurrentUserData = () => {
+        return {
+            username: currentUser?.username || "user",
+            profilePic: currentUser?.profilePic || "",
+            realname: currentUser?.realname || currentUser?.username || "User",
+        };
     };
 
-    // Delete post with confirmation modal
-    const handleDeletePostClick = (postId) => {
-        const postToDelete = profileData.posts.find(post => post._id === postId);
-        const postContentPreview = postToDelete?.content 
-            ? `"${postToDelete.content.substring(0, 100)}${postToDelete.content.length > 100 ? '...' : ''}"`
-            : "this post";
-            
-        setConfirmationModal({
-            isOpen: true,
-            postId: postId,
-            isLoading: false,
-            postContent: `Are you sure you want to delete ${postContentPreview}? This action cannot be undone.`
-        });
-    };
+    const likedUsers = getLikedUsers();
+    const totalLikes = post?.likeCount || 0;
+    const hasUserLiked = checkIfUserLiked();
+    const currentUserData = getCurrentUserData();
 
-    const handleConfirmDelete = async () => {
-        const { postId } = confirmationModal;
-        
-        try {
-            setConfirmationModal(prev => ({ ...prev, isLoading: true }));
-            const token = localStorage.getItem("token");
-            const response = await apiService.deletePost(token, postId);
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to delete post");
-            }
-
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.filter((post) => post._id !== postId),
-            }));
-
-            const storedLikes = localStorageService.getStoredLikes();
-            delete storedLikes[postId];
-            localStorage.setItem("postLikes", JSON.stringify(storedLikes));
-
-            toast.success("Post deleted successfully!");
-            handleCloseConfirmationModal();
-        } catch (error) {
-            console.error("Error deleting post:", error);
-            toast.error("Unable to delete post.");
-            setConfirmationModal(prev => ({ ...prev, isLoading: false }));
-        }
-    };
-
-    const handleCloseConfirmationModal = () => {
-        setConfirmationModal({
-            isOpen: false,
-            postId: null,
-            isLoading: false,
-            postContent: ""
-        });
-    };
-
-    const handleDarkModeChange = (darkMode) => {
-        setUiState((prev) => ({ ...prev, darkMode }));
-        localStorage.setItem("darkMode", darkMode);
-    };
-
-    const handleClickOutside = (e) => {
-        if (
-            mobileMenuRef.current &&
-            !mobileMenuRef.current.contains(e.target)
-        ) {
-            setUiState((prev) => ({ ...prev, showMobileMenu: false }));
-        }
-    };
-
-    const joinedDate = localStorage.getItem("createdAt");
-    const formattedDate = joinedDate
-        ? new Date(joinedDate).toLocaleDateString("en-IN", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        })
-        : "";
-
-    if (uiState.loading) {
+    if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
+
+    if (error || !post) {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
+                        {error || "Post not found"}
+                    </h1>
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                        Go Back
+                    </button>
+                </div>
             </div>
         );
     }
 
     return (
-        <ErrorBoundary>
+        <div
+            className={`min-h-screen ${
+                isDarkMode ? "bg-gray-900" : "bg-gray-50"
+            }`}
+        >
+            {/* Header */}
             <div
-                className={`min-h-screen transition-colors duration-300 ${
-                    uiState.darkMode
-                        ? "bg-gray-900 text-gray-100"
-                        : "bg-gray-50 text-gray-800"
-                }`}
+                className={`sticky top-0 z-10 ${
+                    isDarkMode
+                        ? "bg-gray-800 border-gray-700"
+                        : "bg-white border-gray-200"
+                } border-b`}
             >
-                <FloatingHearts
-                    hearts={floatingHearts}
-                    setHearts={setFloatingHearts}
-                />
+                <div className="max-w-2xl mx-auto px-4 py-3 flex items-center">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className={`p-2 rounded-full transition-colors mr-3 ${
+                            isDarkMode
+                                ? "hover:bg-gray-700 text-gray-300"
+                                : "hover:bg-gray-100 text-gray-600"
+                        }`}
+                    >
+                        <FaArrowLeft className="text-lg" />
+                    </button>
+                    <h1
+                        className={`text-xl font-bold ${
+                            isDarkMode ? "text-white" : "text-gray-800"
+                        }`}
+                    >
+                        Post
+                    </h1>
+                </div>
+            </div>
 
-                <ToastContainer
-                    position="top-right"
-                    autoClose={3000}
-                    hideProgressBar={false}
-                    newestOnTop={false}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                    theme={uiState.darkMode ? "dark" : "light"}
-                    style={{
-                        zIndex: 9999,
-                    }}
-                />
-
-                {uiState.showImagePreview && (
-                    <ImagePreviewModal
-                        image={uiState.previewImage}
-                        onClose={() =>
-                            setUiState((prev) => ({
-                                ...prev,
-                                showImagePreview: false,
-                            }))
-                        }
-                    />
-                )}
-
-                {/* Likes Modal */}
-                <LikesModal
-                    postId={likesModal.postId}
-                    isOpen={likesModal.isOpen}
-                    onClose={handleCloseLikesModal}
-                    token={localStorage.getItem("token")}
-                    isDarkMode={uiState.darkMode}
-                />
-
-                {/* Confirmation Modal for Post Deletion */}
-                <ConfirmationModal
-                    isOpen={confirmationModal.isOpen}
-                    onClose={handleCloseConfirmationModal}
-                    onConfirm={handleConfirmDelete}
-                    title="Delete Post"
-                    message={confirmationModal.postContent}
-                    confirmText="Delete Post"
-                    cancelText="Keep Post"
-                    isDarkMode={uiState.darkMode}
-                    isLoading={confirmationModal.isLoading}
-                    type="delete"
-                />
-
-                <Navbar onDarkModeChange={handleDarkModeChange} />
-
-                <div className="pt-4 sm:pt-6 pb-12">
-                    <ProfileHeader
-                        profilePic={profileData.profilePic}
-                        username={profileData.username}
-                        realName={profileData.realName}
-                        bio={profileData.bio}
-                        posts={profileData.posts}
-                        isDarkMode={uiState.darkMode}
-                        joinedDate={formattedDate}
-                        onProfilePicUpdate={handleProfilePicUpdate}
-                        onBioUpdate={handleBioUpdate}
-                        uploadingProfilePic={uploadingProfilePic}
+            {/* Main Content */}
+            <div className="max-w-2xl mx-auto p-4">
+                {/* Post Card */}
+                <div
+                    className={`w-full rounded-2xl p-5 shadow-md ${
+                        isDarkMode
+                            ? "bg-gray-800 text-gray-100"
+                            : "bg-white text-gray-900"
+                    }`}
+                >
+                    {/* Likes Modal */}
+                    <LikesModal
+                        postId={post._id}
+                        isOpen={showLikesModal}
+                        onClose={() => setShowLikesModal(false)}
+                        token={token}
+                        isDarkMode={isDarkMode}
                     />
 
-                    <CreatePostSection
-                        profilePic={profileData.profilePic}
-                        username={profileData.username}
-                        realName={profileData.realName}
-                        postContent={postState.postContent}
-                        setPostContent={(content) =>
-                            setPostState((prev) => ({
-                                ...prev,
-                                postContent: content,
-                            }))
+                    {/* User Info */}
+                    <div
+                        className="flex items-center gap-3 mb-3 cursor-pointer"
+                        onClick={(e) =>
+                            navigateToUserProfile(post.userId._id, e)
                         }
-                        isDarkMode={uiState.darkMode}
-                        selectedDate={postState.selectedDate}
-                        setSelectedDate={(date) =>
-                            setPostState((prev) => ({
-                                ...prev,
-                                selectedDate: date,
-                            }))
-                        }
-                        onCreatePost={handleCreatePost}
-                        isCreatingPost={postState.isCreatingPost}
-                        navigateToUserProfile={(userId) =>
-                            navigate(
-                                userId === currentUserProfile?._id
-                                    ? "/profile"
-                                    : `/user/${userId}`
-                            )
-                        }
-                        currentUserProfile={currentUserProfile}
-                    />
-
-                    {/* Posts Section with ProfilePostCard */}
-                    <section className="max-w-2xl mx-auto px-3 sm:px-4">
-                        {profileData.posts.length === 0 ? (
+                    >
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                            {post.userId?.profilePic ? (
+                                <img
+                                    src={post.userId.profilePic}
+                                    alt={post.userId?.username || "User"}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : null}
                             <div
-                                className={`text-center py-8 ${
-                                    uiState.darkMode
+                                className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg ${
+                                    post.userId?.profilePic ? "hidden" : "flex"
+                                }`}
+                            >
+                                {post.userId?.username
+                                    ?.charAt(0)
+                                    .toUpperCase() || "U"}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3
+                                className={`text-base font-semibold hover:text-blue-500 transition-colors ${
+                                    isDarkMode ? "text-white" : "text-gray-800"
+                                }`}
+                            >
+                                {post.userId?.realname ||
+                                    post.userId?.username ||
+                                    "Unknown User"}
+                            </h3>
+
+                            <p
+                                className={`text-xs ${
+                                    isDarkMode
                                         ? "text-gray-400"
                                         : "text-gray-500"
                                 }`}
                             >
-                                <p>You haven't posted anything yet.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
-                                {profileData.posts.map((post) => (
-                                    <ProfilePostCard
-                                        key={post._id}
-                                        post={post}
-                                        isDarkMode={uiState.darkMode}
-                                        username={profileData.username}
-                                        currentUserProfile={currentUserProfile}
-                                        onLike={handleLike}
-                                        onEditPost={handleEditPost}
-                                        onUpdatePost={handleUpdatePost}
-                                        onCancelEdit={handleCancelEdit}
-                                        onDeletePost={handleDeletePostClick}
-                                        onImagePreview={(image) =>
-                                            setUiState((prev) => ({
-                                                ...prev,
-                                                showImagePreview: true,
-                                                previewImage: image,
-                                            }))
-                                        }
-                                        navigateToUserProfile={(userId) =>
-                                            navigate(
-                                                userId ===
-                                                    currentUserProfile?._id
-                                                    ? "/profile"
-                                                    : `/user/${userId}`
-                                            )
-                                        }
-                                        activeCommentPostId={
-                                            commentState.activeCommentPostId
-                                        }
-                                        onToggleCommentDropdown={
-                                            handleToggleCommentDropdown
-                                        }
-                                        commentContent={
-                                            commentState.commentContent
-                                        }
-                                        onCommentSubmit={handleCommentSubmit}
-                                        onSetCommentContent={
-                                            handleSetCommentContent
-                                        }
-                                        isCommenting={commentState.isCommenting}
-                                        onDeleteComment={handleDeleteComment}
-                                        isFetchingComments={
-                                            commentState.isFetchingComments
-                                        }
-                                        token={localStorage.getItem("token")}
-                                        // Likes modal prop
-                                        onShowLikesModal={handleShowLikesModal}
-                                        // Like loading state
-                                        isLiking={isLiking[post._id]}
-                                        // Edit state props
-                                        editingPostId={editState.editingPostId}
-                                        editContent={editState.editContent}
-                                        onEditContentChange={(content) =>
-                                            setEditState((prev) => ({
-                                                ...prev,
-                                                editContent: content,
-                                            }))
-                                        }
-                                        isUpdatingPost={
-                                            editState.isUpdatingPost
-                                        }
-                                        isDeletingPost={
-                                            editState.isDeletingPost
-                                        }
-                                        // File upload props
-                                        editFiles={editState.editFiles}
-                                        onEditFileSelect={handleEditFileSelect}
-                                        onRemoveEditFile={handleRemoveEditFile}
-                                        // Existing image props
-                                        existingImage={editState.existingImage}
-                                        onRemoveExistingImage={handleRemoveExistingImage}
-                                        // Reply functionality props
-                                        activeReplyInputs={
-                                            commentState.activeReplyInputs
-                                        }
-                                        replyContent={commentState.replyContent}
-                                        onToggleReplyInput={
-                                            handleToggleReplyInput
-                                        }
-                                        onReplySubmit={handleReplySubmit}
-                                        onSetReplyContent={
-                                            handleSetReplyContent
-                                        }
-                                        onToggleReplies={handleToggleReplies}
-                                        onLikeReply={handleLikeReply}
-                                        onDeleteReply={handleDeleteReply}
-                                        isReplying={commentState.isReplying}
-                                        isFetchingReplies={
-                                            commentState.isFetchingReplies
-                                        }
-                                        isLikingReply={
-                                            commentState.isLikingReply
-                                        }
-                                        isDeletingReply={
-                                            commentState.isDeletingReply
-                                        }
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </section>
+                                @{post.userId?.username || "unknown"} ·{" "}
+                                {formatDate(post.createdAt)}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Post Content */}
+                    <p
+                        className={`leading-relaxed mb-3 ${
+                            isDarkMode ? "text-gray-200" : "text-gray-700"
+                        }`}
+                    >
+                        {post.content || ""}
+                    </p>
+
+                    {/* Post Image */}
+                    {post.image && (
+                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                            <img
+                                src={post.image}
+                                alt="Post"
+                                className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
+                                onClick={() => handleImagePreview(post.image)}
+                            />
+                        </div>
+                    )}
+
+                    {/* Engagement Stats and Actions */}
+                    <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                        <div className="flex items-center gap-3">
+                            <motion.button
+                                whileTap={{ scale: 0.9 }}
+                                onClick={handleLike}
+                                disabled={isLiking || likeCooldown}
+                                className={`flex items-center gap-1 ${
+                                    isLiking || likeCooldown
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : ""
+                                } hover:text-red-500 transition-colors cursor-pointer`}
+                            >
+                                {isLiking ? (
+                                    <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                ) : hasUserLiked ? (
+                                    <FaHeart className="text-xl text-red-500" />
+                                ) : (
+                                    <FaRegHeart className="text-xl text-gray-400" />
+                                )}
+                                <motion.span
+                                    key={totalLikes}
+                                    initial={{ scale: 1 }}
+                                    animate={{ scale: [1.2, 1] }}
+                                    transition={{ duration: 0.2 }}
+                                    className={`text-sm font-medium ${
+                                        hasUserLiked
+                                            ? "text-red-500"
+                                            : "text-gray-400"
+                                    }`}
+                                >
+                                    {totalLikes}
+                                </motion.span>
+                            </motion.button>
+
+                            {/* Liked by text */}
+                            {totalLikes > 0 && (
+                                <div className="text-sm">
+                                    <div className="flex items-center flex-wrap">
+                                        {likedUsers.length > 0 ? (
+                                            <>
+                                                {likedUsers
+                                                    .slice(0, 2)
+                                                    .map((user, index) => (
+                                                        <span
+                                                            key={index}
+                                                            className={`font-medium mr-1 ${
+                                                                isDarkMode
+                                                                    ? "text-gray-300"
+                                                                    : "text-gray-700"
+                                                            }`}
+                                                        >
+                                                            {user.username}
+                                                            {index <
+                                                            Math.min(
+                                                                2,
+                                                                likedUsers.length -
+                                                                    1
+                                                            )
+                                                                ? ","
+                                                                : ""}
+                                                        </span>
+                                                    ))}
+
+                                                {totalLikes > 2 && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setShowLikesModal(
+                                                                true
+                                                            );
+                                                        }}
+                                                        className={`font-medium cursor-pointer ${
+                                                            isDarkMode
+                                                                ? "text-blue-300"
+                                                                : "text-blue-500"
+                                                        } hover:underline`}
+                                                    >
+                                                        and {totalLikes - 2}{" "}
+                                                        others
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowLikesModal(true);
+                                                }}
+                                                className={`font-medium cursor-pointer ${
+                                                    isDarkMode
+                                                        ? "text-blue-300"
+                                                        : "text-blue-500"
+                                                } hover:underline`}
+                                            >
+                                                {totalLikes}{" "}
+                                                {totalLikes === 1
+                                                    ? "like"
+                                                    : "likes"}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                            onClick={handleToggleCommentDropdown}
+                            disabled={loadingComments}
+                        >
+                            <FaComment />
+                            <span className="text-sm">
+                                {post.commentCount || 0}
+                            </span>
+                            {loadingComments && (
+                                <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Comment Section */}
+                    <CommentSection
+                        post={post}
+                        username={currentUserData.username}
+                        currentUserProfile={currentUserData}
+                        user={currentUserData}
+                        isDarkMode={isDarkMode}
+                        activeCommentPostId={activeCommentPostId}
+                        loadingComments={{ [post._id]: loadingComments }}
+                        commentContent={{ [post._id]: commentContent }}
+                        isCommenting={{ [post._id]: isCommenting }}
+                        isLikingComment={isLikingComment}
+                        isDeletingComment={isDeletingComment}
+                        activeReplies={activeReplies}
+                        replyContent={replyContent}
+                        isReplying={isReplying}
+                        isLikingReply={isLikingReply}
+                        isDeletingReply={isDeletingReply}
+                        onToggleCommentDropdown={handleToggleCommentDropdown}
+                        onCommentSubmit={handleCommentSubmit}
+                        onSetCommentContent={(postId, content) =>
+                            setCommentContent(content)
+                        }
+                        onLikeComment={handleLikeComment}
+                        onDeleteComment={() => {}} // Add delete functionality if needed
+                        onToggleReplies={setActiveReplies}
+                        onToggleReplyInput={() => {}} // Add if needed
+                        onAddReply={handleAddReply}
+                        onLikeReply={() => {}} // Add if needed
+                        onDeleteReply={() => {}} // Add if needed
+                        onSetReplyContent={setReplyContent}
+                        navigateToUserProfile={navigateToUserProfile}
+                    />
                 </div>
             </div>
-        </ErrorBoundary>
+
+            {/* Image Preview Modal */}
+            {showImagePreview && (
+                <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+                    <button
+                        onClick={() => setShowImagePreview(false)}
+                        className="absolute top-4 right-4 text-white text-2xl p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+                    >
+                        <FaTimes />
+                    </button>
+                    <img
+                        src={previewImage}
+                        alt="Preview"
+                        className="max-w-full max-h-full object-contain"
+                    />
+                </div>
+            )}
+        </div>
     );
 };
 
-export default ProfilePage;
+export default Post;
