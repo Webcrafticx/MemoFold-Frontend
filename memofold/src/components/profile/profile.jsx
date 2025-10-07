@@ -23,6 +23,7 @@ import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import LikesModal from "../mainFeed/LikesModal";
+import ProfileSkeleton from "./ProfileSkeleton";
 
 // Services
 import { apiService } from "../../services/api";
@@ -1228,13 +1229,10 @@ const ProfilePage = () => {
         })
         : "";
 
-    if (uiState.loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-        );
-    }
+ if (uiState.loading) {
+    return <ProfileSkeleton isDarkMode={uiState.darkMode} />;
+}
+    
 
     return (
         <ErrorBoundary>
