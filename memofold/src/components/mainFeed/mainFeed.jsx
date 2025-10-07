@@ -6,6 +6,7 @@ import PostCard from "./PostCard";
 import FloatingHearts from "./FloatingHearts";
 import ImagePreviewModal from "./ImagePreviewModal";
 import MessageBanner from "./MessageBanner";
+import MainFeedSkeleton from "./MainFeedSkeleton"; // ✅ Added skeleton import
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 
@@ -877,6 +878,7 @@ const MainFeed = () => {
         }
     };
 
+    // FIXED: Updated navigateToUserProfile function to handle current user properly
     const navigateToUserProfile = (userId, e) => {
         if (e) {
             e.preventDefault();
@@ -884,9 +886,16 @@ const MainFeed = () => {
         }
 
         if (userId) {
-            if (currentUserProfile && userId === currentUserProfile._id) {
+            // Check if this is the current logged-in user's profile
+            const isCurrentUser = 
+                (currentUserProfile && userId === currentUserProfile._id) || // Compare with current user profile ID
+                (user && userId === user._id) || // Compare with auth user ID
+                (username && userId === username); // Compare with username
+                if (isCurrentUser) {
+                // Navigate to current user's own profile page
                 navigate("/profile");
             } else {
+                // Navigate to other user's profile page
                 navigate(`/user/${userId}`);
             }
         }
@@ -901,6 +910,11 @@ const MainFeed = () => {
         setDarkMode(newDarkMode);
         localStorageService.setDarkMode(newDarkMode);
     };
+
+    // ✅ Skeleton Loading Condition
+    if (isLoading) {
+        return <MainFeedSkeleton isDarkMode={darkMode} />;
+    }
 
     return (
         <div className={`min-h-screen ${darkMode ? "dark bg-gray-900 text-gray-100" : "bg-[#fdfaf6] text-gray-900"}`}>
@@ -932,12 +946,7 @@ const MainFeed = () => {
             <Navbar onDarkModeChange={handleDarkModeChange} />
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
-                {isLoading ? (
-                    <div className="text-center py-10">
-                        <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        <p className="mt-2">Loading posts...</p>
-                    </div>
-                ) : error ? (
+                {error ? (
                     <div className={`text-center py-10 rounded-xl ${darkMode ? "bg-gray-800" : "bg-white"} shadow-lg w-full max-w-2xl`}>
                         <p className="text-lg text-red-500">Error loading posts: {error}</p>
                         <button
