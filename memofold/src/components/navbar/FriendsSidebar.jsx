@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { FiMessageCircle, FiPhone, FiX, FiSearch } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 import config from "../../hooks/config";
+import { apiService } from "../../services/api";
 
 const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
     const [friends, setFriends] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [chatLoading, setChatLoading] = useState(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (isOpen && token) {
@@ -44,9 +48,24 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
             friend.realname?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleChat = (friendId, username) => {
-        console.log("Chat with:", friendId, username);
-        // Yahan chat functionality add karein
+    const handleChat = async (friendId, username) => {
+        try {
+            setChatLoading(friendId);
+            console.log("Starting chat with:", friendId, username);
+            
+            const tokenData = await apiService.getStreamToken(token);
+            
+            if (tokenData && tokenData.token) {
+                navigate(`/chat/${friendId}`);
+                onClose(); 
+            } else {
+                console.error("Failed to get stream token");
+            }
+        } catch (error) {
+            console.error("Error starting chat:", error);
+        } finally {
+            setChatLoading(null);
+        }
     };
 
     const handleCall = (friendId, username) => {
@@ -217,14 +236,23 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                                     friend.username
                                                 )
                                             }
+                                            disabled={chatLoading === friend._id}
                                             className={`p-2 rounded-full transition-colors ${
                                                 darkMode
                                                     ? "hover:bg-cyan-600 text-cyan-400"
                                                     : "hover:bg-blue-100 text-blue-600"
+                                            } ${
+                                                chatLoading === friend._id ? "opacity-50 cursor-not-allowed" : ""
                                             }`}
                                             title="Chat"
                                         >
-                                            <FiMessageCircle className="w-5 h-5" />
+                                            {chatLoading === friend._id ? (
+                                                <div className={`animate-spin rounded-full h-5 w-5 border-b-2 ${
+                                                    darkMode ? "border-cyan-400" : "border-blue-600"
+                                                }`} />
+                                            ) : (
+                                                <FiMessageCircle className="w-5 h-5" />
+                                            )}
                                         </button>
                                         <button
                                             onClick={() =>

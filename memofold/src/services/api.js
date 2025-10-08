@@ -9,6 +9,31 @@ export const apiService = {
     return response.json();
   },
 
+getStreamToken: async (token) => {
+  const res = await fetch(`${config.apiUrl}/chat/token`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.json();
+},
+ensureUsersExist: async (token, users) => {
+  const res = await fetch(`${config.apiUrl}/chat/ensureUsersExist`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ users })
+  });
+  return res.json();
+},
+getUserById: async (userId, token) => {
+  const res = await fetch(`${config.apiUrl}/users/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.json();
+},
+
+
   // Profile-specific endpoints
   fetchUserPosts: async (token, username) => {
     const response = await fetch(`${config.apiUrl}/posts/user/${username}`, {

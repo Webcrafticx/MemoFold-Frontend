@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "./config";
+import { apiService } from "../services/api";// Import apiService
 
 export const useAuth = () => {
     const [token, setToken] = useState(localStorage.getItem("token"));
@@ -10,6 +11,7 @@ export const useAuth = () => {
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic")
     );
+    const [streamToken, setStreamToken] = useState(localStorage.getItem("streamToken")); // New state for Stream token
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
@@ -45,6 +47,7 @@ export const useAuth = () => {
                 profilePic: data.user?.profilePic || null,
             };
 
+            // Store auth data
             localStorage.setItem("token", userData.token);
             localStorage.setItem("username", userData.username);
             localStorage.setItem("realname", userData.realname);
@@ -58,6 +61,21 @@ export const useAuth = () => {
             setRealname(userData.realname);
             setUserId(userData.userId);
             setProfilePic(userData.profilePic);
+
+            // Fetch Stream token after successful login
+            try {
+                const streamTokenData = await apiService.getStreamToken(userData.token);
+                if (streamTokenData.token) {
+                    localStorage.setItem("streamToken", streamTokenData.token);
+                    setStreamToken(streamTokenData.token);
+                    console.log("Stream token fetched successfully");
+                } else {
+                    console.warn("Stream token not received:", streamTokenData);
+                }
+            } catch (streamError) {
+                console.error("Failed to fetch Stream token:", streamError);
+                // Continue with login even if Stream token fails
+            }
 
             navigate("/feed");
             return { success: true };
@@ -142,6 +160,21 @@ export const useAuth = () => {
             setUserId(userData.userId);
             setProfilePic(userData.profilePic);
 
+            // Fetch Stream token after successful registration
+            try {
+                const streamTokenData = await apiService.getStreamToken(userData.token);
+                if (streamTokenData.token) {
+                    localStorage.setItem("streamToken", streamTokenData.token);
+                    setStreamToken(streamTokenData.token);
+                    console.log("Stream token fetched successfully after registration");
+                } else {
+                    console.warn("Stream token not received after registration:", streamTokenData);
+                }
+            } catch (streamError) {
+                console.error("Failed to fetch Stream token after registration:", streamError);
+                // Continue with registration even if Stream token fails
+            }
+
             // Redirect to feed page
             navigate("/feed");
             return { success: true };
@@ -160,6 +193,7 @@ export const useAuth = () => {
         setRealname(null);
         setUserId(null);
         setProfilePic(null);
+        setStreamToken(null); // Clear Stream token on logout
         navigate("/login");
     };
 
@@ -241,12 +275,28 @@ export const useAuth = () => {
         }
     };
 
+    // Method to refresh Stream token if needed
+    const refreshStreamToken = async () => {
+        try {
+            const streamTokenData = await apiService.getStreamToken(token);
+            if (streamTokenData.token) {
+                localStorage.setItem("streamToken", streamTokenData.token);
+                setStreamToken(streamTokenData.token);
+                return streamTokenData.token;
+            }
+        } catch (error) {
+            console.error("Failed to refresh Stream token:", error);
+            return null;
+        }
+    };
+
     return {
         token,
         username,
         realname,
         userId,
         profilePic,
+        streamToken, // Export streamToken
         loading,
         error,
         login,
@@ -255,6 +305,7 @@ export const useAuth = () => {
         requestPasswordReset,
         resetPassword,
         updateUserProfile,
+        refreshStreamToken, // Export refresh method
         user: {
             _id: userId,
             username,
