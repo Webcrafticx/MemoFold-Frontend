@@ -5,7 +5,7 @@ import {
     Navigate,
 } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; // YEH IMPORT ADD KAREIN
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import About from "./components/about/about";
 import ContactUploading from "./components/contact_uploading/contact_uploading";
 import ForgotPassword from "./components/forgot_pass/forgot_pass";
@@ -25,8 +25,9 @@ import { useAuth } from "./hooks/useAuth";
 import UserProfile from "./components/UserProfile";
 import Post from "./components/post/Post";
 import ChatPage from "./components/chat/ChatPage";
+import CallPage from "./components/chat/CallPage";
 
-// React Query Client create karein - YEH ADD KAREIN
+// React Query Client create karein
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -87,7 +88,6 @@ function App() {
     }
 
     return (
-        // YEH QUERYCLIENTPROVIDER ADD KAREIN - Pure app ko wrap karein
         <QueryClientProvider client={queryClient}>
             <Router>
                 <div className="min-h-screen flex flex-col bg-gray-50">
@@ -171,6 +171,16 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <ChatPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            
+                            {/* Video Call Route  */}
+                            <Route
+                                path="/call/:channelId"
+                                element={
+                                    <ProtectedRoute>
+                                        <CallPage />
                                     </ProtectedRoute>
                                 }
                             />

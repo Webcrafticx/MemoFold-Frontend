@@ -26,12 +26,6 @@ ensureUsersExist: async (token, users) => {
   });
   return res.json();
 },
-getUserById: async (userId, token) => {
-  const res = await fetch(`${config.apiUrl}/users/${userId}`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  return res.json();
-},
 
 
   // Profile-specific endpoints
