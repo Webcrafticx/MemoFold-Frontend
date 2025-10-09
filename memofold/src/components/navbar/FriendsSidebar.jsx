@@ -70,7 +70,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
 
     const handleCall = (friendId, username) => {
         console.log("Call:", friendId, username);
-        // Yahan call functionality add karein
+        
     };
 
     const UserAvatar = ({ profilePic, username }) => {
