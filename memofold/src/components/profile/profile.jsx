@@ -23,17 +23,21 @@ import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import LikesModal from "../mainFeed/LikesModal";
-import ProfileSkeleton from "./ProfileSkeleton";
 
 // Services
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
-import { formatDate, getIndianDateString } from "../../services/dateUtils";
+import {
+    formatDate,
+    getIndianDateString,
+    getCurrentIndianTimeISO,
+    convertToIndianTime,
+} from "../../services/dateUtils";
 
 // Utility function for better error handling
 const handleApiError = (error, defaultMessage = "Something went wrong") => {
     console.error("API Error:", error);
-    
+
     if (error.response?.status >= 500) {
         return "Server error: Please try again later";
     } else if (error.response?.status === 401) {
@@ -109,7 +113,7 @@ const ProfilePage = () => {
         isOpen: false,
         postId: null,
         isLoading: false,
-        postContent: ""
+        postContent: "",
     });
 
     // Likes modal state
@@ -152,7 +156,10 @@ const ProfilePage = () => {
             ]);
         } catch (error) {
             console.error("Initialization error:", error);
-            const errorMessage = handleApiError(error, "Failed to load profile data");
+            const errorMessage = handleApiError(
+                error,
+                "Failed to load profile data"
+            );
             setUiState((prev) => ({
                 ...prev,
                 error: errorMessage,
@@ -167,7 +174,7 @@ const ProfilePage = () => {
     const fetchCurrentUserData = async (token) => {
         try {
             const result = await apiService.fetchCurrentUser(token);
-            
+
             if (!result || result.success === false) {
                 throw new Error(result?.message || "Failed to fetch user data");
             }
@@ -177,7 +184,9 @@ const ProfilePage = () => {
             // Set profile data from API response only
             setProfileData((prev) => ({
                 ...prev,
-                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
+                profilePic:
+                    userData.profilePic ||
+                    "https://ui-avatars.com/api/?name=User&background=random",
                 username: userData.username || "",
                 realName: userData.realname || "",
             }));
@@ -202,7 +211,10 @@ const ProfilePage = () => {
             setCurrentUserProfile(userData);
         } catch (error) {
             console.error("Error fetching current user data:", error);
-            const errorMessage = handleApiError(error, "Failed to load user data");
+            const errorMessage = handleApiError(
+                error,
+                "Failed to load user data"
+            );
             throw new Error(errorMessage);
         }
     };
@@ -210,7 +222,7 @@ const ProfilePage = () => {
     const fetchUserData = async (token) => {
         try {
             const result = await apiService.fetchCurrentUser(token);
-            
+
             if (!result || result.success === false) {
                 throw new Error(result?.message || "Failed to fetch user data");
             }
@@ -220,13 +232,18 @@ const ProfilePage = () => {
             // Update profile data from API
             setProfileData((prev) => ({
                 ...prev,
-                profilePic: userData.profilePic || "https://ui-avatars.com/api/?name=User&background=random",
+                profilePic:
+                    userData.profilePic ||
+                    "https://ui-avatars.com/api/?name=User&background=random",
                 username: userData.username || "",
                 realName: userData.realname || "",
             }));
         } catch (error) {
             console.error("Error fetching user data:", error);
-            const errorMessage = handleApiError(error, "Failed to load user data");
+            const errorMessage = handleApiError(
+                error,
+                "Failed to load user data"
+            );
             throw new Error(errorMessage);
         }
     };
@@ -234,36 +251,49 @@ const ProfilePage = () => {
     const fetchUserPosts = async (token) => {
         try {
             const username = localStorage.getItem("username");
-            const responseData = await apiService.fetchUserPosts(token, username);
-            
+            const responseData = await apiService.fetchUserPosts(
+                token,
+                username
+            );
+
             if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to fetch posts");
+                throw new Error(
+                    responseData?.message || "Failed to fetch posts"
+                );
             }
 
             const postsData = responseData.posts || [];
-
-            const storedLikes = localStorageService.getStoredLikes();
             const currentUsername = localStorage.getItem("username");
 
             const postsWithComments = postsData.map((post) => {
-                // Check if current user has liked this post using likesPreview
+                // Server ke UTC time ko Indian time mein convert karen
+                const createdAtIndian = convertToIndianTime(post.createdAt);
+                const dateIndian = convertToIndianTime(
+                    post.date || post.createdAt
+                );
+
+                // Check if current user has liked this post
                 const hasUserLiked = post.likesPreview?.some(
                     (like) => like.username === currentUsername
                 );
 
                 return {
                     ...post,
+                    createdAt: createdAtIndian,
+                    date: dateIndian,
                     isLiked: hasUserLiked || false,
                     likes: post.likeCount || 0,
-                    comments: [], // Start with empty comments array
+                    comments: [],
                     commentCount: post.commentCount || 0,
                     userId: {
                         _id: post.userId?._id || currentUserProfile?._id,
                         username: post.userId?.username || username,
                         realname: post.userId?.realname || profileData.realName,
-                        profilePic: post.userId?.profilePic || profileData.profilePic,
+                        profilePic:
+                            post.userId?.profilePic || profileData.profilePic,
                     },
-                    profilePic: post.userId?.profilePic || profileData.profilePic,
+                    profilePic:
+                        post.userId?.profilePic || profileData.profilePic,
                     username: post.userId?.username || username,
                 };
             });
@@ -308,9 +338,11 @@ const ProfilePage = () => {
         try {
             const token = localStorage.getItem("token");
             const responseData = await apiService.fetchComments(postId, token);
-            
+
             if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to load comments");
+                throw new Error(
+                    responseData?.message || "Failed to load comments"
+                );
             }
 
             const comments = (responseData.comments || []).map((comment) => ({
@@ -325,9 +357,9 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            comments,
-                        }
+                              ...post,
+                              comments,
+                          }
                         : post
                 ),
             }));
@@ -372,9 +404,9 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            commentCount: (post.commentCount || 0) + 1,
-                        }
+                              ...post,
+                              commentCount: (post.commentCount || 0) + 1,
+                          }
                         : post
                 ),
             }));
@@ -415,11 +447,17 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
-            const response = await apiService.deleteComment(commentId, postId, token);
+            const response = await apiService.deleteComment(
+                commentId,
+                postId,
+                token
+            );
 
             // Check if API call was actually successful
             if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to delete comment");
+                throw new Error(
+                    response?.message || "Failed to delete comment"
+                );
             }
 
             // Update comment count immediately
@@ -428,9 +466,12 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                        }
+                              ...post,
+                              commentCount: Math.max(
+                                  0,
+                                  (post.commentCount || 0) - 1
+                              ),
+                          }
                         : post
                 ),
             }));
@@ -485,25 +526,25 @@ const ProfilePage = () => {
             const currentRealName = localStorage.getItem("realname");
             const currentProfilePic = localStorage.getItem("profilePic");
             const currentUserId = localStorage.getItem("userId");
-            
-            // Optimistically add the reply with proper user data
+
+            // Optimistically add the reply with Indian time
             const optimisticReply = {
                 _id: `temp-${Date.now()}`, // Temporary ID
                 content: content,
                 likes: [],
                 hasUserLiked: false,
-                createdAt: new Date().toISOString(),
+                createdAt: getCurrentIndianTimeISO(), // Indian time use karen
                 userId: {
                     _id: currentUserId,
                     username: currentUsername,
                     realname: currentRealName,
-                    profilePic: currentProfilePic
+                    profilePic: currentProfilePic,
                 },
                 username: currentUsername,
                 profilePic: currentProfilePic,
                 user: {
-                    username: currentUsername
-                }
+                    username: currentUsername,
+                },
             };
 
             // Optimistically update the UI
@@ -512,19 +553,23 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            commentCount: (post.commentCount || 0) + 1,
-                            comments: post.comments.map((comment) =>
-                                comment._id === commentId
-                                    ? {
-                                        ...comment,
-                                        replies: [...(comment.replies || []), optimisticReply],
-                                        replyCount: (comment.replyCount || 0) + 1,
-                                        showReplies: true // Automatically show replies
-                                    }
-                                    : comment
-                            ),
-                        }
+                              ...post,
+                              commentCount: (post.commentCount || 0) + 1,
+                              comments: post.comments.map((comment) =>
+                                  comment._id === commentId
+                                      ? {
+                                            ...comment,
+                                            replies: [
+                                                ...(comment.replies || []),
+                                                optimisticReply,
+                                            ],
+                                            replyCount:
+                                                (comment.replyCount || 0) + 1,
+                                            showReplies: true, // Automatically show replies
+                                        }
+                                      : comment
+                              ),
+                          }
                         : post
                 ),
             }));
@@ -532,8 +577,8 @@ const ProfilePage = () => {
             // API call
             const response = await apiService.addCommentReply(
                 commentId,
-                content,    
-                postId,     
+                content,
+                postId,
                 token
             );
 
@@ -549,32 +594,51 @@ const ProfilePage = () => {
                     posts: prev.posts.map((post) =>
                         post._id === postId
                             ? {
-                                ...post,
-                                comments: post.comments.map((comment) =>
-                                    comment._id === commentId
-                                        ? {
-                                            ...comment,
-                                            replies: comment.replies.map(reply => 
-                                                reply._id === optimisticReply._id 
-                                                    ? {
-                                                        ...response.comment,
-                                                        userId: response.comment.userId || {
-                                                            _id: currentUserId,
-                                                            username: currentUsername,
-                                                            realname: currentRealName,
-                                                            profilePic: currentProfilePic
-                                                        },
-                                                        username: response.comment.username || currentUsername,
-                                                        profilePic: response.comment.profilePic || currentProfilePic,
-                                                        hasUserLiked: false,
-                                                        likes: response.comment.likes || []
-                                                    }
-                                                    : reply
-                                            )
-                                        }
-                                        : comment
-                                ),
-                            }
+                                  ...post,
+                                  comments: post.comments.map((comment) =>
+                                      comment._id === commentId
+                                          ? {
+                                                ...comment,
+                                                replies: comment.replies.map(
+                                                    (reply) =>
+                                                        reply._id ===
+                                                        optimisticReply._id
+                                                            ? {
+                                                                  ...response.comment,
+                                                                  userId: response
+                                                                      .comment
+                                                                      .userId || {
+                                                                      _id: currentUserId,
+                                                                      username:
+                                                                          currentUsername,
+                                                                      realname:
+                                                                          currentRealName,
+                                                                      profilePic:
+                                                                          currentProfilePic,
+                                                                  },
+                                                                  username:
+                                                                      response
+                                                                          .comment
+                                                                          .username ||
+                                                                      currentUsername,
+                                                                  profilePic:
+                                                                      response
+                                                                          .comment
+                                                                          .profilePic ||
+                                                                      currentProfilePic,
+                                                                  hasUserLiked: false,
+                                                                  likes:
+                                                                      response
+                                                                          .comment
+                                                                          .likes ||
+                                                                      [],
+                                                              }
+                                                            : reply
+                                                ),
+                                            }
+                                          : comment
+                                  ),
+                              }
                             : post
                     ),
                 }));
@@ -587,29 +651,40 @@ const ProfilePage = () => {
             }));
         } catch (error) {
             console.error("Error adding reply:", error);
-            
+
             // Revert optimistic update on error
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                            comments: post.comments.map((comment) =>
-                                comment._id === commentId
-                                    ? {
-                                        ...comment,
-                                        replies: comment.replies.filter(reply => !reply._id.startsWith('temp-')),
-                                        replyCount: Math.max(0, (comment.replyCount || 0) - 1)
-                                    }
-                                    : comment
-                            ),
-                        }
+                              ...post,
+                              commentCount: Math.max(
+                                  0,
+                                  (post.commentCount || 0) - 1
+                              ),
+                              comments: post.comments.map((comment) =>
+                                  comment._id === commentId
+                                      ? {
+                                            ...comment,
+                                            replies: comment.replies.filter(
+                                                (reply) =>
+                                                    !reply._id.startsWith(
+                                                        "temp-"
+                                                    )
+                                            ),
+                                            replyCount: Math.max(
+                                                0,
+                                                (comment.replyCount || 0) - 1
+                                            ),
+                                        }
+                                      : comment
+                              ),
+                          }
                         : post
                 ),
             }));
-            
+
             toast.error("Unable to add reply.");
         } finally {
             setCommentState((prev) => ({
@@ -633,16 +708,16 @@ const ProfilePage = () => {
             posts: prev.posts.map((post) =>
                 post._id === postId
                     ? {
-                        ...post,
-                        comments: post.comments.map((comment) =>
-                            comment._id === commentId
-                                ? {
-                                    ...comment,
-                                    showReplies: !comment.showReplies,
-                                }
-                                : comment
-                        ),
-                    }
+                          ...post,
+                          comments: post.comments.map((comment) =>
+                              comment._id === commentId
+                                  ? {
+                                        ...comment,
+                                        showReplies: !comment.showReplies,
+                                    }
+                                  : comment
+                          ),
+                      }
                     : post
             ),
         }));
@@ -662,31 +737,43 @@ const ProfilePage = () => {
                 }));
 
                 const token = localStorage.getItem("token");
-                const response = await apiService.fetchCommentReplies(commentId, token);
-                
+                const response = await apiService.fetchCommentReplies(
+                    commentId,
+                    token
+                );
+
                 if (!response || response.success === false) {
-                    throw new Error(response?.message || "Failed to load replies");
+                    throw new Error(
+                        response?.message || "Failed to load replies"
+                    );
                 }
 
                 // Properly map the API response to ensure user data is correct
-                const replies = (response.replies || []).map(reply => ({
+                const replies = (response.replies || []).map((reply) => ({
                     ...reply,
                     // Map user data from response - use actual API data
-                    userId: reply.user ? {
-                        _id: reply.user._id,
-                        username: reply.user.username,
-                        realname: reply.user.realname,
-                        profilePic: reply.user.profilePic
-                    } : {
-                        _id: reply.userId?._id || 'unknown',
-                        username: reply.username || 'unknown',
-                        realname: reply.userId?.realname || 'Unknown User',
-                        profilePic: reply.userId?.profilePic || reply.profilePic
-                    },
-                    username: reply.user?.username || reply.username || 'unknown',
+                    userId: reply.user
+                        ? {
+                              _id: reply.user._id,
+                              username: reply.user.username,
+                              realname: reply.user.realname,
+                              profilePic: reply.user.profilePic,
+                          }
+                        : {
+                              _id: reply.userId?._id || "unknown",
+                              username: reply.username || "unknown",
+                              realname:
+                                  reply.userId?.realname || "Unknown User",
+                              profilePic:
+                                  reply.userId?.profilePic || reply.profilePic,
+                          },
+                    username:
+                        reply.user?.username || reply.username || "unknown",
                     profilePic: reply.user?.profilePic || reply.profilePic,
-                    hasUserLiked: reply.likes && reply.likes.includes(localStorage.getItem("userId")),
-                    likes: reply.likes || []
+                    hasUserLiked:
+                        reply.likes &&
+                        reply.likes.includes(localStorage.getItem("userId")),
+                    likes: reply.likes || [],
                 }));
 
                 setProfileData((prev) => ({
@@ -694,17 +781,17 @@ const ProfilePage = () => {
                     posts: prev.posts.map((post) =>
                         post._id === postId
                             ? {
-                                ...post,
-                                comments: post.comments.map((comment) =>
-                                    comment._id === commentId
-                                        ? {
-                                            ...comment,
-                                            replies,
-                                            replyCount: replies.length
-                                        }
-                                        : comment
-                                ),
-                            }
+                                  ...post,
+                                  comments: post.comments.map((comment) =>
+                                      comment._id === commentId
+                                          ? {
+                                                ...comment,
+                                                replies,
+                                                replyCount: replies.length,
+                                            }
+                                          : comment
+                                  ),
+                              }
                             : post
                     ),
                 }));
@@ -732,7 +819,11 @@ const ProfilePage = () => {
 
             const token = localStorage.getItem("token");
             const currentUserId = localStorage.getItem("userId");
-            const response = await apiService.likeReply(replyId, currentUserId, token);
+            const response = await apiService.likeReply(
+                replyId,
+                currentUserId,
+                token
+            );
 
             // Check if API call was actually successful
             if (!response || response.success === false) {
@@ -748,17 +839,17 @@ const ProfilePage = () => {
                         replies: comment.replies.map((reply) =>
                             reply._id === replyId
                                 ? {
-                                    ...reply,
-                                    hasUserLiked: !reply.hasUserLiked,
-                                    likes: reply.hasUserLiked
-                                        ? (reply.likes || []).filter(
-                                            (id) => id !== currentUserId
-                                        )
-                                        : [
-                                            ...(reply.likes || []),
-                                            currentUserId,
-                                        ],
-                                }
+                                      ...reply,
+                                      hasUserLiked: !reply.hasUserLiked,
+                                      likes: reply.hasUserLiked
+                                          ? (reply.likes || []).filter(
+                                                (id) => id !== currentUserId
+                                            )
+                                          : [
+                                                ...(reply.likes || []),
+                                                currentUserId,
+                                            ],
+                                  }
                                 : reply
                         ),
                     })),
@@ -820,11 +911,11 @@ const ProfilePage = () => {
                     comments: post.comments.map((comment) =>
                         comment._id === commentId
                             ? {
-                                ...comment,
-                                replies: comment.replies.filter(
-                                    (reply) => reply._id !== replyId
-                                ),
-                            }
+                                  ...comment,
+                                  replies: comment.replies.filter(
+                                      (reply) => reply._id !== replyId
+                                  ),
+                              }
                             : comment
                     ),
                 })),
@@ -865,10 +956,15 @@ const ProfilePage = () => {
             const formData = new FormData();
             formData.append("image", file);
 
-            const responseData = await apiService.uploadProfilePic(token, formData);
+            const responseData = await apiService.uploadProfilePic(
+                token,
+                formData
+            );
 
             if (!responseData || responseData.success === false) {
-                throw new Error(responseData?.message || "Failed to update profile picture");
+                throw new Error(
+                    responseData?.message || "Failed to update profile picture"
+                );
             }
 
             if (responseData.profilePicUrl) {
@@ -907,7 +1003,7 @@ const ProfilePage = () => {
         }
     };
 
-    const handleCreatePost = async (content, file, date) => {
+    const handleCreatePost = async (content, file, selectedDate) => {
         if (!content.trim() && !file) {
             toast.error("Post content or image cannot be empty");
             return;
@@ -927,12 +1023,41 @@ const ProfilePage = () => {
                 });
             }
 
+            // Agar user ne different date select ki hai toh uss date ka Indian time use karen
+            let postDateTime;
+            if (selectedDate && selectedDate !== getIndianDateString()) {
+                // User ne different date select ki hai
+                const selectedDateObj = new Date(selectedDate);
+                // Current Indian time ke hours, minutes, seconds use karen but date change karen
+                const now = new Date();
+                const indianOffset = 5.5 * 60 * 60 * 1000;
+                const currentIndianTime = new Date(
+                    now.getTime() + indianOffset
+                );
+
+                selectedDateObj.setHours(currentIndianTime.getHours());
+                selectedDateObj.setMinutes(currentIndianTime.getMinutes());
+                selectedDateObj.setSeconds(currentIndianTime.getSeconds());
+
+                postDateTime = selectedDateObj.toISOString();
+            } else {
+                // Current Indian time use karen
+                postDateTime = getCurrentIndianTimeISO();
+            }
+
             const postData = {
                 content,
-                createdAt: new Date(date).toISOString(),
-                date: new Date(date).toISOString(),
+                createdAt: postDateTime, // Selected date ya current Indian time
+                date: postDateTime, // Selected date ya current Indian time
                 image: imageData,
             };
+
+            console.log(
+                "Creating post with date:",
+                postData.createdAt,
+                "Selected date:",
+                selectedDate
+            );
 
             const response = await apiService.createPost(token, postData);
 
@@ -962,7 +1087,9 @@ const ProfilePage = () => {
             const currentUsername = localStorage.getItem("username");
 
             // Find the current post
-            const currentPost = profileData.posts.find((post) => post._id === postId);
+            const currentPost = profileData.posts.find(
+                (post) => post._id === postId
+            );
             if (!currentPost) return;
 
             const isCurrentlyLiked = currentPost.isLiked;
@@ -1004,7 +1131,11 @@ const ProfilePage = () => {
             }));
 
             // API call
-            const response = await apiService.likePost(postId, currentUserId, token);
+            const response = await apiService.likePost(
+                postId,
+                currentUserId,
+                token
+            );
 
             // Check if API call was actually successful
             if (!response || response.success === false) {
@@ -1028,10 +1159,9 @@ const ProfilePage = () => {
                     }, i * 100);
                 }
             }
-
         } catch (error) {
             console.error("Error toggling like:", error);
-            
+
             // Revert optimistic update on error
             setProfileData((prev) => ({
                 ...prev,
@@ -1047,7 +1177,7 @@ const ProfilePage = () => {
                     return post;
                 }),
             }));
-            
+
             toast.error("Unable to like post.");
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
@@ -1071,7 +1201,11 @@ const ProfilePage = () => {
     };
 
     const handleUpdatePost = async (postId) => {
-        if (!editState.editContent.trim() && editState.editFiles.length === 0 && !editState.existingImage) {
+        if (
+            !editState.editContent.trim() &&
+            editState.editFiles.length === 0 &&
+            !editState.existingImage
+        ) {
             toast.error("Post content or image cannot be empty");
             return;
         }
@@ -1081,7 +1215,7 @@ const ProfilePage = () => {
             const token = localStorage.getItem("token");
 
             let imageData = editState.existingImage;
-            
+
             if (editState.editFiles.length > 0) {
                 const file = editState.editFiles[0];
                 imageData = await new Promise((resolve, reject) => {
@@ -1097,7 +1231,11 @@ const ProfilePage = () => {
                 ...(imageData && { image: imageData }),
             };
 
-            const response = await apiService.updatePost(token, postId, postData);
+            const response = await apiService.updatePost(
+                token,
+                postId,
+                postData
+            );
 
             // Check if API call was actually successful
             if (!response || response.success === false) {
@@ -1109,10 +1247,10 @@ const ProfilePage = () => {
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
-                            ...post,
-                            content: editState.editContent,
-                            image: imageData,
-                        }
+                              ...post,
+                              content: editState.editContent,
+                              image: imageData,
+                          }
                         : post
                 ),
             }));
@@ -1153,24 +1291,28 @@ const ProfilePage = () => {
 
     // Delete post with confirmation modal
     const handleDeletePostClick = (postId) => {
-        const postToDelete = profileData.posts.find(post => post._id === postId);
-        const postContentPreview = postToDelete?.content 
-            ? `"${postToDelete.content.substring(0, 100)}${postToDelete.content.length > 100 ? '...' : ''}"`
+        const postToDelete = profileData.posts.find(
+            (post) => post._id === postId
+        );
+        const postContentPreview = postToDelete?.content
+            ? `"${postToDelete.content.substring(0, 100)}${
+                  postToDelete.content.length > 100 ? "..." : ""
+              }"`
             : "this post";
-            
+
         setConfirmationModal({
             isOpen: true,
             postId: postId,
             isLoading: false,
-            postContent: `Are you sure you want to delete ${postContentPreview}? This action cannot be undone.`
+            postContent: `Are you sure you want to delete ${postContentPreview}? This action cannot be undone.`,
         });
     };
 
     const handleConfirmDelete = async () => {
         const { postId } = confirmationModal;
-        
+
         try {
-            setConfirmationModal(prev => ({ ...prev, isLoading: true }));
+            setConfirmationModal((prev) => ({ ...prev, isLoading: true }));
             const token = localStorage.getItem("token");
             const response = await apiService.deletePost(token, postId);
 
@@ -1193,7 +1335,7 @@ const ProfilePage = () => {
         } catch (error) {
             console.error("Error deleting post:", error);
             toast.error("Unable to delete post.");
-            setConfirmationModal(prev => ({ ...prev, isLoading: false }));
+            setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
@@ -1202,7 +1344,7 @@ const ProfilePage = () => {
             isOpen: false,
             postId: null,
             isLoading: false,
-            postContent: ""
+            postContent: "",
         });
     };
 
@@ -1222,17 +1364,24 @@ const ProfilePage = () => {
 
     const joinedDate = localStorage.getItem("createdAt");
     const formattedDate = joinedDate
-        ? new Date(joinedDate).toLocaleDateString("en-IN", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-        })
+        ? new Date(convertToIndianTime(joinedDate)).toLocaleDateString(
+              "en-IN",
+              {
+                  timeZone: "Asia/Kolkata",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+              }
+          )
         : "";
 
- if (uiState.loading) {
-    return <ProfileSkeleton isDarkMode={uiState.darkMode} />;
-}
-    
+    if (uiState.loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
 
     return (
         <ErrorBoundary>
@@ -1431,7 +1580,9 @@ const ProfilePage = () => {
                                         onRemoveEditFile={handleRemoveEditFile}
                                         // Existing image props
                                         existingImage={editState.existingImage}
-                                        onRemoveExistingImage={handleRemoveExistingImage}
+                                        onRemoveExistingImage={
+                                            handleRemoveExistingImage
+                                        }
                                         // Reply functionality props
                                         activeReplyInputs={
                                             commentState.activeReplyInputs
