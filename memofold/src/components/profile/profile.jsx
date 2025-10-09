@@ -23,13 +23,16 @@ import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import LikesModal from "../mainFeed/LikesModal";
-import ProfileSkeleton from "./ProfileSkeleton";
-import FriendsSidebar from "../navbar/FriendsSidebar";
 
 // Services
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
-import { formatDate, getIndianDateString } from "../../services/dateUtils";
+import {
+    formatDate,
+    getIndianDateString,
+    getCurrentIndianTimeISO,
+    convertToIndianTime,
+} from "../../services/dateUtils";
 
 // Utility function for better error handling
 const handleApiError = (error, defaultMessage = "Something went wrong") => {
@@ -58,7 +61,6 @@ const ProfilePage = () => {
         profilePic: "https://ui-avatars.com/api/?name=User&background=random",
         username: "",
         realName: "",
-        email: "",
         bio: "",
         posts: [],
         stats: { posts: 0, followers: 0, following: 0 },
@@ -124,7 +126,6 @@ const ProfilePage = () => {
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [isLiking, setIsLiking] = useState({});
-    const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
 
     const navigate = useNavigate();
     const mobileMenuRef = useRef(null);
@@ -236,7 +237,6 @@ const ProfilePage = () => {
                     "https://ui-avatars.com/api/?name=User&background=random",
                 username: userData.username || "",
                 realName: userData.realname || "",
-                email: userData.email || "",
             }));
         } catch (error) {
             console.error("Error fetching user data:", error);
@@ -263,21 +263,27 @@ const ProfilePage = () => {
             }
 
             const postsData = responseData.posts || [];
-
-            const storedLikes = localStorageService.getStoredLikes();
             const currentUsername = localStorage.getItem("username");
 
             const postsWithComments = postsData.map((post) => {
-                // Check if current user has liked this post using likesPreview
+                // Server ke UTC time ko Indian time mein convert karen
+                const createdAtIndian = convertToIndianTime(post.createdAt);
+                const dateIndian = convertToIndianTime(
+                    post.date || post.createdAt
+                );
+
+                // Check if current user has liked this post
                 const hasUserLiked = post.likesPreview?.some(
                     (like) => like.username === currentUsername
                 );
 
                 return {
                     ...post,
+                    createdAt: createdAtIndian,
+                    date: dateIndian,
                     isLiked: hasUserLiked || false,
                     likes: post.likeCount || 0,
-                    comments: [], // Start with empty comments array
+                    comments: [],
                     commentCount: post.commentCount || 0,
                     userId: {
                         _id: post.userId?._id || currentUserProfile?._id,
@@ -521,13 +527,13 @@ const ProfilePage = () => {
             const currentProfilePic = localStorage.getItem("profilePic");
             const currentUserId = localStorage.getItem("userId");
 
-            // Optimistically add the reply with proper user data
+            // Optimistically add the reply with Indian time
             const optimisticReply = {
                 _id: `temp-${Date.now()}`, // Temporary ID
                 content: content,
                 likes: [],
                 hasUserLiked: false,
-                createdAt: new Date().toISOString(),
+                createdAt: getCurrentIndianTimeISO(), // Indian time use karen
                 userId: {
                     _id: currentUserId,
                     username: currentUsername,
@@ -997,7 +1003,7 @@ const ProfilePage = () => {
         }
     };
 
-    const handleCreatePost = async (content, file, date) => {
+    const handleCreatePost = async (content, file, selectedDate) => {
         if (!content.trim() && !file) {
             toast.error("Post content or image cannot be empty");
             return;
@@ -1017,12 +1023,41 @@ const ProfilePage = () => {
                 });
             }
 
+            // Agar user ne different date select ki hai toh uss date ka Indian time use karen
+            let postDateTime;
+            if (selectedDate && selectedDate !== getIndianDateString()) {
+                // User ne different date select ki hai
+                const selectedDateObj = new Date(selectedDate);
+                // Current Indian time ke hours, minutes, seconds use karen but date change karen
+                const now = new Date();
+                const indianOffset = 5.5 * 60 * 60 * 1000;
+                const currentIndianTime = new Date(
+                    now.getTime() + indianOffset
+                );
+
+                selectedDateObj.setHours(currentIndianTime.getHours());
+                selectedDateObj.setMinutes(currentIndianTime.getMinutes());
+                selectedDateObj.setSeconds(currentIndianTime.getSeconds());
+
+                postDateTime = selectedDateObj.toISOString();
+            } else {
+                // Current Indian time use karen
+                postDateTime = getCurrentIndianTimeISO();
+            }
+
             const postData = {
                 content,
-                createdAt: new Date(date).toISOString(),
-                date: new Date(date).toISOString(),
+                createdAt: postDateTime, // Selected date ya current Indian time
+                date: postDateTime, // Selected date ya current Indian time
                 image: imageData,
             };
+
+            console.log(
+                "Creating post with date:",
+                postData.createdAt,
+                "Selected date:",
+                selectedDate
+            );
 
             const response = await apiService.createPost(token, postData);
 
@@ -1329,30 +1364,25 @@ const ProfilePage = () => {
 
     const joinedDate = localStorage.getItem("createdAt");
     const formattedDate = joinedDate
-        ? new Date(joinedDate).toLocaleDateString("en-IN", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-          })
+        ? new Date(convertToIndianTime(joinedDate)).toLocaleDateString(
+              "en-IN",
+              {
+                  timeZone: "Asia/Kolkata",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+              }
+          )
         : "";
 
     if (uiState.loading) {
-        return <ProfileSkeleton isDarkMode={uiState.darkMode} />;
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
     }
 
-    const refreshUserData = async () => {
-        try {
-            const token = localStorage.getItem("token");
-            await fetchUserData(token);
-            await fetchCurrentUserData(token);
-        } catch (error) {
-            console.error("Error refreshing user data:", error);
-        }
-    };
-
-    const handleFriendsClick = () => {
-        setShowFriendsSidebar(!showFriendsSidebar);
-    };
     return (
         <ErrorBoundary>
             <div
@@ -1425,32 +1455,13 @@ const ProfilePage = () => {
                         profilePic={profileData.profilePic}
                         username={profileData.username}
                         realName={profileData.realName}
-                        email={profileData.email}
                         bio={profileData.bio}
                         posts={profileData.posts}
-                        stats={profileData.stats}
                         isDarkMode={uiState.darkMode}
                         joinedDate={formattedDate}
                         onProfilePicUpdate={handleProfilePicUpdate}
                         onBioUpdate={handleBioUpdate}
                         uploadingProfilePic={uploadingProfilePic}
-                        apiService={apiService}
-                        toast={toast}
-                        onFriendsClick={handleFriendsClick} // ✅ Add this line
-                        onProfileUpdate={async (result) => {
-                            setProfileData((prev) => ({
-                                ...prev,
-                                username: result.username || prev.username,
-                                email: result.email || prev.email,
-                            }));
-                            await refreshUserData();
-                        }}
-                    />
-                    <FriendsSidebar
-                        isOpen={showFriendsSidebar}
-                        onClose={() => setShowFriendsSidebar(false)}
-                        darkMode={uiState.darkMode}
-                        token={localStorage.getItem("token")}
                     />
 
                     <CreatePostSection

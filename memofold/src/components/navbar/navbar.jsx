@@ -166,6 +166,20 @@ const Navbar = ({ onDarkModeChange }) => {
         }
     };
 
+    // Regular polling for notifications - ADD THIS
+    useEffect(() => {
+        if (!token) return;
+
+        // Fetch count immediately
+        fetchUnreadCount();
+
+        // Set up polling every 30 seconds
+        const intervalId = setInterval(fetchUnreadCount, 30000);
+
+        // Cleanup
+        return () => clearInterval(intervalId);
+    }, [token]);
+
     const toggleMobileSearch = () => {
         setShowMobileSearch(!showMobileSearch);
         setShowProfileDropdown(false);
