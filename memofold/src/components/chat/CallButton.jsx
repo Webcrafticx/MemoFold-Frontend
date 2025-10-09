@@ -1,20 +1,21 @@
 // components/CallButton.jsx
 const CallButton = ({ handleVideoCall, isSending = false }) => {
   return (
-    <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white shadow-sm">
-      <div className="flex-1"></div>
-      <button 
-        onClick={handleVideoCall} 
-        disabled={isSending}
-        className={`flex items-center gap-2 ${
-          isSending 
-            ? 'bg-gray-400 cursor-not-allowed' 
-            : 'bg-green-500 hover:bg-green-600'
-        } text-white px-4 py-2 rounded-lg transition-colors duration-200 font-medium`}
-      >
-        <VideoIcon className="size-5" />
-        {isSending ? 'Sending...' : 'Send Video Call Link'}
-      </button>
+    <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10"> {/* Sticky positioning */}
+      <div className="flex justify-end">
+        <button 
+          onClick={handleVideoCall} 
+          disabled={isSending}
+          className={`flex items-center gap-2 ${
+            isSending 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-green-500 hover:bg-green-600 cursor-pointer'
+          } text-white px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg`}
+        >
+          <VideoIcon className="size-5" />
+          {isSending ? 'Sending...' : 'Video Call'}
+        </button>
+      </div>
     </div>
   );
 };
