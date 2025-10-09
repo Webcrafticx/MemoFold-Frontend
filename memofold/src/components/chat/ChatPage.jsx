@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { useAuth } from "../../hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { apiService } from "../../services/api";
-import { Channel, ChannelHeader, Chat, MessageInput, MessageList, Thread, Window } from "stream-chat-react";
+import { Channel, ChannelHeader, Chat, MessageInput, MessageList, Window } from "stream-chat-react";
 import { StreamChat } from "stream-chat";
 import toast from "react-hot-toast";
 
@@ -14,6 +14,82 @@ import CallButton from "./CallButton";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
+// Skeleton Loader Component
+const ChatSkeleton = () => {
+  return (
+    <div className="h-[93vh] bg-white fixed inset-0 flex flex-col">
+      {/* Header Skeleton */}
+      <div className="p-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse"></div>
+          <div className="flex-1">
+            <div className="h-4 bg-gray-300 rounded w-32 mb-2 animate-pulse"></div>
+            <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages Skeleton */}
+      <div className="flex-1 p-4 space-y-6 overflow-hidden">
+        {/* Incoming Message Skeleton */}
+        <div className="flex items-start space-x-3">
+          <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+            <div className="bg-gray-100 rounded-lg p-3 max-w-xs">
+              <div className="h-4 bg-gray-300 rounded w-48 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Outgoing Message Skeleton */}
+        <div className="flex items-start space-x-3 justify-end">
+          <div className="flex-1 space-y-2 items-end flex flex-col">
+            <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+            <div className="bg-blue-100 rounded-lg p-3 max-w-xs">
+              <div className="h-4 bg-blue-300 rounded w-40 animate-pulse"></div>
+            </div>
+          </div>
+          <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse"></div>
+        </div>
+
+        {/* Incoming Message Skeleton */}
+        <div className="flex items-start space-x-3">
+          <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse"></div>
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+            <div className="bg-gray-100 rounded-lg p-3 max-w-sm">
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-300 rounded w-full animate-pulse"></div>
+                <div className="h-4 bg-gray-300 rounded w-3/4 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Outgoing Message Skeleton */}
+        <div className="flex items-start space-x-3 justify-end">
+          <div className="flex-1 space-y-2 items-end flex flex-col">
+            <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+            <div className="bg-blue-100 rounded-lg p-3 max-w-xs">
+              <div className="h-4 bg-blue-300 rounded w-32 animate-pulse"></div>
+            </div>
+          </div>
+          <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse"></div>
+        </div>
+      </div>
+
+      {/* Input Skeleton */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="flex space-x-2">
+          <div className="flex-1 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+          <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ChatPage = () => {
   const { id: targetUserId } = useParams();
   const navigate = useNavigate();
@@ -23,9 +99,8 @@ const ChatPage = () => {
   const [isSendingCall, setIsSendingCall] = useState(false);
   const { user: authUser, token } = useAuth();
   
-  // Use refs to track initialization
+  // Use refs to prevent re-renders
   const initializedRef = useRef(false);
-  const clientRef = useRef(null);
 
   // Stream token fetch
   const { 
@@ -51,16 +126,12 @@ const ChatPage = () => {
     }
   }, [tokenError]);
 
-  // Chat initialization - FIXED VERSION
+  // Chat initialization
   useEffect(() => {
-    // Prevent multiple initializations
     if (initializedRef.current) return;
     
     const initChat = async () => {
-      if (tokenLoading) return;
-      
-      if (!tokenData?.token || !authUser?._id || !targetUserId) {
-        setLoading(false);
+      if (tokenLoading || !tokenData?.token || !authUser?._id || !targetUserId) {
         return;
       }
 
@@ -71,13 +142,7 @@ const ChatPage = () => {
       }
 
       try {
-        // Disconnect existing client if any
-        if (clientRef.current) {
-          await clientRef.current.disconnectUser();
-        }
-
         const client = StreamChat.getInstance(STREAM_API_KEY);
-        clientRef.current = client;
         
         await client.connectUser(
           { 
@@ -92,7 +157,7 @@ const ChatPage = () => {
         
         const currChannel = client.channel("messaging", channelId, {
           members: [authUser._id, targetUserId],
-          name: `Chat between ${authUser.realname || authUser.username} and ${targetUserId}`,
+          name: `Chat with ${targetUserId}`,
           created_by_id: authUser._id,
         });
 
@@ -105,16 +170,7 @@ const ChatPage = () => {
         
       } catch (err) {
         console.error("Chat init error:", err);
-        
-        if (err.message.includes("user")) {
-          toast.error("User not found. Please check if the user exists.");
-        } else if (err.message.includes("channel")) {
-          toast.error("Could not create chat channel. Please try again.");
-        } else if (err.message.includes("permission") || err.message.includes("auth")) {
-          toast.error("Authentication error. Please login again.");
-        } else {
-          toast.error("Could not connect to chat");
-        }
+        toast.error("Could not connect to chat");
         setLoading(false);
       }
     };
@@ -122,62 +178,71 @@ const ChatPage = () => {
     initChat();
 
     return () => {
-      // Cleanup on unmount - but don't disconnect immediately
-      // Let React components handle their own cleanup
+      if (chatClient) {
+        chatClient.disconnectUser();
+      }
     };
   }, [tokenData, authUser, targetUserId, tokenLoading]);
 
   const handleVideoCall = async () => {
-    if (isSendingCall) return;
-    
-    if (!channel) {
-      toast.error("Chat channel not ready");
-      return;
-    }
+    if (isSendingCall || !channel) return;
 
     setIsSendingCall(true);
     
     try {
       const callUrl = `${window.location.origin}/call/${channel.id}`;
       
-      // Call invitation send karein with clickable link
       await channel.sendMessage({
         text: `🎥 **Video Call Invitation**\n\nClick here to join the video call: ${callUrl}`,
       });
 
-      toast.success("Video call link sent! Click the link in chat to join.");
+      toast.success("Video call link sent!");
       
     } catch (error) {
       console.error("Error sending call message:", error);
-      toast.error("Failed to send call invitation: " + error.message);
+      toast.error("Failed to send call invitation");
     } finally {
       setIsSendingCall(false);
     }
   };
 
-  if (loading || !chatClient || !channel) {
-    return <ChatLoader />;
+  if (loading) {
+    return <ChatSkeleton />;
+  }
+
+  if (!chatClient || !channel) {
+    return (
+      <div className="h-[93vh] flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4">💬</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Chat Not Available</h2>
+          <p className="text-gray-600">Unable to load chat. Please try again.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-[93vh] bg-white">
+    <div className="h-[93vh] bg-white fixed inset-0">
       <Chat client={chatClient}>
         <Channel channel={channel}>
-          <div className="w-full h-full relative flex">
-            {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col">
-              <CallButton handleVideoCall={handleVideoCall} isSending={isSendingCall} />
+          {/* Simple single column layout without thread */}
+          <div className="w-full h-full flex flex-col">
+            {/* Call Button */}
+            <CallButton handleVideoCall={handleVideoCall} isSending={isSendingCall} />
+            
+            {/* Main Chat Area - Full width */}
+            <div className="flex-1 min-h-0">
               <Window>
-                <div className="str-chat__main-panel h-full">
+                <div className="str-chat__main-panel h-full flex flex-col">
                   <ChannelHeader />
-                  <MessageList />
+                  <div className="flex-1 min-h-0">
+                    <MessageList />
+                  </div>
                   <MessageInput focus />
                 </div>
               </Window>
             </div>
-            
-            {/* Thread Sidebar */}
-            <Thread />
           </div>
         </Channel>
       </Chat>
