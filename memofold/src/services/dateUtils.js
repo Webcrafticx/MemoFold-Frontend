@@ -25,12 +25,18 @@ export const formatDate = (dateString) => {
             return "Just now";
         }
 
-        // Server time (UTC) ko Indian time mein convert karen
-        const indianOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
-        const indianTime = new Date(serverDate.getTime() + indianOffset);
-        const now = new Date();
+        // Dono dates ko Indian time mein convert karen
+        const serverIndianTime = new Date(
+            serverDate.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
 
-        const diffInSeconds = Math.floor((now - indianTime) / 1000);
+        const nowIndianTime = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
+
+        const diffInSeconds = Math.floor(
+            (nowIndianTime - serverIndianTime) / 1000
+        );
 
         if (diffInSeconds < 0) {
             return "Just now";
@@ -51,8 +57,7 @@ export const formatDate = (dateString) => {
             const days = Math.floor(diffInSeconds / 86400);
             return `${days}d ago`;
         } else {
-            return indianTime.toLocaleDateString("en-IN", {
-                timeZone: "Asia/Kolkata",
+            return serverIndianTime.toLocaleDateString("en-IN", {
                 year: "numeric",
                 month: "short",
                 day: "numeric",
@@ -67,18 +72,48 @@ export const formatDate = (dateString) => {
 // NEW FUNCTION: Current Indian time in ISO format
 export const getCurrentIndianTimeISO = () => {
     const now = new Date();
-    const indianOffset = 5.5 * 60 * 60 * 1000; // IST offset
-    return new Date(now.getTime() + indianOffset).toISOString();
+    const indianDate = new Date(
+        now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    return indianDate.toISOString();
 };
 
 // NEW FUNCTION: Convert any date to Indian time
 export const convertToIndianTime = (dateString) => {
     try {
         const date = new Date(dateString);
-        const indianOffset = 5.5 * 60 * 60 * 1000;
-        return new Date(date.getTime() + indianOffset).toISOString();
+        const indianDate = new Date(
+            date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
+        return indianDate.toISOString();
     } catch (error) {
         console.error("Time conversion error:", error);
         return dateString;
+    }
+};
+
+// NEW FUNCTION: Get current Indian timestamp
+export const getCurrentIndianTimestamp = () => {
+    return new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+};
+
+// NEW FUNCTION: Format date to Indian date string
+export const formatToIndianDate = (dateString) => {
+    try {
+        const date = new Date(dateString);
+        const indianDate = new Date(
+            date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+        );
+
+        return indianDate.toLocaleDateString("en-IN", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+        });
+    } catch (error) {
+        console.error("Date formatting error:", error);
+        return "Invalid date";
     }
 };
