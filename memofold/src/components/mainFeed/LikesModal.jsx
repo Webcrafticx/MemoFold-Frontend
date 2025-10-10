@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiService } from "../../services/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
-const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
+const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode, currentUserProfile, user, username }) => {
   const [likes, setLikes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
   
   // ✅ CURSOR PAGINATION STATES - Added new states for pagination
   const [nextCursor, setNextCursor] = useState(null);
@@ -63,7 +65,8 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
     setLikes(likesData);
   };
 
-console.log("LikesModal likes:", nextCursor);
+  console.log("LikesModal likes:", nextCursor);
+  
   const loadMoreLikes = async () => {
     if (!hasMore || isLoadingMore || !nextCursor) return;
 
@@ -108,6 +111,30 @@ console.log("LikesModal likes:", nextCursor);
     // ✅ LOAD MORE WHEN NEAR BOTTOM - Trigger when 100px from bottom
     if (scrollHeight - scrollTop <= clientHeight + 100) {
       loadMoreLikes();
+    }
+  };
+
+  // ✅ ADDED: navigateToUserProfile function to handle user navigation
+  const navigateToUserProfile = (userId, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (userId) {
+      // Check if this is the current logged-in user's profile
+      const isCurrentUser = 
+          (currentUserProfile && userId === currentUserProfile._id) || 
+          (user && userId === user._id) || // Compare with auth user ID
+          (username && userId === username); // Compare with username
+      
+      if (isCurrentUser) {
+        navigate("/profile");
+        onClose();
+      } else {
+        navigate(`/user/${userId}`);
+        onClose();
+      }
     }
   };
 
@@ -202,7 +229,8 @@ console.log("LikesModal likes:", nextCursor);
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="flex items-center py-4 px-3 rounded-lg transition-colors hover:bg-opacity-50"
+                      className="flex items-center py-4 px-3 rounded-lg transition-colors hover:bg-opacity-50 cursor-pointer"
+                      onClick={(e) => navigateToUserProfile(user._id || user.username, e)} // ✅ ADDED CLICK HANDLER
                     >
                       <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500 mr-4">
                         {user.profilePic ? (
@@ -224,7 +252,7 @@ console.log("LikesModal likes:", nextCursor);
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-base truncate">
+                        <p className="font-semibold text-base truncate hover:text-blue-500 transition-colors"> {/* ✅ ADDED HOVER EFFECT */}
                           {user.username}
                         </p>
                         {user.realname && (

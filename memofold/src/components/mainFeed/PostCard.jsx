@@ -2,8 +2,7 @@ import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
-import { useState } from "react";
-import LikesModal from "./LikesModal";
+import { useState, useRef } from "react";
 
 const PostCard = ({
     post,
@@ -39,8 +38,9 @@ const PostCard = ({
     navigateToUserProfile,
     onImagePreview,
     token,
+    onShowLikesModal, // ✅ ADDED: New prop for likes modal
 }) => {
-    const [showLikesModal, setShowLikesModal] = useState(false);
+    const likeButtonRef = useRef(null);
 
     // Updated function to get liked users based on API response
     const getLikedUsers = () => {
@@ -52,15 +52,37 @@ const PostCard = ({
     };
 
     const likedUsers = getLikedUsers();
-    const totalLikes = post.likeCount || 0; // Use likeCount from API
+    const totalLikes = post.likeCount || 0;
 
     const handleShowAllLikes = (e) => {
         e.stopPropagation();
-        setShowLikesModal(true);
+        // ✅ CHANGED: Call parent function instead of local state
+        if (onShowLikesModal) {
+            onShowLikesModal(post._id);
+        }
     };
 
-    const handleHideAllLikes = () => {
-        setShowLikesModal(false);
+    // ✅ IMPROVED: Better like handler with proper event handling
+    const handleLikeClick = (e) => {
+        // ✅ Always get the button position for floating hearts
+        let rect;
+        
+        if (e.target) {
+            // Check if click is on icon or span
+            const likeButton = e.target.closest('button') || e.currentTarget;
+            rect = likeButton.getBoundingClientRect();
+        } else {
+            // Fallback position
+            rect = {
+                left: window.innerWidth / 2,
+                top: window.innerHeight / 2,
+                width: 0,
+                height: 0
+            };
+        }
+
+        // ✅ Call the parent like handler with the event
+        onLike(post._id, e, rect);
     };
 
     // FIXED: Image error handler without optional chaining issue
@@ -87,14 +109,7 @@ const PostCard = ({
                     : "bg-white text-gray-900"
             }`}
         >
-            {/* Likes Modal */}
-            <LikesModal
-                postId={post._id}
-                isOpen={showLikesModal}
-                onClose={handleHideAllLikes}
-                token={token}
-                isDarkMode={isDarkMode}
-            />
+            {/* ✅ REMOVED: Internal LikesModal component */}
 
             <div
                 className="flex items-center gap-3 mb-3 cursor-pointer"
@@ -159,8 +174,9 @@ const PostCard = ({
             <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
                 <div className="flex items-center gap-3">
                     <motion.button
+                        ref={likeButtonRef}
                         whileTap={{ scale: 0.9 }}
-                        onClick={(e) => onLike(post._id, e)}
+                        onClick={handleLikeClick}
                         disabled={isLiking[post._id] || likeCooldown[post._id]}
                         className={`flex items-center gap-1 ${
                             isLiking[post._id] || likeCooldown[post._id]
