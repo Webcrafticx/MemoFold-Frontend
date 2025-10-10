@@ -9,6 +9,7 @@ import logo from "../../assets/logo.png";
 const LoginPage = () => {
     const [formData, setFormData] = useState({
         username: "",
+        email: "",
         password: "",
     });
     const [formErrors, setFormErrors] = useState({});
@@ -17,7 +18,6 @@ const LoginPage = () => {
     const { login, loading, error, token } = useAuth();
     const navigate = useNavigate();
 
-    // Redirect if already logged in
     useEffect(() => {
         if (token) {
             navigate("/feed");
@@ -116,9 +116,9 @@ const LoginPage = () => {
                                 <input
                                     type="text"
                                     name="username"
-                                    value={formData.username}
+                                    value={formData.username || formData.email}
                                     onChange={handleChange}
-                                    placeholder="Username"
+                                    placeholder="Username or Email"
                                     className={`w-full px-3 py-2 text-sm sm:text-base bg-gray-50 border rounded-md focus:outline-none ${
                                         formErrors.username
                                             ? "border-red-500"
@@ -127,7 +127,7 @@ const LoginPage = () => {
                                 />
                                 {formErrors.username && (
                                     <p className="mt-1 text-xs text-red-600 text-left">
-                                        {formErrors.username}
+                                        {formErrors.username || formErrors.email}
                                     </p>
                                 )}
                             </div>

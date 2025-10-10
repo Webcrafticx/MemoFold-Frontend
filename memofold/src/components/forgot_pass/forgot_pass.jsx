@@ -152,7 +152,7 @@ const PasswordResetSystem = () => {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70"
+                            className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 cursor-pointer transition-colors disabled:opacity-70"
                         >
                             {isSubmitting
                                 ? "Sending..."

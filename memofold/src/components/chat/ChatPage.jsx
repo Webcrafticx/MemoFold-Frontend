@@ -11,7 +11,8 @@ import "stream-chat-react/dist/css/v2/index.css";
 import ChatLoader from "./ChatLoader";
 import CallButton from "./CallButton";
 
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
+// const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
+const STREAM_API_KEY = "jevv5df9tgeq";
 
 // Skeleton Loader Component
 const ChatSkeleton = () => {

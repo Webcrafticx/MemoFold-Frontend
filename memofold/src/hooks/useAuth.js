@@ -19,13 +19,16 @@ export const useAuth = () => {
     const login = async (username, password) => {
         setLoading(true);
         setError(null);
+        const name = username.trim();
+        const isemail = name.includes("@");
+
 
         try {
             const response = await fetch(`${config.apiUrl}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    username: username.trim(),
+                ...(isemail ? { email: name } : { username: name }),
                     password: password.trim(),
                 }),
                 credentials: "include",
