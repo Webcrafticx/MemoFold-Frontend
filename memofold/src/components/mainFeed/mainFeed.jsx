@@ -6,9 +6,11 @@ import PostCard from "./PostCard";
 import FloatingHearts from "./FloatingHearts";
 import ImagePreviewModal from "./ImagePreviewModal";
 import MessageBanner from "./MessageBanner";
-import MainFeedSkeleton from "./MainFeedSkeleton"; // ✅ Added skeleton import
+import MainFeedSkeleton from "./MainFeedSkeleton";
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
+
+import LikesModal from "./LikesModal";
 
 const MainFeed = () => {
     const { token, logout, user, username, realname } = useAuth();
@@ -29,9 +31,10 @@ const MainFeed = () => {
     const [isLikingComment, setIsLikingComment] = useState({});
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [likeCooldown, setLikeCooldown] = useState({});
-  const [nextCursor, setNextCursor] = useState(null);
+    const [nextCursor, setNextCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
 
@@ -39,7 +42,11 @@ const MainFeed = () => {
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
 
-    // Reply functionality states - FIXED: Use localStorageService methods
+    // ✅ ADDED: Likes modal state
+    const [showLikesModal, setShowLikesModal] = useState(false);
+    const [selectedPostIdForLikes, setSelectedPostIdForLikes] = useState(null);
+
+    // Reply functionality states
     const [activeReplies, setActiveReplies] = useState(() => {
         return localStorageService.getActiveReplies() || {};
     });
@@ -60,6 +67,13 @@ const MainFeed = () => {
     useEffect(() => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
+
+    // ✅ ADDED: Likes modal handler
+    const handleShowLikesModal = (postId) => {
+        setSelectedPostIdForLikes(postId);
+        setShowLikesModal(true);
+    };
+
     const loadMorePosts = useCallback(async () => {
         if (!hasMore || isLoadingMore || !nextCursor) return;
 
@@ -67,11 +81,9 @@ const MainFeed = () => {
         setError(null);
 
         try {
-            // ✅ CURSOR PARAMETER - Pass cursor to API call
             const data = await apiService.fetchPosts(token, nextCursor);
             const newPosts = Array.isArray(data) ? data : data.posts || [];
             
-            // ✅ UPDATE CURSOR - Get next cursor from response
             const cursor = data.nextCursor || null;
             setNextCursor(cursor);
             setHasMore(!!cursor);
@@ -82,7 +94,6 @@ const MainFeed = () => {
                 return;
             }
 
-            // Get stored data from localStorage
             const storedLikes = localStorageService.getStoredLikes();
             const storedLikesPreview = localStorageService.getStoredLikesPreview();
             const storedLikesCount = localStorageService.getStoredLikesCount();
@@ -110,10 +121,8 @@ const MainFeed = () => {
                 };
             });
 
-            // ✅ APPEND NEW POSTS - Add new posts to existing ones
             setPosts(prevPosts => [...prevPosts, ...postsWithLikes]);
 
-            // Update localStorage with new posts data
             const likesByPost = {};
             const likesPreviewByPost = {};
             const likesCountByPost = {};
@@ -134,27 +143,24 @@ const MainFeed = () => {
             setIsLoadingMore(false);
         }
     }, [nextCursor, hasMore, isLoadingMore, token, user._id, username]);
- // ✅ FIXED SCROLL EVENT LISTENER - Updated to properly detect scroll position
-useEffect(() => {
-    const handleScroll = () => {
-        // Don't trigger if already loading or no more posts
-        if (isLoadingMore || !hasMore || !nextCursor) return;
-        
-        const scrollTop = document.documentElement.scrollTop;
-        const scrollHeight = document.documentElement.scrollHeight;
-        const clientHeight = document.documentElement.clientHeight;
-        
-        // ✅ FIXED: Check if user has scrolled near the bottom (100px from bottom)
-        if (scrollTop + clientHeight >= scrollHeight - 100) {
-            loadMorePosts();
-        }
-    };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-}, [isLoadingMore, hasMore, nextCursor, loadMorePosts]);
- // ✅ Added loadMorePosts to dependencies
-    // Load activeReplies from localStorage on component mount - FIXED
+    useEffect(() => {
+        const handleScroll = () => {
+            if (isLoadingMore || !hasMore || !nextCursor) return;
+            
+            const scrollTop = document.documentElement.scrollTop;
+            const scrollHeight = document.documentElement.scrollHeight;
+            const clientHeight = document.documentElement.clientHeight;
+            
+            if (scrollTop + clientHeight >= scrollHeight - 100) {
+                loadMorePosts();
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [isLoadingMore, hasMore, nextCursor, loadMorePosts]);
+
     useEffect(() => {
         const storedActiveReplies = localStorageService.getActiveReplies();
         if (storedActiveReplies && Object.keys(storedActiveReplies).length > 0) {
@@ -162,7 +168,6 @@ useEffect(() => {
         }
     }, []);
 
-    // Save activeReplies to localStorage whenever it changes - FIXED
     useEffect(() => {
         localStorageService.setActiveReplies(activeReplies);
     }, [activeReplies]);
@@ -180,7 +185,7 @@ useEffect(() => {
         }
     };
 
-  const fetchPosts = async () => {
+    const fetchPosts = async () => {
         setIsLoading(true);
         setError(null);
 
@@ -188,28 +193,23 @@ useEffect(() => {
             const data = await apiService.fetchPosts(token);
             const postsData = Array.isArray(data) ? data : data.posts || [];
             
-            // ✅ CURSOR EXTRACTION - Get cursor from response if available
             const cursor = data.nextCursor || null;
             setNextCursor(cursor);
-            setHasMore(!!cursor); // Set hasMore based on whether there's a next cursor
+            setHasMore(!!cursor);
 
-            // Get stored data from localStorage
             const storedLikes = localStorageService.getStoredLikes();
             const storedLikesPreview = localStorageService.getStoredLikesPreview();
             const storedLikesCount = localStorageService.getStoredLikesCount();
 
             const postsWithLikes = postsData.map((post) => {
-                // Get data from storage or API - prioritize API data
                 const postLikes = post.likes || storedLikes[post._id] || [];
                 const postLikesPreview = post.likesPreview || storedLikesPreview[post._id] || [];
                 const postLikesCount = post.likesCount || storedLikesCount[post._id] || postLikes.length;
 
-                // Check if current user has liked this post
                 const hasUserLiked = postLikes.includes(user._id) ||
                     postLikes.includes(username) ||
                     (postLikesPreview && postLikesPreview.some((like) => like.username === username));
 
-                // Initialize empty comments array since API doesn't send comments data
                 const processedComments = [];
 
                 return {
@@ -226,7 +226,6 @@ useEffect(() => {
 
             setPosts(postsWithLikes);
 
-            // Update localStorage with current data using localStorageService methods
             const likesByPost = {};
             const likesPreviewByPost = {};
             const likesCountByPost = {};
@@ -249,8 +248,6 @@ useEffect(() => {
         }
     };
 
-    // ✅ LOAD MORE POSTS - New function to load additional posts with cursor
-
     const fetchComments = async (postId) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
 
@@ -258,17 +255,13 @@ useEffect(() => {
             const responseData = await apiService.fetchComments(postId, token);
             const comments = responseData.comments || [];
 
-            // Get stored comment likes from localStorage
             const storedCommentLikes = localStorageService.getStoredCommentLikes();
 
             const commentsWithLikes = comments.map((comment) => {
-                // Get likes from storage or API
                 const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
 
-                // Check if current user has liked this comment
                 const hasUserLiked = commentLikes.includes(user._id);
 
-                // FIXED: Handle both userId and user object from API
                 const userData = comment.userId || comment.user || {
                     _id: 'unknown',
                     username: 'Unknown',
@@ -276,7 +269,6 @@ useEffect(() => {
                     profilePic: ''
                 };
 
-                // FIXED: Ensure username is properly set
                 const finalUserData = {
                     _id: userData._id || 'unknown',
                     username: userData.username || 'Unknown',
@@ -339,7 +331,6 @@ useEffect(() => {
         setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
 
         try {
-            // Optimistic UI update
             setPosts(
                 posts.map((post) => {
                     if (post._id === postId) {
@@ -416,7 +407,6 @@ useEffect(() => {
         const originalPosts = [...posts];
 
         try {
-            // FIXED: Also delete all replies associated with this comment
             const replyIds = comment.replies?.map(reply => reply._id) || [];
 
             setPosts(
@@ -433,11 +423,9 @@ useEffect(() => {
                 })
             );
 
-            // Remove comment likes from localStorage when comment is deleted
             const storedCommentLikes = localStorageService.getStoredCommentLikes();
             delete storedCommentLikes[commentId];
             
-            // Also remove likes for all replies of this comment
             replyIds.forEach(replyId => {
                 delete storedCommentLikes[replyId];
             });
@@ -456,7 +444,7 @@ useEffect(() => {
         }
     };
 
-    const handleLike = async (postId, e) => {
+    const handleLike = async (postId, e, customRect = null) => { 
         if (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -546,12 +534,14 @@ useEffect(() => {
                 throw new Error(response.message || "Like operation failed");
             }
 
-            if (!isCurrentlyLiked && e) {
+            if (!isCurrentlyLiked) {
                 let rect;
-                if (e.target) {
-                    rect = e.target.getBoundingClientRect();
-                } else if (e.currentTarget) {
-                    rect = e.currentTarget.getBoundingClientRect();
+                
+                if (customRect) {
+                    rect = customRect;
+                } else if (e && e.target) {
+                    const likeButton = e.target.closest('button') || e.currentTarget;
+                    rect = likeButton.getBoundingClientRect();
                 } else {
                     rect = {
                         left: window.innerWidth / 2,
@@ -904,7 +894,6 @@ useEffect(() => {
 
         console.log("🚀 DELETE REPLY - ReplyId:", replyId, "CommentId:", commentId);
 
-        // Find reply owner and post ID
         let replyOwner = "";
         let foundPostId = "";
 
@@ -941,7 +930,6 @@ useEffect(() => {
         const originalPosts = [...posts];
 
         try {
-            // Optimistic UI update
             setPosts(
                 posts.map((post) =>
                     post._id === foundPostId
@@ -980,7 +968,6 @@ useEffect(() => {
         }
     };
 
-    // FIXED: Updated navigateToUserProfile function to handle current user properly
     const navigateToUserProfile = (userId, e) => {
         if (e) {
             e.preventDefault();
@@ -988,16 +975,14 @@ useEffect(() => {
         }
 
         if (userId) {
-            // Check if this is the current logged-in user's profile
             const isCurrentUser = 
-                (currentUserProfile && userId === currentUserProfile._id) || // Compare with current user profile ID
-                (user && userId === user._id) || // Compare with auth user ID
-                (username && userId === username); // Compare with username
-                if (isCurrentUser) {
-                // Navigate to current user's own profile page
+                (currentUserProfile && userId === currentUserProfile._id) ||
+                (user && userId === user._id) ||
+                (username && userId === username);
+                
+            if (isCurrentUser) {
                 navigate("/profile");
             } else {
-                // Navigate to other user's profile page
                 navigate(`/user/${userId}`);
             }
         }
@@ -1013,7 +998,6 @@ useEffect(() => {
         localStorageService.setDarkMode(newDarkMode);
     };
 
-    // ✅ Skeleton Loading Condition
     if (isLoading) {
         return <MainFeedSkeleton isDarkMode={darkMode} />;
     }
@@ -1044,6 +1028,18 @@ useEffect(() => {
                     onClose={() => setShowImagePreview(false)}
                 />
             )}
+
+            {/* */}
+            <LikesModal
+                postId={selectedPostIdForLikes}
+                isOpen={showLikesModal}
+                onClose={() => setShowLikesModal(false)}
+                token={token}
+                isDarkMode={darkMode}
+                currentUserProfile={currentUserProfile}
+                user={user}
+                username={username}
+            />
 
             <Navbar onDarkModeChange={handleDarkModeChange} />
 
@@ -1099,23 +1095,22 @@ useEffect(() => {
                             onSetReplyContent={setReplyContent}
                             navigateToUserProfile={navigateToUserProfile}
                             onImagePreview={handleImagePreview}
+                            onShowLikesModal={handleShowLikesModal}
                         />
                     ))
                 )}
                 {isLoadingMore && (
-                            <div className="flex justify-center items-center py-4">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                                <span className="ml-2">Loading more posts...</span>
-                            </div>
-                        )}
-                        
-                        {/* ✅ END OF FEED MESSAGE - Show when no more posts */}
-                        {!hasMore && posts.length > 0 && (
-                            <div className="text-center py-4 text-gray-500">
-                                You've reached the end of the feed
-                            </div>
-                        )}
-                    
+                    <div className="flex justify-center items-center py-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <span className="ml-2">Loading more posts...</span>
+                    </div>
+                )}
+                
+                {!hasMore && posts.length > 0 && (
+                    <div className="text-center py-4 text-gray-500">
+                        You've reached the end of the feed
+                    </div>
+                )}
             </section>
         </div>
     );
