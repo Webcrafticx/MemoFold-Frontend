@@ -6,34 +6,108 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
   const [likes, setLikes] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // ✅ CURSOR PAGINATION STATES - Added new states for pagination
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
     if (isOpen && postId) {
       fetchAllLikes();
+    } else {
+      // ✅ RESET STATES - Reset when modal closes
+      setLikes([]);
+      setNextCursor(null);
+      setHasMore(true);
     }
   }, [isOpen, postId]);
 
   const fetchAllLikes = async () => {
     setIsLoading(true);
     setError(null);
+    setLikes([]); // ✅ Reset likes on new fetch
+    setNextCursor(null);
+    setHasMore(true);
     
     try {
       const responseData = await apiService.fetchPostLikes(postId, token);
-      
-      if (responseData.userIds) {
-        setLikes(responseData.userIds);
-      } else if (responseData.likes && responseData.likes.data) {
-        setLikes(responseData.likes.data);
-      } else if (Array.isArray(responseData)) {
-        setLikes(responseData);
-      } else {
-        setLikes([]);
-      }
+      processLikesResponse(responseData);
     } catch (err) {
       console.error("Error fetching all likes:", err);
       setError(err.message || "Failed to fetch likes");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const processLikesResponse = (responseData) => {
+    let likesData = [];
+    
+    if (responseData.likes && responseData.likes.data) {
+      likesData = responseData.likes.data;
+    } else if (responseData.userIds) {
+      likesData = responseData.userIds;
+    } else if (Array.isArray(responseData)) {
+      likesData = responseData;
+    } else {
+      likesData = [];
+    }
+
+    const cursor = responseData.nextCursor || 
+                  (responseData.likes && responseData.likes.nextCursor) || 
+                  null;
+    
+    setNextCursor(cursor);
+    setHasMore(!!cursor);
+    setLikes(likesData);
+  };
+
+console.log("LikesModal likes:", nextCursor);
+  const loadMoreLikes = async () => {
+    if (!hasMore || isLoadingMore || !nextCursor) return;
+
+    setIsLoadingMore(true);
+    setError(null);
+    
+    try {
+      // ✅ PASS CURSOR TO API - Need to update apiService to accept cursor
+      const responseData = await apiService.fetchPostLikes(postId, token, nextCursor);
+      let newLikesData = [];
+      
+      if (responseData.likes && responseData.likes.data) {
+        newLikesData = responseData.likes.data;
+      } else if (responseData.userIds) {
+        newLikesData = responseData.userIds;
+      } else if (Array.isArray(responseData)) {
+        newLikesData = responseData;
+      }
+
+      const cursor = responseData.nextCursor || 
+                    (responseData.likes && responseData.likes.nextCursor) || 
+                    null;
+      
+      setNextCursor(cursor);
+      setHasMore(!!cursor);
+      
+      // ✅ APPEND NEW LIKES - Add new likes to existing ones
+      setLikes(prevLikes => [...prevLikes, ...newLikesData]);
+
+    } catch (err) {
+      console.error("Error loading more likes:", err);
+      setError("Failed to load more likes: " + err.message);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // ✅ SCROLL HANDLER - New function to handle scroll for infinite loading
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    
+    // ✅ LOAD MORE WHEN NEAR BOTTOM - Trigger when 100px from bottom
+    if (scrollHeight - scrollTop <= clientHeight + 100) {
+      loadMoreLikes();
     }
   };
 
@@ -80,7 +154,10 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
             </div>
             
             {/* Content */}
-            <div className="max-h-[calc(80vh-120px)] overflow-y-auto">
+            <div 
+              className="max-h-[calc(80vh-120px)] overflow-y-auto"
+              onScroll={handleScroll} // ✅ ADDED SCROLL HANDLER
+            >
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <motion.div
@@ -158,6 +235,17 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
                       </div>
                     </motion.div>
                   ))}
+                  
+                  {isLoadingMore && (
+                    <div className="flex justify-center items-center py-4">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"
+                      />
+                      <span className="ml-2 text-sm text-gray-500">Loading more...</span>
+                    </div>
+                  )}                 
                 </div>
               )}
             </div>
@@ -168,6 +256,7 @@ const LikesModal = ({ postId, isOpen, onClose, token, isDarkMode }) => {
             }`}>
               <p className="text-center text-sm text-gray-500">
                 {likes.length} {likes.length === 1 ? 'like' : 'likes'}
+                {hasMore && " • Scroll to load more"}
               </p>
             </div>
           </motion.div>
