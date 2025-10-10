@@ -197,6 +197,12 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                             ? "hover:bg-gray-700"
                                             : "hover:bg-gray-50"
                                     }`}
+                                    onClick={() =>
+                                                handleChat(
+                                                    friend._id,
+                                                    friend.username
+                                                )
+                                            }
                                 >
                                     {/* Avatar */}
                                     <UserAvatar
@@ -205,7 +211,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                     />
 
                                     {/* Friend Info */}
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 cursor-pointer">
                                         <h3
                                             className={`font-semibold truncate ${
                                                 darkMode
@@ -222,19 +228,14 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                                     : "text-gray-500"
                                             }`}
                                         >
-                                            @{friend.username}
+                                            Click to chat
                                         </p>
                                     </div>
 
                                     {/* Action Buttons */}
-                                    <div className="flex gap-2">
+                                    {/* <div className="flex gap-2">
                                         <button
-                                            onClick={() =>
-                                                handleChat(
-                                                    friend._id,
-                                                    friend.username
-                                                )
-                                            }
+                                            
                                             disabled={
                                                 chatLoading === friend._id
                                             }
@@ -261,7 +262,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                                 <FiMessageCircle className="w-5 h-5" />
                                             )}
                                         </button>
-                                        {/* <button
+                                        <button
                                             onClick={() =>
                                                 handleCall(
                                                     friend._id,
@@ -276,8 +277,8 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                             title="Call"
                                         >
                                             <FiPhone className="w-5 h-5" />
-                                        </button> */}
-                                    </div>
+                                        </button>
+                                    </div> */}
                                 </div>
                             ))}
                         </div>
