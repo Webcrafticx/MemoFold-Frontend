@@ -476,7 +476,10 @@ const ProfilePostCard = ({
                     <div className="flex items-center gap-3">
                         <motion.button
                             whileTap={{ scale: 0.9 }}
-                            onClick={(e) => onLike(post._id, e)}
+                            onClick={(e) => {
+                                e.stopPropagation(); // ✅ ADD THIS LINE
+                                onLike(post._id, e);
+                            }}
                             disabled={isLiking}
                             className={`flex items-center gap-1 ${
                                 isLiking

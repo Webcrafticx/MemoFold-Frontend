@@ -1101,41 +1101,51 @@ const ProfilePage = () => {
 
             const isCurrentlyLiked = currentPost.isLiked;
 
-            // Optimistic update
+            // Optimistic update - SAME AS MAIN FEED
             setProfileData((prev) => ({
                 ...prev,
-                posts: prev.posts.map((post) => {
-                    if (post._id === postId) {
-                        const newLikeCount = isCurrentlyLiked
-                            ? Math.max(0, (post.likeCount || 1) - 1)
-                            : (post.likeCount || 0) + 1;
-
-                        let newLikesPreview = [...(post.likesPreview || [])];
-
-                        if (isCurrentlyLiked) {
-                            // Remove current user from likesPreview
-                            newLikesPreview = newLikesPreview.filter(
-                                (like) => like.username !== currentUsername
-                            );
-                        } else {
-                            // Add current user to likesPreview
-                            newLikesPreview.unshift({
-                                username: currentUsername,
-                                realname: profileData.realName,
-                                profilePic: profileData.profilePic,
-                            });
-                        }
-
-                        return {
-                            ...post,
-                            isLiked: !isCurrentlyLiked,
-                            likeCount: newLikeCount,
-                            likesPreview: newLikesPreview,
-                        };
-                    }
-                    return post;
-                }),
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              isLiked: !isCurrentlyLiked,
+                              likeCount: isCurrentlyLiked
+                                  ? Math.max(0, (post.likeCount || 0) - 1)
+                                  : (post.likeCount || 0) + 1,
+                          }
+                        : post
+                ),
             }));
+
+            if (!isCurrentlyLiked) {
+                let rect;
+
+                if (event && event.target) {
+                    const likeButton =
+                        event.target.closest("button") || event.currentTarget;
+                    rect = likeButton.getBoundingClientRect();
+                } else {
+                    rect = {
+                        left: window.innerWidth / 2,
+                        top: window.innerHeight / 2,
+                        width: 0,
+                        height: 0,
+                    };
+                }
+
+                // Floating hearts generate karen - SAME AS MAIN FEED
+                setFloatingHearts((hearts) => {
+                    const newHearts = [
+                        ...hearts,
+                        {
+                            id: Date.now() + Math.random(),
+                            x: rect.left + rect.width / 2,
+                            y: rect.top + rect.height / 2,
+                        },
+                    ];
+                    return newHearts;
+                });
+            }
 
             // API call
             const response = await apiService.likePost(
@@ -1146,25 +1156,23 @@ const ProfilePage = () => {
 
             // Check if API call was actually successful
             if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to like post");
+                throw new Error(response?.message || "Failed to toggle like");
             }
 
-            // Add floating hearts if liking
-            if (!isCurrentlyLiked && event) {
-                const rect = event.target.getBoundingClientRect();
-                const heartCount = 5;
-                for (let i = 0; i < heartCount; i++) {
-                    setTimeout(() => {
-                        setFloatingHearts((hearts) => [
-                            ...hearts,
-                            {
-                                id: Date.now() + i,
-                                x: rect.left + rect.width / 2,
-                                y: rect.top + rect.height / 2,
-                            },
-                        ]);
-                    }, i * 100);
-                }
+            // Final update with server data if needed
+            if (response.likes !== undefined) {
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: prev.posts.map((post) =>
+                        post._id === postId
+                            ? {
+                                  ...post,
+                                  isLiked: !isCurrentlyLiked,
+                                  likeCount: response.likes.length,
+                              }
+                            : post
+                    ),
+                }));
             }
         } catch (error) {
             console.error("Error toggling like:", error);
@@ -1172,20 +1180,18 @@ const ProfilePage = () => {
             // Revert optimistic update on error
             setProfileData((prev) => ({
                 ...prev,
-                posts: prev.posts.map((post) => {
-                    if (post._id === postId) {
-                        return {
-                            ...post,
-                            isLiked: currentPost.isLiked,
-                            likeCount: currentPost.likeCount,
-                            likesPreview: currentPost.likesPreview,
-                        };
-                    }
-                    return post;
-                }),
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              isLiked: currentPost.isLiked,
+                              likeCount: currentPost.likeCount,
+                          }
+                        : post
+                ),
             }));
 
-            toast.error("Unable to like post.");
+            toast.error("Unable to toggle like.");
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }

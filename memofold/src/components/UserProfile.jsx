@@ -709,33 +709,53 @@ const UserProfile = () => {
                 })
             );
 
+            // ✅ IMPROVED: Floating hearts generation - SAME AS MAIN FEED
+            if (!isCurrentlyLiked) {
+                console.log("💖 Generating floating hearts in UserProfile...");
+                let rect;
+
+                if (event && event.target) {
+                    console.log("🎯 Using event target for position");
+                    const likeButton =
+                        event.target.closest("button") || event.currentTarget;
+                    rect = likeButton.getBoundingClientRect();
+                    console.log("📍 Button position:", rect);
+                } else {
+                    console.log("🎯 Using fallback position");
+                    rect = {
+                        left: window.innerWidth / 2,
+                        top: window.innerHeight / 2,
+                        width: 0,
+                        height: 0,
+                    };
+                }
+
+                // Floating hearts generate karen - SAME AS MAIN FEED
+                setFloatingHearts((hearts) => {
+                    const newHearts = [
+                        ...hearts,
+                        {
+                            id: Date.now() + Math.random(),
+                            x: rect.left + rect.width / 2,
+                            y: rect.top + rect.height / 2,
+                        },
+                    ];
+                    console.log(
+                        "❤️ New hearts array in UserProfile:",
+                        newHearts
+                    );
+                    return newHearts;
+                });
+            }
+
             // API call
             await apiService.likePost(postId, user._id, token);
-
-            // Add floating hearts if liking
-            if (!isCurrentlyLiked && e) {
-                const rect = e.target.getBoundingClientRect();
-                const heartCount = 5;
-                for (let i = 0; i < heartCount; i++) {
-                    setTimeout(() => {
-                        setFloatingHearts((hearts) => [
-                            ...hearts,
-                            {
-                                id: Date.now() + i,
-                                x: rect.left + rect.width / 2,
-                                y: rect.top + rect.height / 2,
-                            },
-                        ]);
-                    }, i * 100);
-                }
-            }
         } catch (err) {
             console.error("Error liking post:", err);
 
             // Revert optimistic update on error
-            setUserPosts((prev) => ({
-                ...prev,
-                posts: prev.map((post) => {
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
                     if (post._id === postId) {
                         return {
                             ...post,
@@ -745,8 +765,8 @@ const UserProfile = () => {
                         };
                     }
                     return post;
-                }),
-            }));
+                })
+            );
 
             setError(err.message);
         } finally {
@@ -1172,26 +1192,27 @@ const UserProfile = () => {
         }
     };
 
-    // Floating Hearts Animation Component
+    // Floating Hearts Animation Component - IMPROVED VERSION
     const FloatingHearts = () => (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
             {floatingHearts.map((heart) => (
                 <motion.div
                     key={heart.id}
-                    className="absolute text-red-500 text-xl pointer-events-none"
+                    className="absolute text-red-500 text-2xl pointer-events-none"
                     initial={{
-                        x: heart.x,
-                        y: heart.y,
+                        x: heart.x - 12,
+                        y: heart.y - 12,
                         scale: 0,
                         opacity: 1,
                     }}
                     animate={{
-                        y: heart.y - 100,
-                        scale: [0, 1.2, 1],
-                        opacity: [1, 1, 0],
+                        y: heart.y - 150,
+                        scale: [0, 1.5, 1],
+                        opacity: [1, 0.8, 0],
+                        rotate: [0, -10, 10, 0],
                     }}
                     transition={{
-                        duration: 1.5,
+                        duration: 2,
                         ease: "easeOut",
                     }}
                     onAnimationComplete={() => {
@@ -1500,8 +1521,10 @@ const UserProfile = () => {
             }`}
         >
             {/* Floating Hearts Animation */}
-            <FloatingHearts />
-
+            <FloatingHearts
+                hearts={floatingHearts}
+                setHearts={setFloatingHearts}
+            />
             {/* Likes Modal */}
             <LikesModal
                 postId={likesModal.postId}
@@ -1878,9 +1901,10 @@ const UserProfile = () => {
                                             <div className="flex items-center gap-3">
                                                 <motion.button
                                                     whileTap={{ scale: 0.9 }}
-                                                    onClick={(e) =>
-                                                        handleLike(post._id, e)
-                                                    }
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleLike(post._id, e);
+                                                    }}
                                                     disabled={
                                                         isLiking[post._id]
                                                     }
