@@ -16,6 +16,7 @@
     "browser-image-compression": "^2.0.2",
     "crypto-browserify": "^3.12.1",
     "framer-motion": "^12.23.0",
+    "lucide-react": "^0.545.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.6.0",
