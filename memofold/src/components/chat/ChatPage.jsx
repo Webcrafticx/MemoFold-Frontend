@@ -203,7 +203,7 @@ const ChatPage = () => {
                 {/* Back Button */}
                 <button 
                   onClick={handleBack}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
                   aria-label="Go back"
                 >
                   <svg 
