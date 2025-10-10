@@ -27,7 +27,30 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     const modalRef = useRef(null);
     const contentRef = useRef(null);
 
-    // Handle escape key to close modal
+    useEffect(() => {
+        if (showModal) {
+            // Store current scroll position
+            const scrollY = window.scrollY;
+
+            // Add styles to prevent scrolling
+            document.body.style.position = "fixed";
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.left = "0";
+            document.body.style.right = "0";
+            document.body.style.overflow = "hidden";
+
+            return () => {
+                // Restore scrolling when modal closes
+                const scrollY = document.body.style.top;
+                document.body.style.position = "";
+                document.body.style.top = "";
+                document.body.style.left = "";
+                document.body.style.right = "";
+                document.body.style.overflow = "";
+                window.scrollTo(0, parseInt(scrollY || "0") * -1);
+            };
+        }
+    }, [showModal]); // Handle escape key to close modal
     useEffect(() => {
         const handleEscapeKey = (event) => {
             if (event.key === "Escape") {

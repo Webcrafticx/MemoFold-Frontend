@@ -29,6 +29,8 @@ import config from "../hooks/config";
 import Navbar from "./navbar/navbar";
 import { apiService } from "../services/api";
 import LikesModal from "./mainFeed/LikesModal";
+import FriendsSidebar from "../components/navbar/FriendsSidebar";
+import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -54,6 +56,7 @@ const UserProfile = () => {
     });
     const [isSendingRequest, setIsSendingRequest] = useState(false);
     const [friendRequestStatus, setFriendRequestStatus] = useState(null);
+    const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
 
     // Likes modal state
     const [likesModal, setLikesModal] = useState({
@@ -561,6 +564,9 @@ const UserProfile = () => {
         }
     };
 
+    const handleFriendsClick = () => {
+        setShowFriendsSidebar(!showFriendsSidebar);
+    };
     const handleDeleteReply = async (replyId, commentId, postId, e) => {
         if (e) {
             e.preventDefault();
@@ -1438,24 +1444,7 @@ const UserProfile = () => {
     };
 
     if (isLoading) {
-        return (
-            <div
-                className={`min-h-screen ${
-                    isDarkMode ? "bg-gray-900" : "bg-gray-50"
-                } flex items-center justify-center`}
-            >
-                <div className="text-center">
-                    <div className="inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p
-                        className={`mt-2 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                    >
-                        Loading profile...
-                    </p>
-                </div>
-            </div>
-        );
+        return <ProfileSkeleton isDarkMode={isDarkMode} />;
     }
 
     if (error) {
@@ -1553,6 +1542,12 @@ const UserProfile = () => {
                 </div>
             )}
             <Navbar onDarkModeChange={handleDarkModeChange} />
+            <FriendsSidebar
+                isOpen={showFriendsSidebar}
+                onClose={() => setShowFriendsSidebar(false)}
+                darkMode={isDarkMode}
+                token={token}
+            />
 
             {/* Error Message */}
             {error && (
@@ -1719,19 +1714,14 @@ const UserProfile = () => {
                                     </span>
                                 </div>
                                 <div
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${
+                                    onClick={handleFriendsClick}
+                                    className={`flex items-center gap-1 cursor-pointer sm:gap-2 ${
                                         isDarkMode
-                                            ? "bg-gray-700"
-                                            : "bg-gray-100"
-                                    }`}
+                                            ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
+                                            : "bg-gray-100 hover:bg-gray-200 text-gray-800"
+                                    } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                                 >
-                                    <FaUserFriends
-                                        className={
-                                            isDarkMode
-                                                ? "text-gray-300"
-                                                : "text-gray-600"
-                                        }
-                                    />
+                                    <FaUserFriends className="text-blue-500" />
                                     <span className="text-xs sm:text-sm">
                                         {userStats.friendsCount} Friends
                                     </span>

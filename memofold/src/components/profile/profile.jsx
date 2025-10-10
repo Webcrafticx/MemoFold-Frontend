@@ -23,6 +23,8 @@ import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import LikesModal from "../mainFeed/LikesModal";
+import ProfileSkeleton from "./ProfileSkeleton";
+import FriendsSidebar from "../navbar/FriendsSidebar";
 
 // Services
 import { apiService } from "../../services/api";
@@ -61,6 +63,7 @@ const ProfilePage = () => {
         profilePic: "https://ui-avatars.com/api/?name=User&background=random",
         username: "",
         realName: "",
+        email: "",
         bio: "",
         posts: [],
         stats: { posts: 0, followers: 0, following: 0 },
@@ -126,6 +129,7 @@ const ProfilePage = () => {
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [isLiking, setIsLiking] = useState({});
+    const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
 
     const navigate = useNavigate();
     const mobileMenuRef = useRef(null);
@@ -189,6 +193,7 @@ const ProfilePage = () => {
                     "https://ui-avatars.com/api/?name=User&background=random",
                 username: userData.username || "",
                 realName: userData.realname || "",
+                email: userData.email || "",
             }));
 
             if (result.profile?.description) {
@@ -263,6 +268,8 @@ const ProfilePage = () => {
             }
 
             const postsData = responseData.posts || [];
+            const storedLikes = localStorageService.getStoredLikes();
+
             const currentUsername = localStorage.getItem("username");
 
             const postsWithComments = postsData.map((post) => {
@@ -1338,7 +1345,19 @@ const ProfilePage = () => {
             setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
+    const refreshUserData = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            await fetchUserData(token);
+            await fetchCurrentUserData(token);
+        } catch (error) {
+            console.error("Error refreshing user data:", error);
+        }
+    };
 
+    const handleFriendsClick = () => {
+        setShowFriendsSidebar(!showFriendsSidebar);
+    };
     const handleCloseConfirmationModal = () => {
         setConfirmationModal({
             isOpen: false,
@@ -1376,11 +1395,7 @@ const ProfilePage = () => {
         : "";
 
     if (uiState.loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-        );
+        return <ProfileSkeleton isDarkMode={uiState.darkMode} />;
     }
 
     return (
@@ -1455,13 +1470,33 @@ const ProfilePage = () => {
                         profilePic={profileData.profilePic}
                         username={profileData.username}
                         realName={profileData.realName}
+                        email={profileData.email}
                         bio={profileData.bio}
                         posts={profileData.posts}
+                        stats={profileData.stats}
                         isDarkMode={uiState.darkMode}
                         joinedDate={formattedDate}
                         onProfilePicUpdate={handleProfilePicUpdate}
                         onBioUpdate={handleBioUpdate}
                         uploadingProfilePic={uploadingProfilePic}
+                        apiService={apiService}
+                        toast={toast}
+                        onFriendsClick={handleFriendsClick} // ✅ Add this line
+                        onProfileUpdate={async (result) => {
+                            setProfileData((prev) => ({
+                                ...prev,
+                                username: result.username || prev.username,
+                                email: result.email || prev.email,
+                                bio: result.description || prev.bio,
+                            }));
+                            await refreshUserData();
+                        }}
+                    />
+                    <FriendsSidebar
+                        isOpen={showFriendsSidebar}
+                        onClose={() => setShowFriendsSidebar(false)}
+                        darkMode={uiState.darkMode}
+                        token={localStorage.getItem("token")}
                     />
 
                     <CreatePostSection
