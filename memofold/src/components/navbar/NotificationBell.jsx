@@ -8,7 +8,7 @@ const NotificationBell = ({
 }) => {
     return (
         <button
-            className={`relative p-2 rounded-full transition-colors ${
+            className={`relative cursor-pointer p-2 rounded-full transition-colors ${
                 darkMode
                     ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
                     : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"

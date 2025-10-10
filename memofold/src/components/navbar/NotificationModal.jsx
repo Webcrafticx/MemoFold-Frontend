@@ -355,7 +355,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     };
 
     const getNotificationIcon = (type) => {
-        const iconProps = { className: "text-lg flex-shrink-0" };
+        const iconProps = { className: "text-lg flex-shrink-0 cursor-pointer" };
 
         switch (type) {
             case "comment_like":
@@ -425,43 +425,43 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     if (!showModal) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 pb-4 px-2 sm:pt-20 sm:px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 pb-4 px-2 sm:pt-20 sm:px-4 backdrop-blur-sm cursor-default">
             <div
                 ref={modalRef}
                 className={`w-full max-w-2xl rounded-xl shadow-2xl ${
                     darkMode
                         ? "bg-gray-800 text-white border border-gray-700"
                         : "bg-white text-gray-800 border border-gray-200"
-                } max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100`}
+                } max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 cursor-default`}
                 style={{
                     minHeight: "300px",
                     height: "auto",
                 }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-inherit">
-                    <div className="flex items-center space-x-3">
-                        <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-inherit cursor-default">
+                    <div className="flex items-center space-x-3 cursor-default">
+                        <div className="flex items-center space-x-2 cursor-default">
                             <FaBell
-                                className={`text-lg ${
+                                className={`text-lg cursor-pointer ${
                                     darkMode ? "text-cyan-400" : "text-blue-600"
                                 }`}
                             />
-                            <h3 className="text-lg sm:text-xl font-bold">
+                            <h3 className="text-lg sm:text-xl font-bold cursor-default">
                                 Notifications
                             </h3>
                         </div>
                         {unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-medium rounded-full px-2 py-1 min-w-[20px] text-center">
+                            <span className="bg-red-500 text-white text-xs font-medium rounded-full px-2 py-1 min-w-[20px] text-center cursor-default">
                                 {unreadCount > 99 ? "99+" : unreadCount}
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="flex items-center space-x-2 sm:space-x-3 cursor-default">
                         {unreadCount > 0 && (
                             <button
                                 onClick={markAllAsRead}
-                                className={`text-sm px-3 py-1.5 rounded-lg transition-all font-medium ${
+                                className={`text-sm px-3 py-1.5 rounded-lg transition-all font-medium cursor-pointer ${
                                     darkMode
                                         ? "text-cyan-400 hover:bg-gray-700 active:bg-gray-600"
                                         : "text-blue-600 hover:bg-gray-100 active:bg-gray-200"
@@ -472,14 +472,14 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                         )}
                         <button
                             onClick={onClose}
-                            className={`p-2 rounded-full transition-all ${
+                            className={`p-2 rounded-full transition-all cursor-pointer ${
                                 darkMode
                                     ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700 active:bg-gray-600"
                                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-100 active:bg-gray-200"
                             }`}
                             aria-label="Close notifications"
                         >
-                            <FaTimes className="text-lg" />
+                            <FaTimes className="text-lg cursor-pointer" />
                         </button>
                     </div>
                 </div>
@@ -487,29 +487,31 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 {/* Content */}
                 <div
                     ref={contentRef}
-                    className="flex-1 overflow-y-auto"
+                    className="flex-1 overflow-y-auto cursor-default"
                     style={{ scrollbarWidth: "thin" }}
                 >
                     {isLoading && notifications.length === 0 && (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                        <div className="flex items-center justify-center py-12 cursor-default">
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 cursor-default"></div>
                         </div>
                     )}
 
                     {!isLoading && notifications.length === 0 && (
-                        <div className="text-center py-12 px-4 text-gray-500 dark:text-gray-400">
-                            <div className="text-5xl mb-4 opacity-60">🔔</div>
-                            <p className="text-lg font-medium mb-2">
+                        <div className="text-center py-12 px-4 text-gray-500 dark:text-gray-400 cursor-default">
+                            <div className="text-5xl mb-4 opacity-60 cursor-default">
+                                🔔
+                            </div>
+                            <p className="text-lg font-medium mb-2 cursor-default">
                                 No notifications yet
                             </p>
-                            <p className="text-sm">
+                            <p className="text-sm cursor-default">
                                 When you get notifications, they'll show up here
                             </p>
                         </div>
                     )}
 
                     {notifications.length > 0 && (
-                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700 cursor-default">
                             {notifications.map((notification) => (
                                 <div
                                     key={notification._id}
@@ -534,16 +536,16 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                 >
                                     <div className="flex items-start space-x-3 sm:space-x-4">
                                         {/* Notification Icon */}
-                                        <div className="flex-shrink-0 mt-1">
+                                        <div className="flex-shrink-0 mt-1 cursor-pointer">
                                             {getNotificationIcon(
                                                 notification.type
                                             )}
                                         </div>
 
                                         {/* User Avatar and Content */}
-                                        <div className="flex-1 min-w-0 flex items-start space-x-3">
+                                        <div className="flex-1 min-w-0 flex items-start space-x-3 cursor-pointer">
                                             {/* User Avatar */}
-                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0 cursor-pointer">
                                                 {notification.sender
                                                     ?.profilePic ? (
                                                     <img
@@ -555,7 +557,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                             notification.sender
                                                                 .username
                                                         }
-                                                        className="w-full h-full object-cover"
+                                                        className="w-full h-full object-cover cursor-pointer"
                                                         onError={(e) => {
                                                             e.target.style.display =
                                                                 "none";
@@ -565,7 +567,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                     />
                                                 ) : null}
                                                 <span
-                                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
+                                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-sm cursor-pointer"
                                                     style={
                                                         notification.sender
                                                             ?.profilePic
@@ -583,14 +585,14 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                             </div>
 
                                             {/* Content */}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm sm:text-base leading-relaxed">
+                                            <div className="flex-1 min-w-0 cursor-pointer">
+                                                <p className="text-sm sm:text-base leading-relaxed cursor-pointer">
                                                     {getNotificationMessage(
                                                         notification
                                                     )}
                                                 </p>
                                                 <p
-                                                    className={`text-xs mt-1 ${
+                                                    className={`text-xs mt-1 cursor-pointer ${
                                                         darkMode
                                                             ? "text-gray-400"
                                                             : "text-gray-600"
@@ -604,13 +606,13 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                 {/* Show post preview for notifications with post data */}
                                                 {hasPostData(notification) && (
                                                     <div
-                                                        className={`mt-2 p-2 rounded-lg text-xs ${
+                                                        className={`mt-2 p-2 rounded-lg text-xs cursor-pointer ${
                                                             darkMode
                                                                 ? "bg-gray-700 text-gray-300"
                                                                 : "bg-gray-100 text-gray-600"
                                                         }`}
                                                     >
-                                                        <p className="truncate">
+                                                        <p className="truncate cursor-pointer">
                                                             {notification.postid
                                                                 .content ||
                                                                 "View post"}
@@ -622,7 +624,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                 {notification.type ===
                                                     "friend_request" &&
                                                     !notification.isHandled && (
-                                                        <div className="flex space-x-2 mt-3">
+                                                        <div className="flex space-x-2 mt-3 cursor-pointer">
                                                             <button
                                                                 onClick={(
                                                                     e
@@ -633,7 +635,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                         "accept"
                                                                     );
                                                                 }}
-                                                                className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                                                                className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium cursor-pointer"
                                                             >
                                                                 Accept
                                                             </button>
@@ -647,7 +649,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                         "decline"
                                                                     );
                                                                 }}
-                                                                className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium ${
+                                                                className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium cursor-pointer ${
                                                                     darkMode
                                                                         ? "bg-gray-600 text-gray-200 hover:bg-gray-500"
                                                                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -661,9 +663,9 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                         </div>
 
                                         {/* Unread Indicator and Actions */}
-                                        <div className="flex items-center space-x-2 flex-shrink-0">
+                                        <div className="flex items-center space-x-2 flex-shrink-0 cursor-pointer">
                                             {!notification.read && (
-                                                <FaCircle className="text-blue-500 text-xs animate-pulse" />
+                                                <FaCircle className="text-blue-500 text-xs animate-pulse cursor-pointer" />
                                             )}
                                             <button
                                                 onClick={(e) => {
@@ -672,14 +674,14 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                         notification._id
                                                     );
                                                 }}
-                                                className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 ${
+                                                className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
                                                     darkMode
                                                         ? "text-gray-400 hover:text-cyan-400 hover:bg-gray-700"
                                                         : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
                                                 }`}
                                                 title="Mark as read"
                                             >
-                                                <FaCheck className="text-sm" />
+                                                <FaCheck className="text-sm cursor-pointer" />
                                             </button>
                                         </div>
                                     </div>
@@ -688,14 +690,14 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
 
                             {/* Loading indicator for infinite scroll */}
                             {isLoading && (
-                                <div className="flex items-center justify-center py-6">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                                <div className="flex items-center justify-center py-6 cursor-default">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 cursor-default"></div>
                                 </div>
                             )}
 
                             {/* End of notifications message */}
                             {!hasMore && notifications.length > 0 && (
-                                <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
+                                <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm cursor-default">
                                     You're all caught up! 🎉
                                 </div>
                             )}
