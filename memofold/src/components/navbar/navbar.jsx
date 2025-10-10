@@ -201,17 +201,19 @@ const Navbar = ({ onDarkModeChange }) => {
 
         return (
             <div
-                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold ${textSize}`}
+                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold ${textSize} cursor-pointer`}
             >
                 {!showInitial ? (
                     <img
                         src={profilePic}
                         alt={username}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-pointer"
                         onError={() => setImageError(true)}
                     />
                 ) : (
-                    <span>{username?.charAt(0).toUpperCase() || "U"}</span>
+                    <span className="cursor-pointer">
+                        {username?.charAt(0).toUpperCase() || "U"}
+                    </span>
                 )}
             </div>
         );
@@ -220,7 +222,7 @@ const Navbar = ({ onDarkModeChange }) => {
     return (
         <>
             {/* Sticky Wrapper */}
-            <div className="sticky top-0 z-40 w-full">
+            <div className="sticky top-0 z-40 w-full cursor-default">
                 <div className="max-w-screen pb-4 bg-inherit">
                     {/* Main Navbar */}
                     <div
@@ -248,12 +250,12 @@ const Navbar = ({ onDarkModeChange }) => {
                         <div className="flex items-center space-x-3 md:space-x-4 pr-4">
                             {/* Search Icon - Mobile */}
                             <button
-                                className="md:hidden p-2 rounded-md mobile-search-icon"
+                                className="md:hidden p-2 rounded-md mobile-search-icon cursor-pointer"
                                 onClick={toggleMobileSearch}
                                 aria-label="Search"
                             >
                                 <svg
-                                    className="w-6 h-6"
+                                    className="w-6 h-6 cursor-pointer"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -283,14 +285,14 @@ const Navbar = ({ onDarkModeChange }) => {
                             <div className="relative">
                                 <button
                                     onClick={handleFriendsClick}
-                                    className={`friends-trigger p-2 rounded-md transition-colors ${
+                                    className={`friends-trigger p-2 rounded-md transition-colors cursor-pointer ${
                                         darkMode
                                             ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
                                             : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
                                     }`}
                                     aria-label="Friends"
                                 >
-                                    <FiUsers className="w-6 h-6" />
+                                    <FiUsers className="w-6 h-6 cursor-pointer" />
                                 </button>
                             </div>
 
@@ -331,7 +333,7 @@ const Navbar = ({ onDarkModeChange }) => {
                     {showMobileSearch && (
                         <div
                             ref={mobileSearchRef}
-                            className={`md:hidden mt-2 py-3 px-4 rounded-xl ${
+                            className={`md:hidden mt-2 py-3 px-4 rounded-xl cursor-default ${
                                 darkMode ? "bg-gray-800" : "bg-white"
                             } shadow-md`}
                         >

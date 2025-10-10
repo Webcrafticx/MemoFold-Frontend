@@ -711,17 +711,13 @@ const UserProfile = () => {
 
             // ✅ IMPROVED: Floating hearts generation - SAME AS MAIN FEED
             if (!isCurrentlyLiked) {
-                console.log("💖 Generating floating hearts in UserProfile...");
                 let rect;
 
                 if (event && event.target) {
-                    console.log("🎯 Using event target for position");
                     const likeButton =
                         event.target.closest("button") || event.currentTarget;
                     rect = likeButton.getBoundingClientRect();
-                    console.log("📍 Button position:", rect);
                 } else {
-                    console.log("🎯 Using fallback position");
                     rect = {
                         left: window.innerWidth / 2,
                         top: window.innerHeight / 2,
@@ -740,10 +736,7 @@ const UserProfile = () => {
                             y: rect.top + rect.height / 2,
                         },
                     ];
-                    console.log(
-                        "❤️ New hearts array in UserProfile:",
-                        newHearts
-                    );
+
                     return newHearts;
                 });
             }
