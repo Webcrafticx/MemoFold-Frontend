@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../navbar/navbar";
@@ -29,7 +29,9 @@ const MainFeed = () => {
     const [isLikingComment, setIsLikingComment] = useState({});
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [likeCooldown, setLikeCooldown] = useState({});
-
+  const [nextCursor, setNextCursor] = useState(null);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
 
@@ -58,7 +60,100 @@ const MainFeed = () => {
     useEffect(() => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
+    const loadMorePosts = useCallback(async () => {
+        if (!hasMore || isLoadingMore || !nextCursor) return;
 
+        setIsLoadingMore(true);
+        setError(null);
+
+        try {
+            // ✅ CURSOR PARAMETER - Pass cursor to API call
+            const data = await apiService.fetchPosts(token, nextCursor);
+            const newPosts = Array.isArray(data) ? data : data.posts || [];
+            
+            // ✅ UPDATE CURSOR - Get next cursor from response
+            const cursor = data.nextCursor || null;
+            setNextCursor(cursor);
+            setHasMore(!!cursor);
+
+            if (newPosts.length === 0) {
+                setHasMore(false);
+                setIsLoadingMore(false);
+                return;
+            }
+
+            // Get stored data from localStorage
+            const storedLikes = localStorageService.getStoredLikes();
+            const storedLikesPreview = localStorageService.getStoredLikesPreview();
+            const storedLikesCount = localStorageService.getStoredLikesCount();
+
+            const postsWithLikes = newPosts.map((post) => {
+                const postLikes = post.likes || storedLikes[post._id] || [];
+                const postLikesPreview = post.likesPreview || storedLikesPreview[post._id] || [];
+                const postLikesCount = post.likesCount || storedLikesCount[post._id] || postLikes.length;
+
+                const hasUserLiked = postLikes.includes(user._id) ||
+                    postLikes.includes(username) ||
+                    (postLikesPreview && postLikesPreview.some((like) => like.username === username));
+
+                const processedComments = [];
+
+                return {
+                    ...post,
+                    likes: postLikes,
+                    likesPreview: postLikesPreview,
+                    likesCount: postLikesCount,
+                    hasUserLiked: hasUserLiked,
+                    createdAt: post.createdAt || new Date().toISOString(),
+                    comments: processedComments,
+                    commentCount: post.commentCount || 0,
+                };
+            });
+
+            // ✅ APPEND NEW POSTS - Add new posts to existing ones
+            setPosts(prevPosts => [...prevPosts, ...postsWithLikes]);
+
+            // Update localStorage with new posts data
+            const likesByPost = {};
+            const likesPreviewByPost = {};
+            const likesCountByPost = {};
+
+            newPosts.forEach((post) => {
+                likesByPost[post._id] = post.likes || storedLikes[post._id] || [];
+                likesPreviewByPost[post._id] = post.likesPreview || storedLikesPreview[post._id] || [];
+                likesCountByPost[post._id] = post.likesCount || storedLikesCount[post._id] || likesByPost[post._id].length;
+            });
+
+            localStorageService.updateStoredLikes(likesByPost);
+            localStorageService.updateStoredLikesPreview(likesPreviewByPost);
+            localStorageService.updateStoredLikesCount(likesCountByPost);
+
+        } catch (err) {
+            setError("Failed to load more posts: " + err.message);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [nextCursor, hasMore, isLoadingMore, token, user._id, username]);
+ // ✅ FIXED SCROLL EVENT LISTENER - Updated to properly detect scroll position
+useEffect(() => {
+    const handleScroll = () => {
+        // Don't trigger if already loading or no more posts
+        if (isLoadingMore || !hasMore || !nextCursor) return;
+        
+        const scrollTop = document.documentElement.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = document.documentElement.clientHeight;
+        
+        // ✅ FIXED: Check if user has scrolled near the bottom (100px from bottom)
+        if (scrollTop + clientHeight >= scrollHeight - 100) {
+            loadMorePosts();
+        }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+}, [isLoadingMore, hasMore, nextCursor, loadMorePosts]);
+ // ✅ Added loadMorePosts to dependencies
     // Load activeReplies from localStorage on component mount - FIXED
     useEffect(() => {
         const storedActiveReplies = localStorageService.getActiveReplies();
@@ -85,13 +180,18 @@ const MainFeed = () => {
         }
     };
 
-    const fetchPosts = async () => {
+  const fetchPosts = async () => {
         setIsLoading(true);
         setError(null);
 
         try {
             const data = await apiService.fetchPosts(token);
             const postsData = Array.isArray(data) ? data : data.posts || [];
+            
+            // ✅ CURSOR EXTRACTION - Get cursor from response if available
+            const cursor = data.nextCursor || null;
+            setNextCursor(cursor);
+            setHasMore(!!cursor); // Set hasMore based on whether there's a next cursor
 
             // Get stored data from localStorage
             const storedLikes = localStorageService.getStoredLikes();
@@ -148,6 +248,8 @@ const MainFeed = () => {
             setIsLoading(false);
         }
     };
+
+    // ✅ LOAD MORE POSTS - New function to load additional posts with cursor
 
     const fetchComments = async (postId) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
@@ -1000,6 +1102,20 @@ const MainFeed = () => {
                         />
                     ))
                 )}
+                {isLoadingMore && (
+                            <div className="flex justify-center items-center py-4">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                <span className="ml-2">Loading more posts...</span>
+                            </div>
+                        )}
+                        
+                        {/* ✅ END OF FEED MESSAGE - Show when no more posts */}
+                        {!hasMore && posts.length > 0 && (
+                            <div className="text-center py-4 text-gray-500">
+                                You've reached the end of the feed
+                            </div>
+                        )}
+                    
             </section>
         </div>
     );

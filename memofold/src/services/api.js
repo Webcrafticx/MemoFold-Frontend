@@ -95,22 +95,44 @@ ensureUsersExist: async (token, users) => {
   },
 
   // Post endpoints
-  fetchPosts: async (token) => {
-    const response = await fetch(`${config.apiUrl}/posts`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.json();
-  },
+ // In your apiService.js
+fetchPosts: async (token, cursor = null) => {
+  const params = new URLSearchParams();
+  if (cursor) {
+    params.append('cursor', cursor); // ✅ Added cursor parameter
+  }
+  const url = `${config.apiUrl}/posts${params.toString() ? `?${params.toString()}` : ''}`;
+  
+  const response = await fetch(url, {
+    headers: { 
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return response.json();
+},
 
-  fetchPostLikes: async (postId, token) => {
-    const response = await fetch(`${config.apiUrl}/posts/${postId}/likes`, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.json();
-  },
+fetchPostLikes: async (postId, token, cursor = null) => {
+  const params = new URLSearchParams();
+  if (cursor) {
+    params.append('cursor', cursor); 
+  }
+  
+  const url = `${config.apiUrl}/posts/${postId}/likes${params.toString() ? `?${params.toString()}` : ''}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.json();
+},
 
   fetchComments: async (postId, token) => {
     const response = await fetch(`${config.apiUrl}/posts/${postId}/comments`, {
