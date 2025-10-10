@@ -52,12 +52,12 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
         try {
             setChatLoading(friendId);
             console.log("Starting chat with:", friendId, username);
-            
+
             const tokenData = await apiService.getStreamToken(token);
-            
+
             if (tokenData && tokenData.token) {
                 navigate(`/chat/${friendId}`);
-                onClose(); 
+                onClose();
             } else {
                 console.error("Failed to get stream token");
             }
@@ -70,7 +70,6 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
 
     const handleCall = (friendId, username) => {
         console.log("Call:", friendId, username);
-        
     };
 
     const UserAvatar = ({ profilePic, username }) => {
@@ -236,25 +235,33 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                                     friend.username
                                                 )
                                             }
-                                            disabled={chatLoading === friend._id}
+                                            disabled={
+                                                chatLoading === friend._id
+                                            }
                                             className={`p-2 rounded-full transition-colors ${
                                                 darkMode
                                                     ? "hover:bg-cyan-600 text-cyan-400"
                                                     : "hover:bg-blue-100 text-blue-600"
                                             } ${
-                                                chatLoading === friend._id ? "opacity-50 cursor-not-allowed" : ""
+                                                chatLoading === friend._id
+                                                    ? "opacity-50 cursor-not-allowed"
+                                                    : ""
                                             }`}
                                             title="Chat"
                                         >
                                             {chatLoading === friend._id ? (
-                                                <div className={`animate-spin rounded-full h-5 w-5 border-b-2 ${
-                                                    darkMode ? "border-cyan-400" : "border-blue-600"
-                                                }`} />
+                                                <div
+                                                    className={`animate-spin rounded-full h-5 w-5 border-b-2 ${
+                                                        darkMode
+                                                            ? "border-cyan-400"
+                                                            : "border-blue-600"
+                                                    }`}
+                                                />
                                             ) : (
                                                 <FiMessageCircle className="w-5 h-5" />
                                             )}
                                         </button>
-                                        <button
+                                        {/* <button
                                             onClick={() =>
                                                 handleCall(
                                                     friend._id,
@@ -269,7 +276,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                                             title="Call"
                                         >
                                             <FiPhone className="w-5 h-5" />
-                                        </button>
+                                        </button> */}
                                     </div>
                                 </div>
                             ))}

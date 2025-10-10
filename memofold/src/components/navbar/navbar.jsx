@@ -219,125 +219,133 @@ const Navbar = ({ onDarkModeChange }) => {
 
     return (
         <>
-            <div className="max-w-screen pb-4">
-                <div
-                    className={`flex justify-between items-center py-4 rounded-xl px-4 md:px-8 ${
-                        darkMode ? "bg-gray-800" : "bg-white"
-                    } shadow-md relative`}
-                >
-                    {/* Left Section: Logo */}
-                    <Logo
-                        darkMode={darkMode}
-                        navigateToMain={() => navigate("/feed")}
-                    />
-
-                    {/* Center Section: Search Bar */}
-                    <div className="hidden md:block flex-1 max-w-lg mx-4">
-                        <SearchBar
+            {/* Sticky Wrapper */}
+            <div className="sticky top-0 z-40 w-full">
+                <div className="max-w-screen pb-4 bg-inherit">
+                    {/* Main Navbar */}
+                    <div
+                        className={`flex justify-between items-center py-4 rounded-xl px-4 md:px-8 ${
+                            darkMode ? "bg-gray-800" : "bg-white"
+                        } shadow-md relative`}
+                    >
+                        {/* Left Section: Logo */}
+                        <Logo
                             darkMode={darkMode}
-                            token={token}
-                            currentUserProfile={currentUserProfile}
-                            navigate={navigate}
+                            navigateToMain={() => navigate("/feed")}
                         />
-                    </div>
 
-                    {/* Right Section */}
-                    <div className="flex items-center space-x-3 md:space-x-4 pr-4">
-                        {/* Search Icon - Mobile */}
-                        <button
-                            className="md:hidden p-2 rounded-md mobile-search-icon"
-                            onClick={toggleMobileSearch}
-                            aria-label="Search"
-                        >
-                            <svg
-                                className="w-6 h-6"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                xmlns="http://www.w3.org/2000/svg"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                />
-                            </svg>
-                        </button>
-
-                        {/* Notification Bell */}
-                        <div className="relative cursor-pointer">
-                            <NotificationBell
+                        {/* Center Section: Search Bar */}
+                        <div className="hidden md:block flex-1 max-w-lg mx-4">
+                            <SearchBar
                                 darkMode={darkMode}
-                                unreadNotifications={unreadNotifications}
-                                onNotificationClick={handleNotificationClick}
+                                token={token}
+                                currentUserProfile={currentUserProfile}
+                                navigate={navigate}
                             />
                         </div>
 
-                        {/* Friends Icon */}
-                        <div className="relative">
+                        {/* Right Section */}
+                        <div className="flex items-center space-x-3 md:space-x-4 pr-4">
+                            {/* Search Icon - Mobile */}
                             <button
-                                onClick={handleFriendsClick}
-                                className={`friends-trigger p-2 rounded-md transition-colors ${
-                                    darkMode
-                                        ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
-                                        : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
-                                }`}
-                                aria-label="Friends"
+                                className="md:hidden p-2 rounded-md mobile-search-icon"
+                                onClick={toggleMobileSearch}
+                                aria-label="Search"
                             >
-                                <FiUsers className="w-6 h-6" />
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                    />
+                                </svg>
                             </button>
-                        </div>
 
-                        {/* Profile Section */}
-                        <div className="relative">
-                            <div
-                                ref={profileTriggerRef}
-                                className="profile-trigger cursor-pointer border-2 border-blue-500 rounded-full p-1"
-                                onClick={handleProfileClick}
-                            >
-                                <UserAvatar
-                                    profilePic={profilePic}
-                                    username={username}
-                                    size="sm"
+                            {/* Notification Bell */}
+                            <div className="relative cursor-pointer">
+                                <NotificationBell
+                                    darkMode={darkMode}
+                                    unreadNotifications={unreadNotifications}
+                                    onNotificationClick={
+                                        handleNotificationClick
+                                    }
                                 />
                             </div>
 
-                            {/* Profile Dropdown */}
-                            <ProfileDropdown
-                                darkMode={darkMode}
-                                profilePic={profilePic}
-                                username={username}
-                                realname={realname}
-                                showProfileDropdown={showProfileDropdown}
-                                setShowProfileDropdown={setShowProfileDropdown}
-                                profileDropdownRef={profileDropdownRef}
-                                toggleDarkMode={toggleDarkMode}
-                                navigate={navigate}
-                                logout={logout}
-                            />
+                            {/* Friends Icon */}
+                            <div className="relative">
+                                <button
+                                    onClick={handleFriendsClick}
+                                    className={`friends-trigger p-2 rounded-md transition-colors ${
+                                        darkMode
+                                            ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
+                                            : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
+                                    }`}
+                                    aria-label="Friends"
+                                >
+                                    <FiUsers className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            {/* Profile Section */}
+                            <div className="relative">
+                                <div
+                                    ref={profileTriggerRef}
+                                    className="profile-trigger cursor-pointer border-2 border-blue-500 rounded-full p-1"
+                                    onClick={handleProfileClick}
+                                >
+                                    <UserAvatar
+                                        profilePic={profilePic}
+                                        username={username}
+                                        size="sm"
+                                    />
+                                </div>
+
+                                {/* Profile Dropdown */}
+                                <ProfileDropdown
+                                    darkMode={darkMode}
+                                    profilePic={profilePic}
+                                    username={username}
+                                    realname={realname}
+                                    showProfileDropdown={showProfileDropdown}
+                                    setShowProfileDropdown={
+                                        setShowProfileDropdown
+                                    }
+                                    profileDropdownRef={profileDropdownRef}
+                                    toggleDarkMode={toggleDarkMode}
+                                    navigate={navigate}
+                                    logout={logout}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Mobile Search Bar */}
-                {showMobileSearch && (
-                    <div
-                        ref={mobileSearchRef}
-                        className={`md:hidden mt-2 py-3 px-4 rounded-xl ${
-                            darkMode ? "bg-gray-800" : "bg-white"
-                        } shadow-md`}
-                    >
-                        <SearchBar
-                            darkMode={darkMode}
-                            token={token}
-                            currentUserProfile={currentUserProfile}
-                            navigate={navigate}
-                            isMobile={true}
-                            onSearch={() => setShowMobileSearch(false)}
-                        />
-                    </div>
-                )}
+                    {/* Mobile Search Bar */}
+                    {showMobileSearch && (
+                        <div
+                            ref={mobileSearchRef}
+                            className={`md:hidden mt-2 py-3 px-4 rounded-xl ${
+                                darkMode ? "bg-gray-800" : "bg-white"
+                            } shadow-md`}
+                        >
+                            <SearchBar
+                                darkMode={darkMode}
+                                token={token}
+                                currentUserProfile={currentUserProfile}
+                                navigate={navigate}
+                                isMobile={true}
+                                onSearch={() => setShowMobileSearch(false)}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Notification Modal */}

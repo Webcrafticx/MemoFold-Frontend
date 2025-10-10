@@ -21,30 +21,8 @@ const ProfileHeader = ({
     onFriendsClick,
     onProfileUpdate,
 }) => {
-    const [editingBio, setEditingBio] = useState(false);
-    const [newBio, setNewBio] = useState(bio);
-    const [updatingBio, setUpdatingBio] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const profilePicInputRef = useRef(null);
-
-    // Update bio when prop changes
-    React.useEffect(() => {
-        setNewBio(bio);
-    }, [bio]);
-
-    const handleBioUpdate = async () => {
-        if (!newBio.trim()) return;
-
-        setUpdatingBio(true);
-        try {
-            await onBioUpdate(newBio);
-            setEditingBio(false);
-        } catch (error) {
-            console.error("Bio update failed:", error);
-        } finally {
-            setUpdatingBio(false);
-        }
-    };
 
     const handleProfileSave = (updatedData) => {
         if (onProfileUpdate) {
@@ -151,73 +129,19 @@ const ProfileHeader = ({
                             </p>
                         </div>
 
+                        {/* Bio section - simplified without inline editing */}
                         <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                            {editingBio ? (
-                                <div className="flex-1 flex flex-col gap-2">
-                                    <textarea
-                                        value={newBio}
-                                        onChange={(e) =>
-                                            setNewBio(e.target.value)
-                                        }
-                                        className={`w-full p-2 rounded-lg ${
-                                            isDarkMode
-                                                ? "bg-gray-700 text-white"
-                                                : "bg-gray-100 text-gray-800"
-                                        } focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-text`}
-                                        rows="2"
-                                        maxLength="200"
-                                        placeholder="Tell us about yourself..."
-                                    />
-                                    <div className="flex gap-2 justify-start">
-                                        <button
-                                            onClick={handleBioUpdate}
-                                            disabled={updatingBio}
-                                            className={`px-3 py-1 rounded-lg font-medium ${
-                                                updatingBio
-                                                    ? "bg-blue-400 cursor-not-allowed"
-                                                    : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                                            } text-white transition-colors`}
-                                        >
-                                            {updatingBio ? "Saving..." : "Save"}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setEditingBio(false);
-                                                setNewBio(bio);
-                                            }}
-                                            className={`px-3 py-1 rounded-lg font-medium ${
-                                                updatingBio
-                                                    ? "bg-red-400 cursor-not-allowed"
-                                                    : "bg-red-500 hover:bg-red-600 cursor-pointer"
-                                            } text-white transition-colors`}
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-row items-center">
-                                    <p
-                                        className={`text-center sm:text-left flex-1 ${
-                                            isDarkMode
-                                                ? "text-gray-300"
-                                                : "text-gray-600"
-                                        } cursor-default`}
-                                    >
-                                        {bio ||
-                                            "No bio yet. Click the edit button to add one."}
-                                    </p>
-                                    <button
-                                        onClick={() =>
-                                            setEditingBio(!editingBio)
-                                        }
-                                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                                        aria-label="Edit bio"
-                                    >
-                                        <FaEdit className="text-lg" />
-                                    </button>
-                                </div>
-                            )}
+                            <div className="flex flex-row items-center w-full">
+                                <p
+                                    className={`text-center sm:text-left flex-1 ${
+                                        isDarkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-600"
+                                    } cursor-default`}
+                                >
+                                    {bio || "No bio yet."}
+                                </p>
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6 justify-center sm:justify-start">
@@ -266,6 +190,7 @@ const ProfileHeader = ({
                 onClose={() => setIsEditModalOpen(false)}
                 currentUsername={username}
                 currentEmail={email || ""}
+                currentBio={bio} // Pass current bio to modal
                 isDarkMode={isDarkMode}
                 onSave={handleProfileSave}
                 apiService={apiService}
