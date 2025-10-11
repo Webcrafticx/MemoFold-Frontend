@@ -137,16 +137,36 @@ const ChatPage = () => {
     navigate(-1); // Previous page par navigate karega
   };
 
+  
   const handleVideoCall = async () => {
     if (isSendingCall || !channel) return;
     setIsSendingCall(true);
 
     try {
-      const callUrl = `${window.location.origin}/call/${channel.id}`;
-      window.open(callUrl, '_blank', 'noopener,noreferrer');
-      await channel.sendMessage({
-        text: `📞 Incoming video call \n\n 🔗[Join Now](${callUrl})`, 
-      });
+      const relativeUrl = `/call/${channel.id}`;
+const fullUrl = `${window.location.origin}${relativeUrl}`;
+
+await channel.sendMessage({
+  text: `🔗[Join Now](${fullUrl})`,
+  attachments: [
+    {
+      type: "video_call",
+      title: "👥 Incoming Video Call",
+      description: "Tap below to join the live video session",
+      actions: [
+        {
+          name: "incoming_call",
+          text: "Incoming Video Call",
+          value: "incoming_call",
+          // url: fullUrl,
+        },
+      ],
+    },
+  ],
+});
+
+window.open(fullUrl, '_blank', 'noopener,noreferrer');
+
 
       toast.success("Video call invitation sent!");
     } catch (error) {
@@ -181,8 +201,8 @@ const ChatPage = () => {
       <Chat client={chatClient}>
         <Channel channel={channel}>
           <div className="w-full h-full flex flex-col">
-            {/* ✅ Custom Header with Back Button */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+            {/*  Custom Header with Back Button */}
+            <div className="flex items-center justify-between px-4 border-b border-gray-200 bg-white">
               <div className="flex items-center space-x-3">
                 {/* Back Button */}
                 <button 
@@ -205,12 +225,18 @@ const ChatPage = () => {
                   </svg>
                 </button>
                 
-                {/* User Avatar */}
-                <img
-                  src={targetUser?.image || "/default-avatar.png"}
-                  alt="avatar"
-                  className="w-10 h-10 rounded-full object-cover"
-                />
+                {/* User Avatar with Initial Fallback */}
+{targetUser?.image ? (
+  <img
+    src={targetUser.image}
+    alt="avatar"
+    className="w-10 h-10 rounded-full object-cover"
+  />
+) : (
+  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+    {targetUser?.name?.charAt(0).toUpperCase() || "U"}
+  </div>
+)}
                 
                 {/* User Info */}
                 <div>
