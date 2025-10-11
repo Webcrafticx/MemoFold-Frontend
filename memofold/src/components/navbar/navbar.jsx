@@ -18,6 +18,7 @@ const Navbar = ({ onDarkModeChange }) => {
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [unreadMessages, setUnreadMessages] = useState(0);
 
     const { token, username, realname, logout } = useAuth();
     const [profilePic, setProfilePic] = useState(
@@ -44,7 +45,6 @@ const Navbar = ({ onDarkModeChange }) => {
     // Outside click handling
     useEffect(() => {
         const handleClickOutside = (event) => {
-            // Profile dropdown close
             if (
                 showProfileDropdown &&
                 profileDropdownRef.current &&
@@ -54,7 +54,6 @@ const Navbar = ({ onDarkModeChange }) => {
                 setShowProfileDropdown(false);
             }
 
-            // Mobile search close
             if (
                 showMobileSearch &&
                 mobileSearchRef.current &&
@@ -93,6 +92,7 @@ const Navbar = ({ onDarkModeChange }) => {
                     localStorage.setItem("email", userData.email);
                     localStorage.setItem("createdAt", userData.createdAt);
                     localStorage.setItem("updatedAt", userData.updatedAt);
+                    localStorage.setItem("user", JSON.stringify(userData));
 
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
@@ -166,19 +166,85 @@ const Navbar = ({ onDarkModeChange }) => {
         }
     };
 
-    // Regular polling for notifications - ADD THIS
+    // Regular polling for notifications
     useEffect(() => {
         if (!token) return;
 
-        // Fetch count immediately
         fetchUnreadCount();
-
-        // Set up polling every 30 seconds
         const intervalId = setInterval(fetchUnreadCount, 30000);
 
-        // Cleanup
         return () => clearInterval(intervalId);
     }, [token]);
+
+    // Fetch unread messages count independently (without opening sidebar)
+    useEffect(() => {
+        const fetchUnreadMessagesCount = async () => {
+            if (!token || !currentUserProfile?._id) return;
+
+            try {
+                const { StreamChat } = await import("stream-chat");
+                const apiService = (await import("../../services/api")).apiService;
+                
+                const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
+                const tokenData = await apiService.getStreamToken(token);
+                
+                if (!tokenData?.token) return;
+
+                const client = StreamChat.getInstance(STREAM_API_KEY);
+                
+                // Connect only if not already connected
+                if (!client.userID) {
+                    await client.connectUser(
+                        {
+                            id: currentUserProfile._id,
+                            name: currentUserProfile.realname || currentUserProfile.username,
+                            image: currentUserProfile.profilePic,
+                        },
+                        tokenData.token
+                    );
+                }
+
+                // Get all channels for this user
+                const filter = { 
+                    type: 'messaging', 
+                    members: { $in: [currentUserProfile._id] } 
+                };
+                const sort = [{ last_message_at: -1 }];
+                
+                const channels = await client.queryChannels(filter, sort, {
+                    watch: false,
+                    state: true,
+                });
+
+                // Count total unread messages
+                let totalUnread = 0;
+                for (const channel of channels) {
+                    const unread = channel.countUnread();
+                    totalUnread += unread;
+                }
+
+                setUnreadMessages(totalUnread);
+
+            } catch (error) {
+                console.error("Error fetching unread messages count:", error);
+            }
+        };
+
+        if (currentUserProfile) {
+            fetchUnreadMessagesCount();
+            
+            // Poll every 10 seconds
+            const intervalId = setInterval(fetchUnreadMessagesCount, 10000);
+            
+            return () => clearInterval(intervalId);
+        }
+    }, [token, currentUserProfile]);
+
+    // Update unread messages count from FriendsSidebar
+    const handleUnreadMessagesUpdate = (count) => {
+        console.log("Unread messages count updated:", count);
+        setUnreadMessages(count);
+    };
 
     const toggleMobileSearch = () => {
         setShowMobileSearch(!showMobileSearch);
@@ -221,22 +287,18 @@ const Navbar = ({ onDarkModeChange }) => {
 
     return (
         <>
-            {/* Sticky Wrapper */}
             <div className="sticky top-0 z-40 w-full cursor-default">
                 <div className="max-w-screen pb-4 bg-inherit">
-                    {/* Main Navbar */}
                     <div
                         className={`flex justify-between items-center py-4 rounded-xl px-4 md:px-8 ${
                             darkMode ? "bg-gray-800" : "bg-white"
                         } shadow-md relative`}
                     >
-                        {/* Left Section: Logo */}
                         <Logo
                             darkMode={darkMode}
                             navigateToMain={() => navigate("/feed")}
                         />
 
-                        {/* Center Section: Search Bar */}
                         <div className="hidden md:block flex-1 max-w-lg mx-4">
                             <SearchBar
                                 darkMode={darkMode}
@@ -246,9 +308,7 @@ const Navbar = ({ onDarkModeChange }) => {
                             />
                         </div>
 
-                        {/* Right Section */}
                         <div className="flex items-center space-x-3 md:space-x-4 pr-4">
-                            {/* Search Icon - Mobile */}
                             <button
                                 className="md:hidden p-2 rounded-md mobile-search-icon cursor-pointer"
                                 onClick={toggleMobileSearch}
@@ -270,22 +330,19 @@ const Navbar = ({ onDarkModeChange }) => {
                                 </svg>
                             </button>
 
-                            {/* Notification Bell */}
                             <div className="relative cursor-pointer">
                                 <NotificationBell
                                     darkMode={darkMode}
                                     unreadNotifications={unreadNotifications}
-                                    onNotificationClick={
-                                        handleNotificationClick
-                                    }
+                                    onNotificationClick={handleNotificationClick}
                                 />
                             </div>
 
-                            {/* Friends Icon */}
+                            {/* Friends Icon with Unread Badge */}
                             <div className="relative">
                                 <button
                                     onClick={handleFriendsClick}
-                                    className={`friends-trigger p-2 rounded-md transition-colors cursor-pointer ${
+                                    className={`friends-trigger p-2 rounded-md transition-colors cursor-pointer relative ${
                                         darkMode
                                             ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
                                             : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
@@ -293,10 +350,14 @@ const Navbar = ({ onDarkModeChange }) => {
                                     aria-label="Friends"
                                 >
                                     <FiUsers className="w-6 h-6 cursor-pointer" />
+                                    {unreadMessages > 0 && (
+                                        <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
+                                            {unreadMessages > 99 ? "99+" : unreadMessages}
+                                        </span>
+                                    )}
                                 </button>
                             </div>
 
-                            {/* Profile Section */}
                             <div className="relative">
                                 <div
                                     ref={profileTriggerRef}
@@ -310,16 +371,13 @@ const Navbar = ({ onDarkModeChange }) => {
                                     />
                                 </div>
 
-                                {/* Profile Dropdown */}
                                 <ProfileDropdown
                                     darkMode={darkMode}
                                     profilePic={profilePic}
                                     username={username}
                                     realname={realname}
                                     showProfileDropdown={showProfileDropdown}
-                                    setShowProfileDropdown={
-                                        setShowProfileDropdown
-                                    }
+                                    setShowProfileDropdown={setShowProfileDropdown}
                                     profileDropdownRef={profileDropdownRef}
                                     toggleDarkMode={toggleDarkMode}
                                     navigate={navigate}
@@ -329,7 +387,6 @@ const Navbar = ({ onDarkModeChange }) => {
                         </div>
                     </div>
 
-                    {/* Mobile Search Bar */}
                     {showMobileSearch && (
                         <div
                             ref={mobileSearchRef}
@@ -350,19 +407,18 @@ const Navbar = ({ onDarkModeChange }) => {
                 </div>
             </div>
 
-            {/* Notification Modal */}
             <NotificationModal
                 showModal={showNotificationModal}
                 onClose={handleNotificationModalClose}
                 darkMode={darkMode}
             />
 
-            {/* Friends Sidebar */}
             <FriendsSidebar
                 isOpen={showFriendsSidebar}
                 onClose={handleFriendsSidebarClose}
                 darkMode={darkMode}
                 token={token}
+                onUnreadCountUpdate={handleUnreadMessagesUpdate}
             />
         </>
     );

@@ -3,19 +3,76 @@ import { FiMessageCircle, FiPhone, FiX, FiSearch } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import config from "../../hooks/config";
 import { apiService } from "../../services/api";
+import { StreamChat } from "stream-chat";
 
-const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
+const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
+
+const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate }) => {
     const [friends, setFriends] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [chatLoading, setChatLoading] = useState(null);
+    const [chatClient, setChatClient] = useState(null);
+    const [friendsWithUnread, setFriendsWithUnread] = useState({});
+    const [totalUnreadCount, setTotalUnreadCount] = useState(0);
     const navigate = useNavigate();
 
+    // Initialize Stream Chat Client
+    useEffect(() => {
+        const initStreamClient = async () => {
+            if (!token || !isOpen) return;
+
+            try {
+                const tokenData = await apiService.getStreamToken(token);
+                const authUser = JSON.parse(localStorage.getItem("user") || "{}");
+                
+                if (tokenData?.token && authUser._id) {
+                    const client = StreamChat.getInstance(STREAM_API_KEY);
+                    
+                    if (!client.userID) {
+                        await client.connectUser(
+                            {
+                                id: authUser._id,
+                                name: authUser.realname || authUser.username,
+                                image: authUser.profilePic,
+                            },
+                            tokenData.token
+                        );
+                    }
+                    
+                    setChatClient(client);
+                }
+            } catch (error) {
+                console.error("Error initializing Stream client:", error);
+            }
+        };
+
+        initStreamClient();
+
+        return () => {
+            if (chatClient && isOpen === false) {
+                chatClient.disconnectUser().catch(console.error);
+            }
+        };
+    }, [token, isOpen]);
+
+    // Fetch Friends List
     useEffect(() => {
         if (isOpen && token) {
             fetchFriends();
         }
     }, [isOpen, token]);
+
+    // Fetch Unread Messages Count
+    useEffect(() => {
+        if (chatClient && friends.length > 0) {
+            fetchUnreadMessages();
+            
+            // Poll every 5 seconds for updates
+            const interval = setInterval(fetchUnreadMessages, 5000);
+            return () => clearInterval(interval);
+        }
+    }, [chatClient, friends]);
 
     const fetchFriends = async () => {
         try {
@@ -40,7 +97,71 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
         }
     };
 
-    const filteredFriends = friends.filter(
+    const fetchUnreadMessages = async () => {
+        if (!chatClient) return;
+
+        try {
+            const authUserId = chatClient.userID;
+            const unreadData = {};
+            let totalUnread = 0;
+
+            for (const friend of friends) {
+                const channelId = [authUserId, friend._id].sort().join("-");
+                
+                try {
+                    const channel = chatClient.channel("messaging", channelId);
+                    const state = await channel.watch();
+                    
+                    const unreadCount = channel.countUnread();
+                    const lastMessage = state.messages[state.messages.length - 1];
+                    
+                    unreadData[friend._id] = {
+                        count: unreadCount,
+                        lastMessage: lastMessage?.text || "",
+                        lastMessageTime: lastMessage?.created_at || null,
+                        isFromFriend: lastMessage?.user?.id === friend._id,
+                    };
+                    
+                    totalUnread += unreadCount;
+                } catch (err) {
+                    console.error(`Error fetching channel ${channelId}:`, err);
+                }
+            }
+
+            setFriendsWithUnread(unreadData);
+            setTotalUnreadCount(totalUnread);
+            
+            // Send total unread count to parent (Navbar)
+            if (onUnreadCountUpdate) {
+                onUnreadCountUpdate(totalUnread);
+            }
+        } catch (error) {
+            console.error("Error fetching unread messages:", error);
+        }
+    };
+
+    // Sort friends: First by last message time (most recent first), then by unread count
+    const sortedFriends = [...friends].sort((a, b) => {
+        const aData = friendsWithUnread[a._id];
+        const bData = friendsWithUnread[b._id];
+
+        // Get last message times (use 0 if no messages)
+        const aTime = aData?.lastMessageTime ? new Date(aData.lastMessageTime).getTime() : 0;
+        const bTime = bData?.lastMessageTime ? new Date(bData.lastMessageTime).getTime() : 0;
+        
+        // Sort by most recent message first
+        if (aTime !== bTime) {
+            return bTime - aTime;
+        }
+
+        // If same time, prioritize unread messages
+        if (aData?.count > 0 && bData?.count === 0) return -1;
+        if (bData?.count > 0 && aData?.count === 0) return 1;
+
+        return 0;
+    });
+
+    const filteredFriends = sortedFriends.filter(
         (friend) =>
             friend.username
                 ?.toLowerCase()
@@ -68,13 +189,32 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
         }
     };
 
-    const handleCall = (friendId, username) => {
-        console.log("Call:", friendId, username);
+    const truncateMessage = (text, maxLength = 30) => {
+        if (!text) return "";
+        return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+    };
+
+    const formatTime = (timestamp) => {
+        if (!timestamp) return "";
+        
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return "Just now";
+        if (diffMins < 60) return `${diffMins}m`;
+        if (diffHours < 24) return `${diffHours}h`;
+        if (diffDays < 7) return `${diffDays}d`;
+        
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
 
     const UserAvatar = ({ profilePic, username }) => {
         return (
-            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 relative">
                 {profilePic ? (
                     <img
                         src={profilePic}
@@ -101,7 +241,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
             {/* Overlay */}
             {isOpen && (
                 <div
-                    className="fixed inset-0  bg-opacity-50 z-40 transition-opacity"
+                    className="fixed inset-0 backdrop-blur-lg bg-opacity-50 z-40 transition-opacity cursor-pointer"
                     onClick={onClose}
                 />
             )}
@@ -120,16 +260,23 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                         darkMode ? "border-gray-700" : "border-gray-200"
                     }`}
                 >
-                    <h2
-                        className={`text-xl font-bold ${
-                            darkMode ? "text-white" : "text-gray-800"
-                        }`}
-                    >
-                        Friends
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <h2
+                            className={`text-xl font-bold ${
+                                darkMode ? "text-white" : "text-gray-800"
+                            }`}
+                        >
+                            Messages
+                        </h2>
+                        {totalUnreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                {totalUnreadCount}
+                            </span>
+                        )}
+                    </div>
                     <button
                         onClick={onClose}
-                        className={`p-2 rounded-full transition-colors ${
+                        className={`p-2 rounded-full transition-colors cursor-pointer ${
                             darkMode
                                 ? "hover:bg-gray-700 text-gray-300"
                                 : "hover:bg-gray-100 text-gray-600"
@@ -189,98 +336,87 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token }) => {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {filteredFriends.map((friend) => (
-                                <div
-                                    key={friend._id}
-                                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                                        darkMode
-                                            ? "hover:bg-gray-700"
-                                            : "hover:bg-gray-50"
-                                    }`}
-                                    onClick={() =>
-                                                handleChat(
-                                                    friend._id,
-                                                    friend.username
-                                                )
-                                            }
-                                >
-                                    {/* Avatar */}
-                                    <UserAvatar
-                                        profilePic={friend.profilePic}
-                                        username={friend.username}
-                                    />
+                            {filteredFriends.map((friend) => {
+                                const unreadData = friendsWithUnread[friend._id];
+                                const hasUnread = unreadData?.count > 0;
+                                const lastMessage = unreadData?.lastMessage;
+                                const lastTime = unreadData?.lastMessageTime;
 
-                                    {/* Friend Info */}
-                                    <div className="flex-1 min-w-0 cursor-pointer">
-                                        <h3
-                                            className={`font-semibold truncate ${
-                                                darkMode
-                                                    ? "text-white"
-                                                    : "text-gray-800"
-                                            }`}
-                                        >
-                                            {friend.realname || friend.username}
-                                        </h3>
-                                        <p
-                                            className={`text-sm truncate ${
-                                                darkMode
-                                                    ? "text-gray-400"
-                                                    : "text-gray-500"
-                                            }`}
-                                        >
-                                            Click to chat
-                                        </p>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    {/* <div className="flex gap-2">
-                                        <button
-                                            
-                                            disabled={
-                                                chatLoading === friend._id
-                                            }
-                                            className={`p-2 rounded-full transition-colors ${
-                                                darkMode
-                                                    ? "hover:bg-cyan-600 text-cyan-400"
-                                                    : "hover:bg-blue-100 text-blue-600"
-                                            } ${
-                                                chatLoading === friend._id
-                                                    ? "opacity-50 cursor-not-allowed"
-                                                    : ""
-                                            }`}
-                                            title="Chat"
-                                        >
-                                            {chatLoading === friend._id ? (
-                                                <div
-                                                    className={`animate-spin rounded-full h-5 w-5 border-b-2 ${
-                                                        darkMode
-                                                            ? "border-cyan-400"
-                                                            : "border-blue-600"
-                                                    }`}
-                                                />
-                                            ) : (
-                                                <FiMessageCircle className="w-5 h-5" />
+                                return (
+                                    <div
+                                        key={friend._id}
+                                        className={`flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
+                                            hasUnread
+                                                ? darkMode
+                                                    ? "bg-gray-700 border-l-4 border-cyan-400"
+                                                    : "bg-blue-50 border-l-4 border-blue-500"
+                                                : darkMode
+                                                ? "hover:bg-gray-700"
+                                                : "hover:bg-gray-50"
+                                        }`}
+                                        onClick={() =>
+                                            handleChat(
+                                                friend._id,
+                                                friend.username
+                                            )
+                                        }
+                                    >
+                                        {/* Avatar with Badge */}
+                                        <div className="relative flex-shrink-0">
+                                            <UserAvatar
+                                                profilePic={friend.profilePic}
+                                                username={friend.username}
+                                            />
+                                            {hasUnread && (
+                                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                                    {unreadData.count > 9 ? "9+" : unreadData.count}
+                                                </span>
                                             )}
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                handleCall(
-                                                    friend._id,
-                                                    friend.username
-                                                )
-                                            }
-                                            className={`p-2 rounded-full transition-colors ${
-                                                darkMode
-                                                    ? "hover:bg-green-600 text-green-400"
-                                                    : "hover:bg-green-100 text-green-600"
-                                            }`}
-                                            title="Call"
-                                        >
-                                            <FiPhone className="w-5 h-5" />
-                                        </button>
-                                    </div> */}
-                                </div>
-                            ))}
+                                        </div>
+
+                                        {/* Friend Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <h3
+                                                    className={`font-semibold truncate ${
+                                                        hasUnread ? "font-bold" : ""
+                                                    } ${
+                                                        darkMode
+                                                            ? "text-white"
+                                                            : "text-gray-800"
+                                                    }`}
+                                                >
+                                                    {friend.realname || friend.username}
+                                                </h3>
+                                                {lastTime && (
+                                                    <span className={`text-xs ml-2 flex-shrink-0 ${
+                                                        darkMode ? "text-gray-400" : "text-gray-500"
+                                                    }`}>
+                                                        {formatTime(lastTime)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p
+                                                className={`text-sm truncate ${
+                                                    hasUnread
+                                                        ? darkMode
+                                                            ? "text-cyan-300 font-medium"
+                                                            : "text-blue-600 font-medium"
+                                                        : darkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
+                                                {lastMessage ? (
+                                                    truncateMessage(lastMessage)
+                                                ) : (
+                                                    "Click to start chatting"
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
