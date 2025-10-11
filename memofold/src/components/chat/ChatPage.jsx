@@ -11,8 +11,7 @@ import "stream-chat-react/dist/css/v2/index.css";
 import ChatLoader from "./ChatLoader";
 import CallButton from "./CallButton";
 
-// const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
-const STREAM_API_KEY = "jevv5df9tgeq";
+const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 // Skeleton Loader Component
 const ChatSkeleton = () => {
@@ -146,22 +145,7 @@ const ChatPage = () => {
       const callUrl = `${window.location.origin}/call/${channel.id}`;
       window.open(callUrl, '_blank', 'noopener,noreferrer');
       await channel.sendMessage({
-        text: `🔗[Join Now](${callUrl})`, 
-        attachments: [
-          {
-            type: "video_call",
-            title: "👥Incoming Video Call",
-            description: "Tap below to join the live video session",
-            actions: [
-              {
-                name: "incoming_call",
-                text: "Incoming Video Call",
-                value: "incoming_call",
-                url: callUrl,
-              },
-            ],
-          },
-        ],
+        text: `📞 Incoming video call \n\n 🔗[Join Now](${callUrl})`, 
       });
 
       toast.success("Video call invitation sent!");
