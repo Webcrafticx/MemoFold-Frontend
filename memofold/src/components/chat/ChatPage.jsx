@@ -161,7 +161,6 @@ await channel.sendMessage({
           // url: fullUrl,
         },
       ],
-      og_scrape_url: "false"
     },
   ],
 });
