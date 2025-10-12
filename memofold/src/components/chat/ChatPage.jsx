@@ -147,7 +147,7 @@ const ChatPage = () => {
 const fullUrl = `${window.location.origin}${relativeUrl}`;
 
 await channel.sendMessage({
-text: `&nbsp;\n\n🔗[Join Now](${fullUrl})`,
+text: `🔗[Join Now](${fullUrl})`,
   attachments: [
     {
       type: "video_call",
