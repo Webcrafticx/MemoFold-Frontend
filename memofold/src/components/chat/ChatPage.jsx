@@ -13,7 +13,7 @@ import CallButton from "./CallButton";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
-// Skeleton Loader Component
+// 🟡 Skeleton Loader
 const ChatSkeleton = () => {
   return (
     <div className=" bg-white fixed inset-0 flex flex-col">
@@ -47,7 +47,10 @@ const formatLastSeen = (lastActive) => {
   if (diff < 3600) return `Last seen ${Math.floor(diff / 60)} min ago`;
   if (diff < 86400) return `Last seen ${Math.floor(diff / 3600)} hrs ago`;
 
-  return `Last seen on ${last.toLocaleDateString()} ${last.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return `Last seen on ${last.toLocaleDateString()} ${last.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
 };
 
 const ChatPage = () => {
@@ -60,10 +63,10 @@ const ChatPage = () => {
   const { user: authUser, token } = useAuth();
   const initializedRef = useRef(false);
 
-  const { 
-    data: tokenData, 
-    isLoading: tokenLoading, 
-    error: tokenError 
+  const {
+    data: tokenData,
+    isLoading: tokenLoading,
+    error: tokenError,
   } = useQuery({
     queryKey: ["streamToken", authUser?._id],
     queryFn: async () => {
@@ -71,7 +74,7 @@ const ChatPage = () => {
       return await apiService.getStreamToken(token);
     },
     enabled: !!token && !!authUser?._id,
-    retry: 2
+    retry: 2,
   });
 
   useEffect(() => {
@@ -84,7 +87,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (initializedRef.current) return;
-    
+
     const initChat = async () => {
       if (tokenLoading || !tokenData?.token || !authUser?._id || !targetUserId) return;
 
@@ -97,10 +100,10 @@ const ChatPage = () => {
       try {
         const client = StreamChat.getInstance(STREAM_API_KEY);
         await client.connectUser(
-          { 
-            id: authUser._id, 
-            name: authUser.realname || authUser.username, 
-            image: authUser.profilePic 
+          {
+            id: authUser._id,
+            name: authUser.realname || authUser.username,
+            image: authUser.profilePic,
           },
           tokenData.token
         );
@@ -113,6 +116,10 @@ const ChatPage = () => {
         });
 
         await currChannel.watch();
+
+        // 🟢 Add both users to members list
+        await currChannel.addMembers([authUser._id, targetUserId]);
+
         setChannel(currChannel);
         setChatClient(client);
         setLoading(false);
@@ -134,40 +141,36 @@ const ChatPage = () => {
   }, [tokenData, authUser, targetUserId, tokenLoading]);
 
   const handleBack = () => {
-    navigate(-1); // Previous page par navigate karega
+    navigate(-1);
   };
 
-  
   const handleVideoCall = async () => {
     if (isSendingCall || !channel) return;
     setIsSendingCall(true);
 
     try {
       const relativeUrl = `/call/${channel.id}`;
-const fullUrl = `${window.location.origin}${relativeUrl}`;
+      const fullUrl = `${window.location.origin}${relativeUrl}`;
 
-await channel.sendMessage({
-text: `🔗[Join Now](${fullUrl})`,
-  attachments: [
-    {
-      type: "video_call",
-      title: "👥 Incoming Video Call",
-      description: "Tap below to join the live video session",
-      actions: [
-        {
-          name: "incoming_call",
-          text: "Incoming Video Call",
-          value: "incoming_call",
-          // url: fullUrl,
-        },
-      ],
-    },
-  ],
-});
+      await channel.sendMessage({
+        text: `🔗[Join Now](${fullUrl})`,
+        attachments: [
+          {
+            type: "video_call",
+            title: "👥 Incoming Video Call",
+            description: "Tap below to join the live video session",
+            actions: [
+              {
+                name: "incoming_call",
+                text: "Incoming Video Call",
+                value: "incoming_call",
+              },
+            ],
+          },
+        ],
+      });
 
-window.open(fullUrl, '_blank', 'noopener,noreferrer');
-
-
+      window.open(fullUrl, "_blank", "noopener,noreferrer");
       toast.success("Video call invitation sent!");
     } catch (error) {
       console.error("Error sending call message:", error);
@@ -191,6 +194,7 @@ window.open(fullUrl, '_blank', 'noopener,noreferrer');
     );
   }
 
+  // 🟡 Get target user's info from members
   const targetUser = channel.state.members[targetUserId]?.user;
   const lastSeenText = targetUser?.online
     ? "Online"
@@ -201,43 +205,43 @@ window.open(fullUrl, '_blank', 'noopener,noreferrer');
       <Chat client={chatClient}>
         <Channel channel={channel}>
           <div className="w-full h-full flex flex-col">
-            {/*  Custom Header with Back Button */}
+            {/* Header */}
             <div className="flex items-center justify-between px-4 border-b border-gray-200 bg-white">
               <div className="flex items-center space-x-3">
                 {/* Back Button */}
-                <button 
+                <button
                   onClick={handleBack}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
                   aria-label="Go back"
                 >
-                  <svg 
-                    className="w-5 h-5 text-gray-600" 
-                    fill="none" 
-                    stroke="currentColor" 
+                  <svg
+                    className="w-5 h-5 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M15 19l-7-7 7-7" 
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
                     />
                   </svg>
                 </button>
-                
-                {/* User Avatar with Initial Fallback */}
-{targetUser?.image ? (
-  <img
-    src={targetUser.image}
-    alt="avatar"
-    className="w-10 h-10 rounded-full object-cover"
-  />
-) : (
-  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
-    {targetUser?.name?.charAt(0).toUpperCase() || "U"}
-  </div>
-)}
-                
+
+                {/* Avatar */}
+                {targetUser?.image ? (
+                  <img
+                    src={targetUser.image}
+                    alt="avatar"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+                    {targetUser?.name?.charAt(0).toUpperCase() || "U"}
+                  </div>
+                )}
+
                 {/* User Info */}
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
@@ -251,7 +255,7 @@ window.open(fullUrl, '_blank', 'noopener,noreferrer');
                   </p>
                 </div>
               </div>
-              
+
               {/* Call Button */}
               <CallButton handleVideoCall={handleVideoCall} isSending={isSendingCall} />
             </div>

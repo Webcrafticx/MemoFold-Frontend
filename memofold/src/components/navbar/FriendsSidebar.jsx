@@ -204,10 +204,12 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // Avatar Component with improved Online Indicator
-const UserAvatar = ({ profilePic, username, online }) => {
+  const UserAvatar = ({ profilePic, username, online }) => {
+  const firstLetter = username?.charAt(0).toUpperCase() || "U";
+
   return (
-    <div className="relative w-12 h-12"> {/* overflow-hidden removed from outer div */}
+    <div className="relative w-12 h-12">
+      {/* Avatar Circle */}
       <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
         {profilePic ? (
           <img
@@ -221,20 +223,22 @@ const UserAvatar = ({ profilePic, username, online }) => {
           />
         ) : (
           <span className="flex items-center justify-center w-full h-full text-white font-semibold text-lg">
-            {username?.charAt(0).toUpperCase() || "U"}
+            {firstLetter}
           </span>
         )}
       </div>
-      {/* 🟢 Online Pulse  */}
+
+      {/* ✅ Always-visible Online Indicator */}
       {online && (
         <>
-          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
-          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white"></span>
+          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
+          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white"></span>
         </>
       )}
     </div>
   );
 };
+
 
   return (
     <>
