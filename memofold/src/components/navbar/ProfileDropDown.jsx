@@ -6,6 +6,7 @@ import {
     FaComment,
     FaSignOutAlt,
     FaPlusCircle,
+    FaHome,
 } from "react-icons/fa";
 
 const ProfileDropdown = ({
@@ -19,9 +20,16 @@ const ProfileDropdown = ({
     navigate,
     logout,
     onClose,
+    currentPath, // Add currentPath prop to detect current route
 }) => {
+    const isProfilePage = currentPath === "/profile";
+
     const handleProfileClick = () => {
-        navigate("/profile");
+        if (isProfilePage) {
+            navigate("/feed");
+        } else {
+            navigate("/profile");
+        }
         onClose();
     };
 
@@ -64,6 +72,7 @@ const ProfileDropdown = ({
             {/* Navigation Links */}
             <NavigationLinks
                 darkMode={darkMode}
+                isProfilePage={isProfilePage}
                 onProfileClick={handleProfileClick}
                 onCreatePostClick={navigateToCreatePost}
                 onFeedbackClick={handleFeedbackClick}
@@ -123,11 +132,16 @@ const UserInfo = ({ profilePic, username, realname, darkMode }) => (
     </div>
 );
 
-const NavigationLinks = ({ darkMode, onProfileClick, onFeedbackClick }) => (
+const NavigationLinks = ({
+    darkMode,
+    isProfilePage,
+    onProfileClick,
+    onFeedbackClick,
+}) => (
     <div className="space-y-2 mb-4">
         <DropdownButton
-            icon={FaUserCircle}
-            label="Profile"
+            icon={isProfilePage ? FaHome : FaUserCircle}
+            label={isProfilePage ? "Feed" : "Profile"}
             darkMode={darkMode}
             onClick={onProfileClick}
         />
