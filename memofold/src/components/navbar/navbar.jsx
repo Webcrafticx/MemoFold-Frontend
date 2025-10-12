@@ -382,6 +382,7 @@ const Navbar = ({ onDarkModeChange }) => {
                                     toggleDarkMode={toggleDarkMode}
                                     navigate={navigate}
                                     logout={logout}
+                                    currentPath={window.location.pathname}
                                 />
                             </div>
                         </div>

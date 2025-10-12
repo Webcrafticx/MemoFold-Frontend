@@ -14,6 +14,7 @@ import {
     FaTrash,
     FaBell,
     FaCircle,
+    FaSpinner,
 } from "react-icons/fa";
 
 const NotificationModal = ({ showModal, onClose, darkMode }) => {
@@ -22,6 +23,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
+    const [processingRequest, setProcessingRequest] = useState(null);
     const { token, username } = useAuth();
     const navigate = useNavigate();
     const modalRef = useRef(null);
@@ -29,10 +31,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
 
     useEffect(() => {
         if (showModal) {
-            // Store current scroll position
             const scrollY = window.scrollY;
-
-            // Add styles to prevent scrolling
             document.body.style.position = "fixed";
             document.body.style.top = `-${scrollY}px`;
             document.body.style.left = "0";
@@ -40,7 +39,6 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
             document.body.style.overflow = "hidden";
 
             return () => {
-                // Restore scrolling when modal closes
                 const scrollY = document.body.style.top;
                 document.body.style.position = "";
                 document.body.style.top = "";
@@ -50,7 +48,8 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 window.scrollTo(0, parseInt(scrollY || "0") * -1);
             };
         }
-    }, [showModal]); // Handle escape key to close modal
+    }, [showModal]);
+
     useEffect(() => {
         const handleEscapeKey = (event) => {
             if (event.key === "Escape") {
@@ -67,7 +66,6 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         };
     }, [showModal, onClose]);
 
-    // Handle outside clicks to close modal
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -84,14 +82,12 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         };
     }, [showModal, onClose]);
 
-    // Fetch notifications when modal opens
     useEffect(() => {
         if (showModal && token) {
             fetchNotifications(true);
         }
     }, [showModal, token]);
 
-    // Handle infinite scroll
     useEffect(() => {
         const contentElement = contentRef.current;
         if (!contentElement || !hasMore || isLoading) return;
@@ -142,21 +138,18 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 setCursor(nextCursor);
                 setHasMore(!!nextCursor);
 
-                // Calculate unread count
                 const unread = reset
                     ? notificationsData.filter((notif) => !notif.read).length
                     : unreadCount +
                       notificationsData.filter((notif) => !notif.read).length;
                 setUnreadCount(unread);
             } else {
-                console.error("Failed to fetch notifications");
                 if (reset) {
                     setNotifications([]);
                     setUnreadCount(0);
                 }
             }
         } catch (error) {
-            console.error("Error fetching notifications:", error);
             if (reset) {
                 setNotifications([]);
                 setUnreadCount(0);
@@ -191,17 +184,12 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                     )
                 );
                 setUnreadCount((prev) => Math.max(0, prev - 1));
-            } else {
-                console.error("Failed to mark notification as read");
             }
-        } catch (error) {
-            console.error("Error marking notification as read:", error);
-        }
+        } catch (error) {}
     };
 
     const markMultipleAsRead = async (notificationIds) => {
         try {
-            // Use Promise.all to mark multiple notifications as read
             const markPromises = notificationIds.map((notificationId) =>
                 fetch(
                     `${config.apiUrl}/notifications/notification/read/${notificationId}`,
@@ -222,7 +210,6 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
             const allSuccessful = results.every((response) => response.ok);
 
             if (allSuccessful) {
-                // Update local state for all marked notifications
                 setNotifications((prev) =>
                     prev.map((notif) =>
                         notificationIds.includes(notif._id)
@@ -233,17 +220,12 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 setUnreadCount((prev) =>
                     Math.max(0, prev - notificationIds.length)
                 );
-            } else {
-                console.error("Failed to mark some notifications as read");
             }
-        } catch (error) {
-            console.error("Error marking notifications as read:", error);
-        }
+        } catch (error) {}
     };
 
     const markAllAsRead = async () => {
         try {
-            // Get all unread notification IDs
             const unreadNotifications = notifications.filter(
                 (notif) => !notif.read
             );
@@ -254,28 +236,25 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 (notif) => notif._id
             );
 
-            // Use the multiple mark function
             await markMultipleAsRead(unreadNotificationIds);
-        } catch (error) {
-            console.error("Error marking all notifications as read:", error);
-        }
+        } catch (error) {}
     };
 
     const handleFriendRequest = async (notificationId, action) => {
         try {
+            setProcessingRequest(notificationId);
+
             const notification = notifications.find(
                 (notif) => notif._id === notificationId
             );
 
             if (!notification) {
-                console.error("Notification not found");
                 return;
             }
 
             const senderUserId = notification.sender?._id;
 
             if (!senderUserId) {
-                console.error("Sender user ID not found in notification");
                 return;
             }
 
@@ -299,11 +278,10 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                             : notif
                     )
                 );
-            } else {
-                console.error(`Failed to ${action} friend request`);
             }
         } catch (error) {
-            console.error(`Error ${action} friend request:`, error);
+        } finally {
+            setProcessingRequest(null);
         }
     };
 
@@ -312,23 +290,18 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
             markAsRead(notification._id);
         }
 
-        // Handle post redirection based on notification type and available data
         switch (notification.type) {
             case "like":
             case "comment":
             case "comment_like":
             case "share":
-                // Check if postid is available in the notification
                 if (notification.postid && notification.postid._id) {
-                    // Redirect to post page with post ID
                     navigate(`/post/${notification.postid._id}`);
                     onClose();
                 } else if (notification.postId) {
-                    // Alternative field name for post ID
                     navigate(`/post/${notification.postId}`);
                     onClose();
                 } else {
-                    // Fallback: navigate to sender's profile
                     if (notification.sender?._id) {
                         navigate(`/user/${notification.sender._id}`);
                         onClose();
@@ -345,7 +318,6 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 break;
 
             default:
-                // Default behavior for unknown notification types
                 if (notification.sender?._id) {
                     navigate(`/user/${notification.sender._id}`);
                     onClose();
@@ -417,7 +389,6 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         return `${Math.floor(diffInSeconds / 86400)}d ago`;
     };
 
-    // Check if notification has post data for redirection
     const hasPostData = (notification) => {
         return notification.postid && notification.postid._id;
     };
@@ -635,9 +606,28 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                         "accept"
                                                                     );
                                                                 }}
-                                                                className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium cursor-pointer"
+                                                                disabled={
+                                                                    processingRequest ===
+                                                                    notification._id
+                                                                }
+                                                                className={`px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
+                                                                    processingRequest ===
+                                                                    notification._id
+                                                                        ? "opacity-70 cursor-not-allowed"
+                                                                        : ""
+                                                                }`}
                                                             >
-                                                                Accept
+                                                                {processingRequest ===
+                                                                notification._id ? (
+                                                                    <>
+                                                                        <FaSpinner className="animate-spin cursor-pointer" />
+                                                                        <span>
+                                                                            Processing...
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    "Accept"
+                                                                )}
                                                             </button>
                                                             <button
                                                                 onClick={(
@@ -649,13 +639,32 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                         "decline"
                                                                     );
                                                                 }}
-                                                                className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium cursor-pointer ${
+                                                                disabled={
+                                                                    processingRequest ===
+                                                                    notification._id
+                                                                }
+                                                                className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
                                                                     darkMode
                                                                         ? "bg-gray-600 text-gray-200 hover:bg-gray-500"
                                                                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                                                } ${
+                                                                    processingRequest ===
+                                                                    notification._id
+                                                                        ? "opacity-70 cursor-not-allowed"
+                                                                        : ""
                                                                 }`}
                                                             >
-                                                                Decline
+                                                                {processingRequest ===
+                                                                notification._id ? (
+                                                                    <>
+                                                                        <FaSpinner className="animate-spin cursor-pointer" />
+                                                                        <span>
+                                                                            Processing...
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    "Decline"
+                                                                )}
                                                             </button>
                                                         </div>
                                                     )}

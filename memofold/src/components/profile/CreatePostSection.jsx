@@ -2,7 +2,8 @@ import React, { useRef, useState } from "react";
 import { FaPaperclip, FaTimes } from "react-icons/fa";
 import {
     getIndianDateString,
-    getCurrentIndianTimeISO,
+    getCurrentIndianTimeIST,
+    getSelectedDateIST,
 } from "../../services/dateUtils";
 
 const CreatePostSection = ({
@@ -52,8 +53,13 @@ const CreatePostSection = ({
     };
 
     const handlePostSubmit = async () => {
-        // YEH LINE CHANGE KAREN - selectedDate use karen
-        await onCreatePost(postContent, selectedFile, selectedDate);
+        // DIRECT IST TIME USE KAREN - NO UTC CONVERSION
+        const postTimestamp = getSelectedDateIST(selectedDate);
+
+        console.log("Creating post with IST time:", postTimestamp);
+        console.log("Selected date:", selectedDate);
+
+        await onCreatePost(postContent, selectedFile, postTimestamp);
         setPostContent("");
         removeFile();
         setSelectedDate(getIndianDateString());

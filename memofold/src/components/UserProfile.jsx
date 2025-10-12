@@ -20,9 +20,6 @@ import {
     FaUserFriends,
     FaChartBar,
     FaMapMarkerAlt,
-    FaUserPlus,
-    FaCheckCircle,
-    FaClock,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
@@ -31,6 +28,7 @@ import { apiService } from "../services/api";
 import LikesModal from "./mainFeed/LikesModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
+import FriendButton from "../components/FriendButton"; // Import the new FriendButton component
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -54,8 +52,6 @@ const UserProfile = () => {
         postCount: 0,
         friendsCount: 0,
     });
-    const [isSendingRequest, setIsSendingRequest] = useState(false);
-    const [friendRequestStatus, setFriendRequestStatus] = useState(null);
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
 
     // Likes modal state
@@ -174,20 +170,6 @@ const UserProfile = () => {
         try {
             const userData = await apiService.fetchCurrentUser(token);
             setCurrentUserProfile(userData);
-            // console.log("Current user data:", userData);
-
-            // CORRECTED: Access sentrequests from userData.user.sentrequests
-            if (userData.user && userData.user.sentrequests) {
-                const hasSentRequest = userData.user.sentrequests.some(
-                    (request) =>
-                        request.to === userId && request.status === "pending"
-                );
-                // console.log("Has sent request to", userId, ":", hasSentRequest);
-                if (hasSentRequest) {
-                    setFriendRequestStatus("pending");
-                    return; // Stop here if we found a pending request
-                }
-            }
         } catch (error) {
             console.error("Error fetching user profile:", error);
         }
@@ -225,15 +207,6 @@ const UserProfile = () => {
                     postCount: data.stats.postCount || 0,
                     friendsCount: data.stats.friendsCount || 0,
                 });
-            }
-
-            // Check friend request status
-            if (userDataFromApi.friends?.includes(user._id)) {
-                setFriendRequestStatus("friends");
-            } else if (userDataFromApi.friendrequests?.includes(user._id)) {
-                setFriendRequestStatus("pending");
-            } else {
-                setFriendRequestStatus(null);
             }
 
             if (userDataFromApi.username) {
@@ -564,9 +537,6 @@ const UserProfile = () => {
         }
     };
 
-    const handleFriendsClick = () => {
-        setShowFriendsSidebar(!showFriendsSidebar);
-    };
     const handleDeleteReply = async (replyId, commentId, postId, e) => {
         if (e) {
             e.preventDefault();
@@ -1148,43 +1118,6 @@ const UserProfile = () => {
         }
     };
 
-    const handleSendFriendRequest = async () => {
-        if (!token || !userId) {
-            setError("Unable to send friend request");
-            return;
-        }
-
-        setIsSendingRequest(true);
-        setError(null);
-
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/friends/friend-request/${userId}`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to send friend request");
-            }
-
-            const data = await response.json();
-            setFriendRequestStatus("pending");
-            setSuccessMessage("Friend request sent successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
-        } catch (err) {
-            console.error("Error sending friend request:", err);
-            setError(err.message || "Failed to send friend request");
-        } finally {
-            setIsSendingRequest(false);
-        }
-    };
-
     // Floating Hearts Animation Component - IMPROVED VERSION
     const FloatingHearts = () => (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
@@ -1599,41 +1532,13 @@ const UserProfile = () => {
                             : "bg-white text-gray-900"
                     }`}
                 >
-                    {/* Friend Request Icon — Top Right */}
-                    {userData._id !== currentUserProfile?._id && (
+                    {/* Friend Button — Top Right */}
+                    {userData._id && user?._id && userData._id !== user._id && (
                         <div className="absolute top-4 right-4">
-                            {friendRequestStatus === "friends" ? (
-                                <div
-                                    className="p-2 bg-green-500 text-white rounded-full shadow-sm cursor-default"
-                                    title="Friends"
-                                >
-                                    <FaCheckCircle className="text-base" />
-                                </div>
-                            ) : friendRequestStatus === "pending" ? (
-                                <div
-                                    className="p-2 bg-yellow-500 text-white rounded-full shadow-sm animate-pulse cursor-default"
-                                    title="Pending"
-                                >
-                                    <FaClock className="text-base" />
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={handleSendFriendRequest}
-                                    disabled={isSendingRequest}
-                                    className={`p-2 rounded-full transition-all shadow-sm ${
-                                        isSendingRequest
-                                            ? "bg-blue-300 cursor-not-allowed"
-                                            : "bg-blue-500 hover:bg-blue-600 active:scale-95"
-                                    }`}
-                                    title="Add Friend"
-                                >
-                                    {isSendingRequest ? (
-                                        <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                    ) : (
-                                        <FaUserPlus className="text-white text-base" />
-                                    )}
-                                </button>
-                            )}
+                            <FriendButton
+                                targetUserId={userData._id}
+                                currentUserId={user._id}
+                            />
                         </div>
                     )}
 
@@ -1730,7 +1635,6 @@ const UserProfile = () => {
                                     </span>
                                 </div>
                                 <div
-                                    onClick={handleFriendsClick}
                                     className={`flex items-center gap-1 cursor-pointer sm:gap-2 ${
                                         isDarkMode
                                             ? "bg-gray-700 hover:bg-gray-600 text-gray-100"
