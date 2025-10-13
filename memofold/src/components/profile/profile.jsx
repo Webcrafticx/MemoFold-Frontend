@@ -32,8 +32,8 @@ import { localStorageService } from "../../services/localStorage";
 import {
     formatDate,
     getIndianDateString,
-    getCurrentIndianTimeISO,
-    convertToIndianTime,
+    getCurrentUTCTime,
+    convertUTCToIST,
 } from "../../services/dateUtils";
 
 // Utility function for better error handling
@@ -272,11 +272,9 @@ const ProfilePage = () => {
             const currentUsername = localStorage.getItem("username");
 
             const postsWithComments = postsData.map((post) => {
-                // Server ke UTC time ko Indian time mein convert karen
-                const createdAtIndian = convertToIndianTime(post.createdAt);
-                const dateIndian = convertToIndianTime(
-                    post.date || post.createdAt
-                );
+                // ✅ Server se UTC time aayega, use IST mein convert karen display ke liye
+                const createdAtIST = convertUTCToIST(post.createdAt);
+                const dateIST = convertUTCToIST(post.date || post.createdAt);
 
                 // Check if current user has liked this post
                 const hasUserLiked = post.likesPreview?.some(
@@ -285,8 +283,8 @@ const ProfilePage = () => {
 
                 return {
                     ...post,
-                    createdAt: createdAtIndian,
-                    date: dateIndian,
+                    createdAt: createdAtIST, // ✅ Display ke liye IST
+                    date: dateIST, // ✅ Display ke liye IST
                     isLiked: hasUserLiked || false,
                     likes: post.likeCount || 0,
                     comments: [],
@@ -392,6 +390,8 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
+
+            // ✅ UTC time use karo comment ke liye
             const response = await apiService.addComment(
                 postId,
                 commentState.commentContent[postId],
@@ -533,12 +533,13 @@ const ProfilePage = () => {
             const currentUserId = localStorage.getItem("userId");
 
             // Optimistically add the reply with Indian time
+            // Optimistically add the reply with UTC time
             const optimisticReply = {
                 _id: `temp-${Date.now()}`, // Temporary ID
                 content: content,
                 likes: [],
                 hasUserLiked: false,
-                createdAt: getCurrentIndianTimeISO(), // Indian time use karen
+                createdAt: getCurrentUTCTime(), // ✅ UTC time use karen
                 userId: {
                     _id: currentUserId,
                     username: currentUsername,
@@ -1027,45 +1028,18 @@ const ProfilePage = () => {
                 });
             }
 
-            // Agar user ne different date select ki hai toh uss date ka Indian time use karen
-            let postDateTime;
-            if (selectedDate && selectedDate !== getIndianDateString()) {
-                // User ne different date select ki hai
-                const selectedDateObj = new Date(selectedDate);
-                // Current Indian time ke hours, minutes, seconds use karen but date change karen
-                const now = new Date();
-                const indianOffset = 5.5 * 60 * 60 * 1000;
-                const currentIndianTime = new Date(
-                    now.getTime() + indianOffset
-                );
-
-                selectedDateObj.setHours(currentIndianTime.getHours());
-                selectedDateObj.setMinutes(currentIndianTime.getMinutes());
-                selectedDateObj.setSeconds(currentIndianTime.getSeconds());
-
-                postDateTime = selectedDateObj.toISOString();
-            } else {
-                // Current Indian time use karen
-                postDateTime = getCurrentIndianTimeISO();
-            }
-
+            // ✅ USE UTC TIMESTAMP DIRECTLY (no timezone manipulation)
             const postData = {
                 content,
-                createdAt: postDateTime, // Selected date ya current Indian time
-                date: postDateTime, // Selected date ya current Indian time
+                createdAt: selectedDate, // This is already UTC from getSelectedDateUTC
+                date: selectedDate, // This is already UTC from getSelectedDateUTC
                 image: imageData,
             };
 
-            console.log(
-                "Creating post with date:",
-                postData.createdAt,
-                "Selected date:",
-                selectedDate
-            );
+            console.log("Creating post with UTC date:", postData.createdAt);
 
             const response = await apiService.createPost(token, postData);
 
-            // Check if API call was actually successful
             if (!response || response.success === false) {
                 throw new Error(response?.message || "Failed to create post");
             }
@@ -1302,7 +1276,8 @@ const ProfilePage = () => {
         const postToDelete = profileData.posts.find(
             (post) => post._id === postId
         );
-        const postContentPreview =  "Are you sure you want to delete this post? This action cannot be undone.";
+        const postContentPreview =
+            "Are you sure you want to delete this post? This action cannot be undone.";
 
         setConfirmationModal({
             isOpen: true,
@@ -1380,15 +1355,12 @@ const ProfilePage = () => {
 
     const joinedDate = localStorage.getItem("createdAt");
     const formattedDate = joinedDate
-        ? new Date(convertToIndianTime(joinedDate)).toLocaleDateString(
-              "en-IN",
-              {
-                  timeZone: "Asia/Kolkata",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-              }
-          )
+        ? new Date(convertUTCToIST(joinedDate)).toLocaleDateString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+          })
         : "";
 
     if (uiState.loading) {
@@ -1478,7 +1450,7 @@ const ProfilePage = () => {
                         uploadingProfilePic={uploadingProfilePic}
                         apiService={apiService}
                         toast={toast}
-                        onFriendsClick={handleFriendsClick} 
+                        onFriendsClick={handleFriendsClick}
                         onProfileUpdate={async (result) => {
                             setProfileData((prev) => ({
                                 ...prev,
