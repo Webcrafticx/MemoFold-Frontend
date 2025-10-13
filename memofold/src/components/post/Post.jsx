@@ -76,12 +76,12 @@ const Post = () => {
     const fetchPost = async () => {
         try {
             setLoading(true);
-            const response = await apiService.fetchPosts(token);
-            const postsData = Array.isArray(response)
-                ? response
-                : response.posts || [];
 
-            const foundPost = postsData.find((p) => p._id === postId);
+            // Use the new single post endpoint
+            const response = await apiService.fetchSinglePost(token, postId);
+
+            // The response should be the single post object
+            const foundPost = response.post || response;
 
             if (foundPost) {
                 const storedLikes = localStorageService.getStoredLikes();
@@ -115,7 +115,7 @@ const Post = () => {
                     likesPreview: postLikesPreview,
                     likeCount: postLikesCount,
                     hasUserLiked: hasUserLiked,
-                    comments: [],
+                    comments: foundPost.comments || [],
                     commentCount: foundPost.commentCount || 0,
                 });
 

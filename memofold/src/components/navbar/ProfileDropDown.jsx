@@ -23,13 +23,15 @@ const ProfileDropdown = ({
     currentPath, // Add currentPath prop to detect current route
 }) => {
     const isProfilePage = currentPath === "/profile";
+    const isFeedPage = currentPath === "/feed";
 
     const handleProfileClick = () => {
-        if (isProfilePage) {
-            navigate("/feed");
-        } else {
-            navigate("/profile");
-        }
+        navigate("/profile");
+        onClose();
+    };
+
+    const handleFeedClick = () => {
+        navigate("/feed");
         onClose();
     };
 
@@ -73,8 +75,9 @@ const ProfileDropdown = ({
             <NavigationLinks
                 darkMode={darkMode}
                 isProfilePage={isProfilePage}
+                isFeedPage={isFeedPage}
                 onProfileClick={handleProfileClick}
-                onCreatePostClick={navigateToCreatePost}
+                onFeedClick={handleFeedClick}
                 onFeedbackClick={handleFeedbackClick}
             />
 
@@ -135,16 +138,31 @@ const UserInfo = ({ profilePic, username, realname, darkMode }) => (
 const NavigationLinks = ({
     darkMode,
     isProfilePage,
+    isFeedPage,
     onProfileClick,
+    onFeedClick,
     onFeedbackClick,
 }) => (
     <div className="space-y-2 mb-4">
-        <DropdownButton
-            icon={isProfilePage ? FaHome : FaUserCircle}
-            label={isProfilePage ? "Feed" : "Profile"}
-            darkMode={darkMode}
-            onClick={onProfileClick}
-        />
+        {/* Show Profile button only when NOT on profile page */}
+        {!isProfilePage && (
+            <DropdownButton
+                icon={FaUserCircle}
+                label="My Profile"
+                darkMode={darkMode}
+                onClick={onProfileClick}
+            />
+        )}
+
+        {/* Show Feed button only when NOT on feed page */}
+        {!isFeedPage && (
+            <DropdownButton
+                icon={FaHome}
+                label="Feed"
+                darkMode={darkMode}
+                onClick={onFeedClick}
+            />
+        )}
 
         <DropdownButton
             icon={FaComment}

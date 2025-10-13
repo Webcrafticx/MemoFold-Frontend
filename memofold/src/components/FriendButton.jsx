@@ -6,10 +6,13 @@ import {
     FaSpinner,
 } from "react-icons/fa";
 import config from "../hooks/config";
+import ConfirmationModal from "../common/ConfirmationModal"; // Import the modal
 
 const FriendButton = ({ targetUserId, currentUserId }) => {
     const [buttonState, setButtonState] = useState("loading");
     const [isLoading, setIsLoading] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showRemoveModal, setShowRemoveModal] = useState(false);
 
     const checkRelationshipStatus = async () => {
         try {
@@ -197,14 +200,25 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
                 handleAddFriend();
                 break;
             case "cancel":
-                handleCancelRequest();
+                setShowCancelModal(true); // Show confirmation modal instead of directly canceling
                 break;
             case "remove":
-                handleRemoveFriend();
+                setShowRemoveModal(true); // Show confirmation modal instead of directly removing
                 break;
             default:
                 break;
         }
+    };
+
+    // Confirmation handlers
+    const confirmCancelRequest = () => {
+        setShowCancelModal(false);
+        handleCancelRequest();
+    };
+
+    const confirmRemoveFriend = () => {
+        setShowRemoveModal(false);
+        handleRemoveFriend();
     };
 
     const getButtonConfig = () => {
@@ -257,24 +271,53 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
     const buttonConfig = getButtonConfig();
 
     return (
-        <button
-            onClick={handleButtonClick}
-            disabled={isLoading || buttonState === "loading"}
-            className={`flex items-center justify-center p-3 rounded-full font-medium transition-all duration-200 ${
-                buttonConfig.className
-            } ${
-                isLoading
-                    ? "opacity-60 cursor-not-allowed"
-                    : "cursor-pointer hover:scale-105"
-            }`}
-            title={buttonConfig.title}
-        >
-            {isLoading ? (
-                <FaSpinner size={18} className="animate-spin" />
-            ) : (
-                buttonConfig.icon
-            )}
-        </button>
+        <>
+            {/* Friend Button */}
+            <button
+                onClick={handleButtonClick}
+                disabled={isLoading || buttonState === "loading"}
+                className={`flex items-center justify-center p-3 rounded-full font-medium transition-all duration-200 ${
+                    buttonConfig.className
+                } ${
+                    isLoading
+                        ? "opacity-60 cursor-not-allowed"
+                        : "cursor-pointer hover:scale-105"
+                }`}
+                title={buttonConfig.title}
+            >
+                {isLoading ? (
+                    <FaSpinner size={18} className="animate-spin" />
+                ) : (
+                    buttonConfig.icon
+                )}
+            </button>
+
+            {/* Cancel Request Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showCancelModal}
+                onClose={() => setShowCancelModal(false)}
+                onConfirm={confirmCancelRequest}
+                title="Cancel Friend Request"
+                message="Are you sure you want to cancel this friend request?"
+                confirmText="Yes, Cancel Request"
+                cancelText="Keep Request"
+                type="warning"
+                isLoading={isLoading}
+            />
+
+            {/* Remove Friend Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showRemoveModal}
+                onClose={() => setShowRemoveModal(false)}
+                onConfirm={confirmRemoveFriend}
+                title="Remove Friend"
+                message="Are you sure you want to remove this friend? This action cannot be undone."
+                confirmText="Yes, Remove Friend"
+                cancelText="Keep Friend"
+                type="delete"
+                isLoading={isLoading}
+            />
+        </>
     );
 };
 

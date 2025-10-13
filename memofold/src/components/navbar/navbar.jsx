@@ -183,21 +183,24 @@ const Navbar = ({ onDarkModeChange }) => {
 
             try {
                 const { StreamChat } = await import("stream-chat");
-                const apiService = (await import("../../services/api")).apiService;
-                
+                const apiService = (await import("../../services/api"))
+                    .apiService;
+
                 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
                 const tokenData = await apiService.getStreamToken(token);
-                
+
                 if (!tokenData?.token) return;
 
                 const client = StreamChat.getInstance(STREAM_API_KEY);
-                
+
                 // Connect only if not already connected
                 if (!client.userID) {
                     await client.connectUser(
                         {
                             id: currentUserProfile._id,
-                            name: currentUserProfile.realname || currentUserProfile.username,
+                            name:
+                                currentUserProfile.realname ||
+                                currentUserProfile.username,
                             image: currentUserProfile.profilePic,
                         },
                         tokenData.token
@@ -205,12 +208,12 @@ const Navbar = ({ onDarkModeChange }) => {
                 }
 
                 // Get all channels for this user
-                const filter = { 
-                    type: 'messaging', 
-                    members: { $in: [currentUserProfile._id] } 
+                const filter = {
+                    type: "messaging",
+                    members: { $in: [currentUserProfile._id] },
                 };
                 const sort = [{ last_message_at: -1 }];
-                
+
                 const channels = await client.queryChannels(filter, sort, {
                     watch: false,
                     state: true,
@@ -224,7 +227,6 @@ const Navbar = ({ onDarkModeChange }) => {
                 }
 
                 setUnreadMessages(totalUnread);
-
             } catch (error) {
                 console.error("Error fetching unread messages count:", error);
             }
@@ -232,10 +234,10 @@ const Navbar = ({ onDarkModeChange }) => {
 
         if (currentUserProfile) {
             fetchUnreadMessagesCount();
-            
+
             // Poll every 10 seconds
             const intervalId = setInterval(fetchUnreadMessagesCount, 10000);
-            
+
             return () => clearInterval(intervalId);
         }
     }, [token, currentUserProfile]);
@@ -308,14 +310,14 @@ const Navbar = ({ onDarkModeChange }) => {
                             />
                         </div>
 
-                        <div className="flex items-center space-x-3 md:space-x-4 pr-4">
+                        <div className="flex items-center space-x-2 md:space-x-4 pr-4">
                             <button
                                 className="md:hidden p-2 rounded-md mobile-search-icon cursor-pointer"
                                 onClick={toggleMobileSearch}
                                 aria-label="Search"
                             >
                                 <svg
-                                    className="w-6 h-6 cursor-pointer"
+                                    className="w-5 h-5 cursor-pointer"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -334,7 +336,9 @@ const Navbar = ({ onDarkModeChange }) => {
                                 <NotificationBell
                                     darkMode={darkMode}
                                     unreadNotifications={unreadNotifications}
-                                    onNotificationClick={handleNotificationClick}
+                                    onNotificationClick={
+                                        handleNotificationClick
+                                    }
                                 />
                             </div>
 
@@ -352,7 +356,9 @@ const Navbar = ({ onDarkModeChange }) => {
                                     <FiUsers className="w-6 h-6 cursor-pointer" />
                                     {unreadMessages > 0 && (
                                         <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
-                                            {unreadMessages > 99 ? "99+" : unreadMessages}
+                                            {unreadMessages > 99
+                                                ? "99+"
+                                                : unreadMessages}
                                         </span>
                                     )}
                                 </button>
@@ -377,7 +383,9 @@ const Navbar = ({ onDarkModeChange }) => {
                                     username={username}
                                     realname={realname}
                                     showProfileDropdown={showProfileDropdown}
-                                    setShowProfileDropdown={setShowProfileDropdown}
+                                    setShowProfileDropdown={
+                                        setShowProfileDropdown
+                                    }
                                     profileDropdownRef={profileDropdownRef}
                                     toggleDarkMode={toggleDarkMode}
                                     navigate={navigate}

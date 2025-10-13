@@ -29,12 +29,12 @@ import CallPage from "./components/chat/CallPage";
 
 // React Query Client create karein
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
+    defaultOptions: {
+        queries: {
+            retry: 1,
+            refetchOnWindowFocus: false,
+        },
     },
-  },
 });
 
 // Authentication wrapper component
@@ -134,17 +134,29 @@ function App() {
                             />
                             <Route path="/api" element={<ApiDocumentation />} />
                             <Route path="/about" element={<About />} />
-                            <Route path="/privacy" element={<PrivacyPolicy />} />
+                            <Route
+                                path="/privacy"
+                                element={<PrivacyPolicy />}
+                            />
                             <Route path="/help" element={<HelpPage />} />
-                            <Route path="/feedback" element={<FeedbackForm />} />
+                            <Route
+                                path="/feedback"
+                                element={<FeedbackForm />}
+                            />
                             <Route path="/terms" element={<TermsOfService />} />
-                            <Route path="/contact" element={<ContactUploading />} />
+                            <Route
+                                path="/contact"
+                                element={<ContactUploading />}
+                            />
                             <Route
                                 path="/maintenance"
                                 element={<MaintenancePage />}
                             />
                             <Route path="/survey" element={<Survey />} />
-                            <Route path="/user/:userId" element={<UserProfile />} />
+                            <Route
+                                path="/user/:userId"
+                                element={<UserProfile />}
+                            />
                             <Route path="/post/:postId" element={<Post />} />
 
                             {/* Protected Routes */}
@@ -164,7 +176,7 @@ function App() {
                                     </ProtectedRoute>
                                 }
                             />
-                            
+
                             {/* Chat Route */}
                             <Route
                                 path="/chat/:id"
@@ -174,7 +186,7 @@ function App() {
                                     </ProtectedRoute>
                                 }
                             />
-                            
+
                             {/* Video Call Route  */}
                             <Route
                                 path="/call/:channelId"
@@ -192,14 +204,17 @@ function App() {
                                     <div className="flex items-center justify-center min-h-[70vh] px-4">
                                         <div className="text-center max-w-lg">
                                             <div className="mb-6">
-                                                <span className="text-7xl">🚧</span>
+                                                <span className="text-7xl">
+                                                    🚧
+                                                </span>
                                             </div>
                                             <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800 mb-4">
                                                 404 - Page Not Found
                                             </h1>
                                             <p className="text-lg sm:text-xl text-gray-600 mb-8">
-                                                Oops! Looks like this page wandered
-                                                off. Let's get you back on track.
+                                                Oops! Looks like this page
+                                                wandered off. Let's get you back
+                                                on track.
                                             </p>
                                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                                                 <a
