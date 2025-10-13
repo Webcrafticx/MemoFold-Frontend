@@ -23,7 +23,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
-    const [processingRequest, setProcessingRequest] = useState(null);
+    const [processingRequest, setProcessingRequest] = useState(null); // { notificationId, action }
     const { token, username } = useAuth();
     const navigate = useNavigate();
     const modalRef = useRef(null);
@@ -159,69 +159,44 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         }
     };
 
-    const markAsRead = async (notificationId) => {
+    const markAsRead = async (notificationIds) => {
         try {
+            const ids = Array.isArray(notificationIds)
+                ? notificationIds
+                : [notificationIds];
+
+            // ✅ API requires a path param `{id}`
+            // For single: send the actual id
+            // For multiple: use a placeholder (e.g. "bulk")
+            const endpointId = ids.length === 1 ? ids[0] : "bulk";
+
             const response = await fetch(
-                `${config.apiUrl}/notifications/notification/read/${notificationId}`,
+                `${config.apiUrl}/notifications/notification/read/${endpointId}`,
                 {
                     method: "PUT",
                     headers: {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({
-                        notificationId: notificationId,
-                    }),
+                    body: JSON.stringify({ notificationIds: ids }),
                 }
             );
 
             if (response.ok) {
                 setNotifications((prev) =>
                     prev.map((notif) =>
-                        notif._id === notificationId
+                        ids.includes(notif._id)
                             ? { ...notif, read: true }
                             : notif
                     )
                 );
-                setUnreadCount((prev) => Math.max(0, prev - 1));
+                setUnreadCount((prev) => Math.max(0, prev - ids.length));
+            } else {
+                console.error("Failed to mark notifications as read");
             }
-        } catch (error) {}
-    };
-
-    const markMultipleAsRead = async (notificationIds) => {
-        try {
-            const markPromises = notificationIds.map((notificationId) =>
-                fetch(
-                    `${config.apiUrl}/notifications/notification/read/${notificationId}`,
-                    {
-                        method: "PUT",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            notificationId: notificationId,
-                        }),
-                    }
-                )
-            );
-
-            const results = await Promise.all(markPromises);
-            const allSuccessful = results.every((response) => response.ok);
-
-            if (allSuccessful) {
-                setNotifications((prev) =>
-                    prev.map((notif) =>
-                        notificationIds.includes(notif._id)
-                            ? { ...notif, read: true }
-                            : notif
-                    )
-                );
-                setUnreadCount((prev) =>
-                    Math.max(0, prev - notificationIds.length)
-                );
-            }
-        } catch (error) {}
+        } catch (error) {
+            console.error("Error marking notifications as read:", error);
+        }
     };
 
     const markAllAsRead = async () => {
@@ -236,13 +211,16 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                 (notif) => notif._id
             );
 
-            await markMultipleAsRead(unreadNotificationIds);
-        } catch (error) {}
+            await markAsRead(unreadNotificationIds);
+        } catch (error) {
+            console.error("Error marking all as read:", error);
+        }
     };
 
     const handleFriendRequest = async (notificationId, action) => {
         try {
-            setProcessingRequest(notificationId);
+            // Set processing request with both notificationId and action
+            setProcessingRequest({ notificationId, action });
 
             const notification = notifications.find(
                 (notif) => notif._id === notificationId
@@ -283,6 +261,15 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
         } finally {
             setProcessingRequest(null);
         }
+    };
+
+    // Helper function to check if a specific button is loading
+    const isButtonLoading = (notificationId, action) => {
+        return (
+            processingRequest &&
+            processingRequest.notificationId === notificationId &&
+            processingRequest.action === action
+        );
     };
 
     const handleNotificationClick = (notification) => {
@@ -360,19 +347,145 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
 
         switch (notification.type) {
             case "comment_like":
-                return `${senderName} liked your comment`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        liked your comment
+                    </>
+                );
             case "comment":
-                return `${senderName} commented on your post`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        commented on your post
+                    </>
+                );
             case "friend_request":
-                return `${senderName} sent you a friend request`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        sent you a friend request
+                    </>
+                );
             case "friend_accept":
-                return `${senderName} accepted your friend request`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        accepted your friend request
+                    </>
+                );
             case "share":
-                return `${senderName} shared your post`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        shared your post
+                    </>
+                );
             case "like":
-                return `${senderName} liked your post`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        liked your post
+                    </>
+                );
             default:
-                return `${senderName} sent you a notification`;
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        sent you a notification
+                    </>
+                );
         }
     };
 
@@ -529,6 +642,18 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                 .username
                                                         }
                                                         className="w-full h-full object-cover cursor-pointer"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (
+                                                                notification
+                                                                    .sender?._id
+                                                            ) {
+                                                                navigate(
+                                                                    `/user/${notification.sender._id}`
+                                                                );
+                                                                onClose();
+                                                            }
+                                                        }}
                                                         onError={(e) => {
                                                             e.target.style.display =
                                                                 "none";
@@ -548,6 +673,18 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                               }
                                                             : {}
                                                     }
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (
+                                                            notification.sender
+                                                                ?._id
+                                                        ) {
+                                                            navigate(
+                                                                `/user/${notification.sender._id}`
+                                                            );
+                                                            onClose();
+                                                        }
+                                                    }}
                                                 >
                                                     {notification.sender?.username
                                                         ?.charAt(0)
@@ -596,6 +733,7 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                     "friend_request" &&
                                                     !notification.isHandled && (
                                                         <div className="flex space-x-2 mt-3 cursor-pointer">
+                                                            {/* Accept Button */}
                                                             <button
                                                                 onClick={(
                                                                     e
@@ -607,28 +745,44 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                     );
                                                                 }}
                                                                 disabled={
-                                                                    processingRequest ===
-                                                                    notification._id
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "accept"
+                                                                    ) ||
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "decline"
+                                                                    )
                                                                 }
                                                                 className={`px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
-                                                                    processingRequest ===
-                                                                    notification._id
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "accept"
+                                                                    ) ||
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "decline"
+                                                                    )
                                                                         ? "opacity-70 cursor-not-allowed"
                                                                         : ""
                                                                 }`}
                                                             >
-                                                                {processingRequest ===
-                                                                notification._id ? (
+                                                                {isButtonLoading(
+                                                                    notification._id,
+                                                                    "accept"
+                                                                ) ? (
                                                                     <>
                                                                         <FaSpinner className="animate-spin cursor-pointer" />
                                                                         <span>
-                                                                            Processing...
+                                                                            Accepting...
                                                                         </span>
                                                                     </>
                                                                 ) : (
                                                                     "Accept"
                                                                 )}
                                                             </button>
+
+                                                            {/* Decline Button */}
                                                             <button
                                                                 onClick={(
                                                                     e
@@ -640,26 +794,40 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                                                     );
                                                                 }}
                                                                 disabled={
-                                                                    processingRequest ===
-                                                                    notification._id
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "accept"
+                                                                    ) ||
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "decline"
+                                                                    )
                                                                 }
                                                                 className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
                                                                     darkMode
                                                                         ? "bg-gray-600 text-gray-200 hover:bg-gray-500"
                                                                         : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                                                                 } ${
-                                                                    processingRequest ===
-                                                                    notification._id
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "accept"
+                                                                    ) ||
+                                                                    isButtonLoading(
+                                                                        notification._id,
+                                                                        "decline"
+                                                                    )
                                                                         ? "opacity-70 cursor-not-allowed"
                                                                         : ""
                                                                 }`}
                                                             >
-                                                                {processingRequest ===
-                                                                notification._id ? (
+                                                                {isButtonLoading(
+                                                                    notification._id,
+                                                                    "decline"
+                                                                ) ? (
                                                                     <>
                                                                         <FaSpinner className="animate-spin cursor-pointer" />
                                                                         <span>
-                                                                            Processing...
+                                                                            Declining...
                                                                         </span>
                                                                     </>
                                                                 ) : (
