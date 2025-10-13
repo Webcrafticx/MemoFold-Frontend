@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { FaCamera, FaEdit, FaCalendar, FaCog, FaUsers } from "react-icons/fa";
+import { FaCamera, FaEdit, FaCalendar, FaCog, FaUsers, FaUpload, FaEye, FaTimes } from "react-icons/fa";
 import { motion } from "framer-motion";
 import EditProfileModal from "./EditProfileModal";
 
@@ -22,11 +22,35 @@ const ProfileHeader = ({
     onProfileUpdate,
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [showCameraOptions, setShowCameraOptions] = useState(false);
+    const [showProfileView, setShowProfileView] = useState(false);
     const profilePicInputRef = useRef(null);
 
     const handleProfileSave = (updatedData) => {
         if (onProfileUpdate) {
             onProfileUpdate(updatedData);
+        }
+    };
+
+    const handleCameraClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowCameraOptions(!showCameraOptions);
+    };
+
+    const handleUploadProfile = () => {
+        profilePicInputRef.current?.click();
+        setShowCameraOptions(false);
+    };
+
+    const handleViewProfile = () => {
+        setShowProfileView(true);
+        setShowCameraOptions(false);
+    };
+
+    const handleProfilePicClick = () => {
+        if (profilePic && profilePic !== "https://ui-avatars.com/api/?name=User&background=random") {
+            setShowProfileView(true);
         }
     };
 
@@ -63,54 +87,104 @@ const ProfileHeader = ({
                             className="hidden"
                             accept="image/*"
                         />
-                        <label
-                            htmlFor="profilePicUpload"
-                            className="cursor-pointer block"
-                        >
-                            <div className="relative">
-                                <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg cursor-pointer">
-                                    {profilePic &&
-                                    profilePic !==
-                                        "https://ui-avatars.com/api/?name=User&background=random" ? (
-                                        <img
-                                            src={profilePic}
-                                            alt="Profile"
-                                            className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
-                                                uploadingProfilePic
-                                                    ? "opacity-50"
-                                                    : ""
-                                            }`}
-                                            onError={(e) => {
-                                                e.target.style.display = "none";
-                                                e.target.nextSibling.style.display =
-                                                    "flex";
-                                            }}
-                                        />
-                                    ) : null}
-                                    <span
-                                        className="flex items-center justify-center w-full h-full text-white font-semibold text-4xl cursor-pointer"
-                                        style={
-                                            profilePic &&
-                                            profilePic !==
-                                                "https://ui-avatars.com/api/?name=User&background=random"
-                                                ? { display: "none" }
-                                                : {}
-                                        }
-                                    >
-                                        {username?.charAt(0).toUpperCase() ||
-                                            "U"}
-                                    </span>
-                                    {uploadingProfilePic && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full cursor-pointer">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                                        </div>
-                                    )}
-                                    <div className="absolute bottom-2 right-2 bg-blue-500 text-white p-2 rounded-full group-hover:bg-blue-600 transition-colors shadow-md cursor-pointer">
-                                        <FaCamera className="text-sm" />
+                        
+                        {/* Camera Options Dropdown - Smaller */}
+                        {showCameraOptions && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                                className={`absolute bottom-12 right-0 z-50 min-w-40 rounded-lg shadow-xl border ${
+                                    isDarkMode 
+                                        ? "bg-gray-800 border-gray-600 text-gray-100" 
+                                        : "bg-white border-gray-200 text-gray-800"
+                                } p-1 space-y-0.5`}
+                            >
+                                <button
+                                    onClick={handleUploadProfile}
+                                    className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                                        isDarkMode
+                                            ? "hover:bg-gray-700 text-gray-100"
+                                            : "hover:bg-gray-100 text-gray-800"
+                                    } cursor-pointer`}
+                                >
+                                    <FaUpload className="text-blue-500 text-xs" />
+                                    <span>Upload Profile</span>
+                                </button>
+                                <button
+                                    onClick={handleViewProfile}
+                                    disabled={!profilePic || profilePic === "https://ui-avatars.com/api/?name=User&background=random"}
+                                    className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                                        (!profilePic || profilePic === "https://ui-avatars.com/api/?name=User&background=random")
+                                            ? "opacity-50 cursor-not-allowed"
+                                            : isDarkMode
+                                            ? "hover:bg-gray-700 text-gray-100"
+                                            : "hover:bg-gray-100 text-gray-800"
+                                    } cursor-pointer`}
+                                >
+                                    <FaEye className="text-green-500 text-xs" />
+                                    <span>View Profile</span>
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* Profile Picture Container */}
+                        <div className="relative">
+                            <div 
+                                className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg cursor-pointer"
+                                onClick={handleProfilePicClick}
+                            >
+                                {profilePic &&
+                                profilePic !==
+                                    "https://ui-avatars.com/api/?name=User&background=random" ? (
+                                    <img
+                                        src={profilePic}
+                                        alt="Profile"
+                                        className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
+                                            uploadingProfilePic
+                                                ? "opacity-50"
+                                                : ""
+                                        }`}
+                                        onError={(e) => {
+                                            e.target.style.display = "none";
+                                            e.target.nextSibling.style.display =
+                                                "flex";
+                                        }}
+                                    />
+                                ) : null}
+                                <span
+                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-4xl cursor-pointer"
+                                    style={
+                                        profilePic &&
+                                        profilePic !==
+                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                            ? { display: "none" }
+                                            : {}
+                                    }
+                                >
+                                    {username?.charAt(0).toUpperCase() ||
+                                        "U"}
+                                </span>
+                                {uploadingProfilePic && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full cursor-pointer">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                                     </div>
-                                </div>
+                                )}
                             </div>
-                        </label>
+                            
+                            {/* Camera Icon Button */}
+                            <button
+                                onClick={handleCameraClick}
+                                className={`absolute bottom-2 right-2 p-2 rounded-full shadow-md transition-all ${
+                                    isDarkMode
+                                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                        : "bg-blue-500 hover:bg-blue-600 text-white"
+                                } cursor-pointer`}
+                                aria-label="Profile picture options"
+                            >
+                                <FaCamera className="text-sm" />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 w-full">
@@ -185,6 +259,57 @@ const ProfileHeader = ({
                 </div>
             </div>
 
+            {/* Profile Picture View Modal */}
+            {showProfileView && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className={`relative max-w-2xl max-h-[90vh] rounded-lg ${
+                            isDarkMode ? "bg-gray-800" : "bg-white"
+                        }`}
+                    >
+                        {/* Close Button */}
+                        <button
+                            onClick={() => setShowProfileView(false)}
+                            className={`absolute -top-3 -right-3 z-10 p-2 rounded-full ${
+                                isDarkMode 
+                                    ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                                    : "bg-white hover:bg-gray-100 text-gray-800"
+                            } shadow-lg transition-colors cursor-pointer`}
+                        >
+                            <FaTimes className="text-lg" />
+                        </button>
+                        
+                        {/* Profile Image */}
+                        <div className="p-2">
+                            <img
+                                src={profilePic}
+                                alt="Profile Preview"
+                                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+                            />
+                        </div>
+                        
+                        {/* User Info */}
+                        <div className={`p-4 border-t ${
+                            isDarkMode ? "border-gray-700" : "border-gray-200"
+                        }`}>
+                            <h3 className={`text-lg font-semibold ${
+                                isDarkMode ? "text-white" : "text-gray-800"
+                            }`}>
+                                {realName}
+                            </h3>
+                            <p className={`text-sm ${
+                                isDarkMode ? "text-gray-300" : "text-gray-600"
+                            }`}>
+                                @{username}
+                            </p>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
             <EditProfileModal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
@@ -196,6 +321,14 @@ const ProfileHeader = ({
                 apiService={apiService}
                 toast={toast}
             />
+
+            {/* Overlay to close camera options when clicking outside */}
+            {showCameraOptions && (
+                <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowCameraOptions(false)}
+                />
+            )}
         </>
     );
 };

@@ -168,7 +168,6 @@ const ProfilePage = () => {
                 ...prev,
                 error: errorMessage,
             }));
-            toast.error("Unable to load profile data.");
         } finally {
             setUiState((prev) => ({ ...prev, loading: false }));
         }
@@ -372,7 +371,6 @@ const ProfilePage = () => {
             }));
         } catch (error) {
             console.error("Error fetching comments:", error);
-            toast.error("Unable to load comments.");
         } finally {
             setCommentState((prev) => ({
                 ...prev,
@@ -1002,7 +1000,6 @@ const ProfilePage = () => {
                 ...prev,
                 bio: result.description || newBio,
             }));
-            toast.success("Bio updated successfully!");
         } catch (error) {
             console.error("Bio update failed:", error);
             toast.error("Unable to update bio.");
@@ -1074,7 +1071,6 @@ const ProfilePage = () => {
             }
 
             await fetchUserPosts(token);
-            toast.success("Post created successfully!");
         } catch (error) {
             console.error("Post error:", error);
             toast.error("Unable to create post.");
@@ -1275,7 +1271,6 @@ const ProfilePage = () => {
                 editFiles: [],
                 existingImage: null,
             }));
-            toast.success("Post updated successfully!");
         } catch (error) {
             console.error("Error updating post:", error);
             toast.error("Unable to update post.");
@@ -1307,17 +1302,13 @@ const ProfilePage = () => {
         const postToDelete = profileData.posts.find(
             (post) => post._id === postId
         );
-        const postContentPreview = postToDelete?.content
-            ? `"${postToDelete.content.substring(0, 100)}${
-                  postToDelete.content.length > 100 ? "..." : ""
-              }"`
-            : "this post";
+        const postContentPreview =  "Are you sure you want to delete this post? This action cannot be undone.";
 
         setConfirmationModal({
             isOpen: true,
             postId: postId,
             isLoading: false,
-            postContent: `Are you sure you want to delete ${postContentPreview}? This action cannot be undone.`,
+            postContent: `Are you sure you want to delete this post? This action cannot be undone.`,
         });
     };
 
@@ -1461,7 +1452,7 @@ const ProfilePage = () => {
                     onClose={handleCloseConfirmationModal}
                     onConfirm={handleConfirmDelete}
                     title="Delete Post"
-                    message={confirmationModal.postContent}
+                    message="Are you sure you want to delete this post? This action cannot be undone."
                     confirmText="Delete Post"
                     cancelText="Keep Post"
                     isDarkMode={uiState.darkMode}
@@ -1487,7 +1478,7 @@ const ProfilePage = () => {
                         uploadingProfilePic={uploadingProfilePic}
                         apiService={apiService}
                         toast={toast}
-                        onFriendsClick={handleFriendsClick} // ✅ Add this line
+                        onFriendsClick={handleFriendsClick} 
                         onProfileUpdate={async (result) => {
                             setProfileData((prev) => ({
                                 ...prev,

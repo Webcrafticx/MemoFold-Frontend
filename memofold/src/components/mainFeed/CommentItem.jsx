@@ -35,6 +35,11 @@ const CommentItem = ({
     }
   };
 
+  const handleReplySubmit = (e) => {
+    if (e) e.preventDefault();
+    onAddReply(comment._id, postId, e);
+  };
+
   return (
     <div className="flex items-start space-x-2">
       <div
@@ -132,51 +137,58 @@ const CommentItem = ({
           </div>
         </div>
 
+        {/* Enhanced Reply Input */}
         {comment.showReplyInput && (
-          <div className="mt-2 flex items-center space-x-2">
-            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-              <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs">
-                {username?.charAt(0).toUpperCase() || "U"}
-              </div>
-            </div>
-            <div className="flex-1 flex space-x-2">
-              <input
-                type="text"
-                className={`flex-1 px-3 py-1 rounded-full text-xs border ${
-                  isDarkMode
-                    ? "bg-gray-700 border-gray-600 text-white"
-                    : "bg-white border-gray-300 text-gray-900"
-                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                placeholder="Write a reply..."
+          <div className="mt-2 ml-2">
+            <form onSubmit={handleReplySubmit} className="flex flex-col space-y-2">
+              <textarea
                 value={replyContent[comment._id] || ""}
-                onChange={(e) =>
-                  setReplyContent({
-                    ...replyContent,
-                    [comment._id]: e.target.value,
-                  })
-                }
+                onChange={(e) => setReplyContent({
+                  ...replyContent,
+                  [comment._id]: e.target.value,
+                })}
+                placeholder={`Reply to this comment`}
+                className={`w-full px-3 py-1 text-xs rounded-lg border ${
+                  isDarkMode 
+                    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400" 
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none`}
+                rows="2"
+                maxLength="500"
               />
-              <button
-                className={`px-2 py-1 rounded-full text-xs ${
-                  !replyContent[comment._id]?.trim() || isReplying[comment._id]
-                    ? "bg-blue-300 cursor-not-allowed"
-                    : "bg-blue-500 hover:bg-blue-600"
-                } text-white transition-colors`}
-                onClick={(e) => onAddReply(comment._id, postId, e)}
-                disabled={
-                  !replyContent[comment._id]?.trim() || isReplying[comment._id]
-                }
-              >
-                {isReplying[comment._id] ? (
-                  <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  "Reply"
-                )}
-              </button>
-            </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={(e) => onToggleReplyInput(comment._id, null, e)}
+                  className={`px-3 py-1 text-xs rounded-lg ${
+                    isDarkMode 
+                      ? "bg-gray-600 text-gray-300 hover:bg-gray-500" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  } transition-colors cursor-pointer`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isReplying[comment._id] || !replyContent[comment._id]?.trim()}
+                  className={`px-3 py-1 text-xs rounded-lg text-white ${
+                    isReplying[comment._id] || !replyContent[comment._id]?.trim()
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                  } transition-colors`}
+                >
+                  {isReplying[comment._id] ? (
+                    <div className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "Reply"
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
+        {/* Replies Section */}
         {isRepliesVisible && comment.replies && comment.replies.length > 0 && (
           <div className="mt-2 space-y-2">
             {comment.replies.map((reply) => (
@@ -192,6 +204,10 @@ const CommentItem = ({
                 onToggleReplyInput={onToggleReplyInput}
                 isLikingReply={isLikingReply}
                 isDeletingReply={isDeletingReply}
+                isReplying={isReplying}
+                replyContent={replyContent}
+                onSetReplyContent={setReplyContent}
+                onAddReply={onAddReply}
                 navigateToUserProfile={navigateToUserProfile}
               />
             ))}
