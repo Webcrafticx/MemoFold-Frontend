@@ -248,74 +248,78 @@ const MainFeed = () => {
         }
     };
 
-    const fetchComments = async (postId) => {
-        setLoadingComments((prev) => ({ ...prev, [postId]: true }));
+ const fetchComments = async (postId) => {
+    setLoadingComments((prev) => ({ ...prev, [postId]: true }));
 
-        try {
-            const responseData = await apiService.fetchComments(postId, token);
-            const comments = responseData.comments || [];
+    try {
+        const responseData = await apiService.fetchComments(postId, token);
+        const comments = responseData.comments || [];
+        
+        // ✅ FIXED: Use the count from API response, not comments.length
+        const commentCount = responseData.count || comments.length;
 
-            const storedCommentLikes = localStorageService.getStoredCommentLikes();
+        const storedCommentLikes = localStorageService.getStoredCommentLikes();
 
-            const commentsWithLikes = comments.map((comment) => {
-                const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
+        const commentsWithLikes = comments.map((comment) => {
+            const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
 
-                const hasUserLiked = commentLikes.includes(user._id);
+            const hasUserLiked = commentLikes.includes(user._id);
 
-                const userData = comment.userId || comment.user || {
-                    _id: 'unknown',
-                    username: 'Unknown',
-                    realname: 'Unknown User',
-                    profilePic: ''
-                };
+            const userData = comment.userId || comment.user || {
+                _id: 'unknown',
+                username: 'Unknown',
+                realname: 'Unknown User',
+                profilePic: ''
+            };
 
-                const finalUserData = {
-                    _id: userData._id || 'unknown',
-                    username: userData.username || 'Unknown',
-                    realname: userData.realname || userData.username || 'Unknown User',
-                    profilePic: userData.profilePic || ''
-                };
+            const finalUserData = {
+                _id: userData._id || 'unknown',
+                username: userData.username || 'Unknown',
+                realname: userData.realname || userData.username || 'Unknown User',
+                profilePic: userData.profilePic || ''
+            };
 
-                const replyCount = comment.replyCount || 0;
-                const replies = [];
+            const replyCount = comment.replyCount || 0;
+            const replies = [];
 
-                return {
-                    ...comment,
-                    likes: commentLikes,
-                    hasUserLiked: hasUserLiked,
-                    userId: finalUserData,
-                    replies: replies,
-                    replyCount: replyCount,
-                    showReplyInput: false,
-                };
-            });
+            return {
+                ...comment,
+                likes: commentLikes,
+                hasUserLiked: hasUserLiked,
+                userId: finalUserData,
+                replies: replies,
+                replyCount: replyCount,
+                showReplyInput: false,
+            };
+        });
 
-            setPosts(prevPosts =>
-                prevPosts.map(post =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: commentsWithLikes,
-                              commentCount: commentsWithLikes.length,
-                          }
-                        : post
-                )
-            );
+        setPosts(prevPosts =>
+            prevPosts.map(post =>
+                post._id === postId
+                    ? {
+                          ...post,
+                          comments: commentsWithLikes,
+                          // ✅ FIXED: Use the count from API response
+                          commentCount: commentCount,
+                      }
+                    : post
+            )
+        );
 
-            setActiveCommentPostId(postId);
+        setActiveCommentPostId(postId);
 
-            const likesByComment = {};
-            comments.forEach((comment) => {
-                likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
-            });
+        const likesByComment = {};
+        comments.forEach((comment) => {
+            likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
+        });
 
-            localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoadingComments((prev) => ({ ...prev, [postId]: false }));
-        }
-    };
+        localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setLoadingComments((prev) => ({ ...prev, [postId]: false }));
+    }
+};
 
     const handleLikeComment = async (commentId, postId, e) => {
         if (e) {
@@ -376,73 +380,73 @@ const MainFeed = () => {
         }
     };
 
-    const handleDeleteComment = async (commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+ const handleDeleteComment = async (commentId, postId, e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
 
-        const post = posts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
+    const post = posts.find((p) => p._id === postId);
+    const comment = post?.comments?.find((c) => c._id === commentId);
 
-        if (!post || !comment) {
-            setError("Comment not found");
-            return;
-        }
+    if (!post || !comment) {
+        setError("Comment not found");
+        return;
+    }
 
-        const isCommentOwner = comment.userId?.username === username;
-        const isPostOwner = post.userId?.username === username;
+    const isCommentOwner = comment.userId?.username === username;
+    const isPostOwner = post.userId?.username === username;
 
-        if (!isCommentOwner && !isPostOwner) {
-            setError("You don't have permission to delete this comment");
-            return;
-        }
+    if (!isCommentOwner && !isPostOwner) {
+        setError("You don't have permission to delete this comment");
+        return;
+    }
 
-        if (!window.confirm("Are you sure you want to delete this comment and all its replies?")) {
-            return;
-        }
+    if (!window.confirm("Are you sure you want to delete this comment and all its replies?")) {
+        return;
+    }
 
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+    setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
 
-        const originalPosts = [...posts];
+    const originalPosts = [...posts];
 
-        try {
-            const replyIds = comment.replies?.map(reply => reply._id) || [];
+    try {
+        const replyIds = comment.replies?.map(reply => reply._id) || [];
 
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments = post.comments?.filter((comment) => comment._id !== commentId) || [];
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                            commentCount: updatedComments.length,
-                        };
-                    }
-                    return post;
-                })
-            );
+        setPosts(
+            posts.map((post) => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.filter((comment) => comment._id !== commentId) || [];
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                        // ✅ FIXED: Decrement comment count properly
+                        commentCount: Math.max(0, (post.commentCount || 1) - 1),
+                    };
+                }
+                return post;
+            })
+        );
 
-            const storedCommentLikes = localStorageService.getStoredCommentLikes();
-            delete storedCommentLikes[commentId];
-            
-            replyIds.forEach(replyId => {
-                delete storedCommentLikes[replyId];
-            });
-            
-            localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
+        const storedCommentLikes = localStorageService.getStoredCommentLikes();
+        delete storedCommentLikes[commentId];
+        
+        replyIds.forEach(replyId => {
+            delete storedCommentLikes[replyId];
+        });
+        
+        localStorage.setItem("commentLikes", JSON.stringify(storedCommentLikes));
 
-            await apiService.deleteComment(commentId, postId, token);
+        await apiService.deleteComment(commentId, postId, token);
 
-            setSuccessMessage("Comment and all its replies deleted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
-        } catch (err) {
-            setError(err.message);
-            setPosts(originalPosts);
-        } finally {
-            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-        }
-    };
+        setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+        setError(err.message);
+        setPosts(originalPosts);
+    } finally {
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+    }
+};
 
     const handleLike = async (postId, e, customRect = null) => { 
         if (e) {
@@ -597,63 +601,64 @@ const MainFeed = () => {
         }));
     };
 
-    const handleCommentSubmit = async (postId, e) => {
-        if (e) e.preventDefault();
+  const handleCommentSubmit = async (postId, e) => {
+    if (e) e.preventDefault();
 
-        const content = commentContent[postId] || "";
+    const content = commentContent[postId] || "";
 
-        if (!content.trim()) {
-            setError("Comment cannot be empty");
-            return;
-        }
+    if (!content.trim()) {
+        setError("Comment cannot be empty");
+        return;
+    }
 
-        if (!username) {
-            setError("You must be logged in to comment");
-            navigate("/login");
-            return;
-        }
+    if (!username) {
+        setError("You must be logged in to comment");
+        navigate("/login");
+        return;
+    }
 
-        setIsCommenting((prev) => ({ ...prev, [postId]: true }));
-        setError(null);
+    setIsCommenting((prev) => ({ ...prev, [postId]: true }));
+    setError(null);
 
-        try {
-            const responseData = await apiService.addComment(postId, content, token);
-            const createdComment = responseData.comment || responseData;
+    try {
+        const responseData = await apiService.addComment(postId, content, token);
+        const createdComment = responseData.comment || responseData;
 
-            setPosts(
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: [
-                                  ...(post.comments || []),
-                                  {
-                                      ...createdComment,
-                                      isLiked: false,
-                                      userId: {
-                                          _id: currentUserProfile?._id || user?._id || username,
-                                          username: username,
-                                          realname: currentUserProfile?.realname || realname || username,
-                                          profilePic: currentUserProfile?.profilePic || user?.profilePic,
-                                      },
-                                      replies: [],
-                                      replyCount: 0,
-                                      showReplyInput: false,
+        setPosts(
+            posts.map((post) =>
+                post._id === postId
+                    ? {
+                          ...post,
+                          comments: [
+                              ...(post.comments || []),
+                              {
+                                  ...createdComment,
+                                  isLiked: false,
+                                  userId: {
+                                      _id: currentUserProfile?._id || user?._id || username,
+                                      username: username,
+                                      realname: currentUserProfile?.realname || realname || username,
+                                      profilePic: currentUserProfile?.profilePic || user?.profilePic,
                                   },
-                              ],
-                              commentCount: (post.commentCount || 0) + 1,
-                          }
-                        : post
-                )
-            );
+                                  replies: [],
+                                  replyCount: 0,
+                                  showReplyInput: false,
+                              },
+                          ],
+                          // ✅ FIXED: Increment comment count properly
+                          commentCount: (post.commentCount || 0) + 1,
+                      }
+                    : post
+            )
+        );
 
-            setCommentContent((prev) => ({ ...prev, [postId]: "" }));
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsCommenting((prev) => ({ ...prev, [postId]: false }));
-        }
-    };
+        setCommentContent((prev) => ({ ...prev, [postId]: "" }));
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setIsCommenting((prev) => ({ ...prev, [postId]: false }));
+    }
+};
 
     const toggleReplies = async (commentId, e) => {
         if (e) {
@@ -824,7 +829,6 @@ const MainFeed = () => {
             );
 
             setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
-            setSuccessMessage("Reply posted successfully!");
             setTimeout(() => setSuccessMessage(null), 3000);
 
         } catch (err) {
@@ -954,7 +958,6 @@ const MainFeed = () => {
             console.log("📩 API Response:", result);
 
             if (result.success) {
-                setSuccessMessage("Reply deleted successfully!");
                 setTimeout(() => setSuccessMessage(null), 3000);
             } else {
                 throw new Error(result.message || "Failed to delete reply");

@@ -28,7 +28,7 @@ import { apiService } from "../services/api";
 import LikesModal from "./mainFeed/LikesModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
-import FriendButton from "../components/FriendButton"; // Import the new FriendButton component
+import FriendButton from "../components/FriendButton";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -60,7 +60,7 @@ const UserProfile = () => {
         postId: null,
     });
 
-    // Reply states - Load from localStorage on component mount
+    // Reply states
     const [activeReplies, setActiveReplies] = useState(() => {
         try {
             const stored = localStorage.getItem("userProfileActiveReplies");
@@ -194,14 +194,12 @@ const UserProfile = () => {
             const userDataFromApi = data.user || data;
             setUserData(userDataFromApi);
 
-            // FIX: Get description from profile object
             if (data.profile && data.profile.description) {
                 setUserDescription(data.profile.description);
             } else if (data.description) {
                 setUserDescription(data.description);
             }
 
-            // Extract stats from API response
             if (data.stats) {
                 setUserStats({
                     postCount: data.stats.postCount || 0,
@@ -228,7 +226,6 @@ const UserProfile = () => {
             const currentUsername = localStorage.getItem("username");
 
             const postsWithLikes = postsData.map((post) => {
-                // Check if current user has liked this post using likesPreview
                 const hasUserLiked = post.likesPreview?.some(
                     (like) => like.username === currentUsername
                 );
@@ -293,7 +290,6 @@ const UserProfile = () => {
                     profilePic: userData.profilePic || "",
                 };
 
-                // Load replies data if available from API
                 const repliesWithLikes = (comment.replies || []).map(
                     (reply) => {
                         const replyLikes =
@@ -639,7 +635,6 @@ const UserProfile = () => {
 
             const isCurrentlyLiked = currentPost.isLiked;
 
-            // Optimistic update
             setUserPosts((posts) =>
                 posts.map((post) => {
                     if (post._id === postId) {
@@ -650,12 +645,10 @@ const UserProfile = () => {
                         let newLikesPreview = [...(post.likesPreview || [])];
 
                         if (isCurrentlyLiked) {
-                            // Remove current user from likesPreview
                             newLikesPreview = newLikesPreview.filter(
                                 (like) => like.username !== username
                             );
                         } else {
-                            // Add current user to likesPreview
                             newLikesPreview.unshift({
                                 username: username,
                                 realname:
@@ -679,7 +672,6 @@ const UserProfile = () => {
                 })
             );
 
-            // ✅ IMPROVED: Floating hearts generation - SAME AS MAIN FEED
             if (!isCurrentlyLiked) {
                 let rect;
 
@@ -696,7 +688,6 @@ const UserProfile = () => {
                     };
                 }
 
-                // Floating hearts generate karen - SAME AS MAIN FEED
                 setFloatingHearts((hearts) => {
                     const newHearts = [
                         ...hearts,
@@ -711,12 +702,10 @@ const UserProfile = () => {
                 });
             }
 
-            // API call
             await apiService.likePost(postId, user._id, token);
         } catch (err) {
             console.error("Error liking post:", err);
 
-            // Revert optimistic update on error
             setUserPosts((prevPosts) =>
                 prevPosts.map((post) => {
                     if (post._id === postId) {
@@ -909,7 +898,6 @@ const UserProfile = () => {
             e.stopPropagation();
         }
 
-        // If we're expanding and replies aren't loaded yet, fetch them
         if (!activeReplies[commentId]) {
             try {
                 await fetchCommentReplies(commentId, postId);
@@ -919,7 +907,6 @@ const UserProfile = () => {
             }
         }
 
-        // Toggle the active state
         setActiveReplies((prev) => ({
             ...prev,
             [commentId]: !prev[commentId],
@@ -1118,7 +1105,7 @@ const UserProfile = () => {
         }
     };
 
-    // Floating Hearts Animation Component - IMPROVED VERSION
+    // Floating Hearts Animation Component
     const FloatingHearts = () => (
         <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
             {floatingHearts.map((heart) => (
@@ -1236,7 +1223,6 @@ const UserProfile = () => {
 
     // Get liked users for display
     const getLikedUsers = (post) => {
-        // Use likesPreview from API
         if (post.likesPreview && post.likesPreview.length > 0) {
             return post.likesPreview;
         }
@@ -1479,12 +1465,12 @@ const UserProfile = () => {
                             style={getImagePreviewStyle()}
                         />
                         <button
-                            className="absolute top-2 right-2 cursor-pointer bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+                            className="absolute top-4 right-4 cursor-pointer bg-red-500 text-white rounded-full p-3 hover:bg-red-600 transition-colors"
                             onClick={() => setShowImagePreview(false)}
                         >
                             <FaTimes />
                         </button>
-                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm">
+                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg text-lg">
                             @{userData.username}
                         </div>
                     </div>
@@ -1549,17 +1535,23 @@ const UserProfile = () => {
           gap-4
         "
                     >
-                        {/* Profile Image */}
+                        {/* Profile Image with Click Handler */}
                         <div className="relative flex-shrink-0">
-                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-md">
+                            <div 
+                                className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-md cursor-pointer hover:border-blue-600 transition-all duration-300"
+                                onClick={() => {
+                                    if (userData.profilePic) {
+                                        setPreviewImage(userData.profilePic);
+                                        setShowImagePreview(true);
+                                    }
+                                }}
+                            >
                                 {userData.profilePic ? (
                                     <img
                                         src={userData.profilePic}
                                         alt={userData.username}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) =>
-                                            (e.target.style.display = "none")
-                                        }
+                                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                                        onError={(e) => (e.target.style.display = "none")}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-3xl font-bold">
@@ -1622,7 +1614,7 @@ const UserProfile = () => {
                                             ? "bg-gray-700"
                                             : "bg-gray-100"
                                     }`}
-                                >
+                                    >
                                     <FaChartBar
                                         className={
                                             isDarkMode
@@ -1701,14 +1693,22 @@ const UserProfile = () => {
                                         }`}
                                     >
                                         <div className="flex items-center gap-3 mb-3">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400">
+                                            <div 
+                                                className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 cursor-pointer hover:border-blue-500 transition-all"
+                                                onClick={() => {
+                                                    if (userData.profilePic) {
+                                                        setPreviewImage(userData.profilePic);
+                                                        setShowImagePreview(true);
+                                                    }
+                                                }}
+                                            >
                                                 {userData.profilePic ? (
                                                     <img
                                                         src={
                                                             userData.profilePic
                                                         }
                                                         alt={userData.username}
-                                                        className="w-full h-full object-cover"
+                                                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                                                         onError={(e) => {
                                                             e.target.style.display =
                                                                 "none";
@@ -1765,7 +1765,7 @@ const UserProfile = () => {
                                             {post.content}
                                         </p>
 
-                                        {/* Fixed Image Container with Border Radius */}
+                                        {/* Post Image */}
                                         {post.image && (
                                             <div className="w-full mb-3 overflow-hidden flex justify-center">
                                                 <img
@@ -1845,7 +1845,7 @@ const UserProfile = () => {
                                                     </motion.span>
                                                 </motion.button>
 
-                                                {/* Liked by text - turant update hoga */}
+                                                {/* Liked by text */}
                                                 {totalLikes > 0 && (
                                                     <div className="text-sm">
                                                         <div className="flex items-center flex-wrap">
@@ -2231,7 +2231,7 @@ const UserProfile = () => {
                                                                                             </button>
                                                                                         )}
 
-                                                                                        {/* Chevron icon for replies - ALWAYS VISIBLE IF THERE ARE REPLIES */}
+                                                                                        {/* Chevron icon for replies */}
                                                                                         {comment.replyCount >
                                                                                             0 && (
                                                                                             <button

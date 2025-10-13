@@ -12,12 +12,22 @@ const ReplyItem = ({
     isLikingReply,
     isDeletingReply,
     navigateToUserProfile,
+    onToggleReplyInput,
+    isReplying,
+    replyContent,
+    onSetReplyContent,
+    onAddReply,
 }) => {
     const handleProfilePicError = (e) => {
         e.target.style.display = "none";
         if (e.target.nextSibling) {
             e.target.nextSibling.style.display = "flex";
         }
+    };
+
+    const handleReplySubmit = (e) => {
+        if (e) e.preventDefault();
+        onAddReply(commentId, reply.postId || reply._id, e);
     };
 
     return (
@@ -90,7 +100,14 @@ const ReplyItem = ({
                         </button>
 
                         <div className="flex space-x-2">
-                            {/* FIXED: Removed reply to reply functionality to simplify */}
+                            {/* Reply to reply functionality */}
+                            <button
+                                className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                onClick={(e) => onToggleReplyInput(commentId, reply._id, e)}
+                                title="Reply to this reply"
+                            >
+                                <FaReply />
+                            </button>
 
                             {(reply.userId?.username === username ||
                                 commentOwner === username) && (
@@ -111,6 +128,80 @@ const ReplyItem = ({
                             )}
                         </div>
                     </div>
+
+                    {/* Reply input for replying to replies */}
+                    {reply.showReplyInput && (
+                        <div className="mt-2 ml-2">
+                            <form onSubmit={handleReplySubmit} className="flex flex-col space-y-2">
+                                <textarea
+                                    value={replyContent[commentId] || ""}
+                                    onChange={(e) => onSetReplyContent(commentId, e.target.value)}
+                                    placeholder={`Reply to ${reply.userId?.username || "this reply"}...`}
+                                    className={`w-full px-3 py-2 text-xs rounded-lg border ${
+                                        isDarkMode 
+                                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400" 
+                                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none`}
+                                    rows="2"
+                                    maxLength="500"
+                                />
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => onToggleReplyInput(commentId, reply._id, e)}
+                                        className={`px-3 py-1 text-xs rounded-lg ${
+                                            isDarkMode 
+                                                ? "bg-gray-600 text-gray-300 hover:bg-gray-500" 
+                                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                        } transition-colors cursor-pointer`}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isReplying[commentId] || !replyContent[commentId]?.trim()}
+                                        className={`px-3 py-1 text-xs rounded-lg text-white ${
+                                            isReplying[commentId] || !replyContent[commentId]?.trim()
+                                                ? "bg-blue-400 cursor-not-allowed"
+                                                : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                                        } transition-colors`}
+                                    >
+                                        {isReplying[commentId] ? (
+                                            <div className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            "Reply"
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Nested replies (replies to this reply) */}
+                    {reply.replies && reply.replies.length > 0 && (
+                        <div className="mt-2">
+                            {reply.replies.map((nestedReply) => (
+                                <ReplyItem
+                                    key={nestedReply._id}
+                                    reply={nestedReply}
+                                    commentId={commentId}
+                                    username={username}
+                                    commentOwner={commentOwner}
+                                    isDarkMode={isDarkMode}
+                                    onLikeReply={onLikeReply}
+                                    onDeleteReply={onDeleteReply}
+                                    onToggleReplyInput={onToggleReplyInput}
+                                    isLikingReply={isLikingReply}
+                                    isDeletingReply={isDeletingReply}
+                                    isReplying={isReplying}
+                                    replyContent={replyContent}
+                                    onSetReplyContent={onSetReplyContent}
+                                    onAddReply={onAddReply}
+                                    navigateToUserProfile={navigateToUserProfile}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

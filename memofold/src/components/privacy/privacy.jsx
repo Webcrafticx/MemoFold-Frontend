@@ -1,11 +1,17 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import logo from "../../assets/logo.png";
 
 const PrivacyPolicy = () => {
     const [openSection, setOpenSection] = useState(0);
+    const navigate = useNavigate();
 
     const toggleSection = (index) => {
         setOpenSection(openSection === index ? null : index);
+    };
+
+    const handleLoginRedirect = () => {
+        navigate("/login");
     };
 
     const sections = [
@@ -169,7 +175,10 @@ const PrivacyPolicy = () => {
             {/* Top Bar */}
             <div className="bg-white rounded-xl shadow-md mb-8 p-5 max-w-6xl mx-auto">
                 <div className="flex justify-end">
-                    <button className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all cursor-pointer">
+                    <button 
+                        onClick={handleLoginRedirect}
+                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold py-2 px-4 rounded-full hover:from-cyan-500 hover:to-blue-600 hover:scale-105 transition-all cursor-pointer"
+                    >
                         <img
                             src={logo}
                             alt="Avatar"
