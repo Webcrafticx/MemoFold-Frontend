@@ -902,7 +902,7 @@ const Post = () => {
                     </h1>
                     <button
                         onClick={() => navigate(-1)}
-                        className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
                     >
                         Go Back
                     </button>
@@ -958,7 +958,7 @@ const Post = () => {
                 <div className="max-w-2xl mx-auto px-4 py-3 flex items-center">
                     <button
                         onClick={() => navigate(-1)}
-                        className={`p-2 rounded-full transition-colors mr-3 ${
+                        className={`p-2 rounded-full transition-colors mr-3 cursor-pointer ${
                             darkMode
                                 ? "hover:bg-gray-700 text-gray-300"
                                 : "hover:bg-gray-100 text-gray-600"
@@ -1001,17 +1001,17 @@ const Post = () => {
                                 navigateToUserProfile(post.userId._id, e)
                             }
                         >
-                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer">
                                 {post.userId.profilePic ? (
                                     <img
                                         src={post.userId.profilePic}
                                         alt={post.userId.username}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover cursor-pointer"
                                         onError={handleProfilePicError}
                                     />
                                 ) : null}
                                 <div
-                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg ${
+                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg cursor-pointer ${
                                         post.userId.profilePic
                                             ? "hidden"
                                             : "flex"
@@ -1025,7 +1025,7 @@ const Post = () => {
 
                             <div>
                                 <h3
-                                    className={`text-base font-semibold hover:text-blue-500 transition-colors ${
+                                    className={`text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer ${
                                         darkMode
                                             ? "text-white"
                                             : "text-gray-800"
@@ -1083,12 +1083,12 @@ const Post = () => {
                                         isLiking[post._id] ||
                                         likeCooldown[post._id]
                                     }
-                                    className={`flex items-center gap-1 ${
+                                    className={`flex items-center gap-1 cursor-pointer ${
                                         isLiking[post._id] ||
                                         likeCooldown[post._id]
                                             ? "opacity-50 cursor-not-allowed"
                                             : ""
-                                    } hover:text-red-500 transition-colors cursor-pointer`}
+                                    } hover:text-red-500 transition-colors`}
                                 >
                                     {isLiking[post._id] ? (
                                         <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1102,7 +1102,7 @@ const Post = () => {
                                         initial={{ scale: 1 }}
                                         animate={{ scale: [1.2, 1] }}
                                         transition={{ duration: 0.2 }}
-                                        className={`text-sm font-medium ${
+                                        className={`text-sm font-medium cursor-pointer ${
                                             post.hasUserLiked
                                                 ? "text-red-500"
                                                 : "text-gray-400"
@@ -1123,7 +1123,7 @@ const Post = () => {
                                                         .map((user, index) => (
                                                             <span
                                                                 key={index}
-                                                                className={`font-medium mr-1 ${
+                                                                className={`font-medium mr-1 cursor-pointer ${
                                                                     darkMode
                                                                         ? "text-gray-300"
                                                                         : "text-gray-700"
@@ -1164,7 +1164,7 @@ const Post = () => {
                                                         likedUsers.length ===
                                                             1 && (
                                                             <span
-                                                                className={`font-medium mr-1 ${
+                                                                className={`font-medium mr-1 cursor-pointer ${
                                                                     darkMode
                                                                         ? "text-gray-300"
                                                                         : "text-gray-700"
@@ -1205,7 +1205,7 @@ const Post = () => {
                                 disabled={loadingComments[post._id]}
                             >
                                 <FaComment />
-                                <span className="text-sm">
+                                <span className="text-sm cursor-pointer">
                                     {post.commentCount || 0}
                                 </span>
                                 {loadingComments[post._id] && (
