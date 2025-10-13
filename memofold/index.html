@@ -34,38 +34,53 @@
     content="Relive your memories — childhood laughs, college moments, travel escapades — and preserve them forever with MemoFold." />
   <meta property="twitter:image" content="/logo.png" />
 
-  <!-- Video Call Pages ke liye OG Tags Hide -->
+  <!-- Video Call aur Chat Pages ke liye OG Tags Hide -->
   <script>
-    // Immediately check if this is a video call page
-    if (window.location.pathname.startsWith('/call/')) {
+    // Immediately check if this is a video call or chat page
+    if (window.location.pathname.startsWith('/call/') || 
+        window.location.pathname.startsWith('/chat/') ||
+        window.location.pathname === '/feed' ||
+        window.location.pathname.includes('message') ||
+        window.location.search.includes('chat=true')) {
+      
       // Sabhi OG tags ko remove karein
       const removeMetaTags = () => {
         const ogTags = document.querySelectorAll('meta[property^="og:"]');
         ogTags.forEach(meta => meta.remove());
-        
+
         const twitterTags = document.querySelectorAll('meta[property^="twitter:"]');
         twitterTags.forEach(meta => meta.remove());
-        
+
         // Description meta tag bhi remove karein
         const descriptionMeta = document.querySelector('meta[name="description"]');
         if (descriptionMeta) descriptionMeta.remove();
-        
-        // Title change karein
-        document.title = "Video Call - Memofold";
-        
+
+        // Title change karein based on page type
+        if (window.location.pathname.startsWith('/call/')) {
+          document.title = "Video Call - Memofold";
+        } else if (window.location.pathname.startsWith('/chat/') || 
+                   window.location.pathname === '/feed' ||
+                   window.location.pathname.includes('message')) {
+          document.title = "Chat - Memofold";
+        }
+
         // New minimal meta tags add karein
         const newDescription = document.createElement('meta');
         newDescription.name = "description";
-        newDescription.content = "Join the video call";
+        if (window.location.pathname.startsWith('/call/')) {
+          newDescription.content = "Join the video call";
+        } else {
+          newDescription.content = "Chat with your connections";
+        }
         document.head.appendChild(newDescription);
-        
+
         // OG type set karein jo card generate na kare
         const minimalOgType = document.createElement('meta');
         minimalOgType.setAttribute('property', 'og:type');
         minimalOgType.content = "article";
         document.head.appendChild(minimalOgType);
       };
-      
+
       // DOM load hone se pehle hi execute karein
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', removeMetaTags);
