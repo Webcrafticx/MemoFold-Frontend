@@ -12,7 +12,7 @@
   <!-- Primary Meta Tags -->
   <meta name="title" content="Memofold - Write your life before it fades" />
   <meta name="description"
-    content="MemoFold helps you relive your memories — from your first cry to today's smile. Build your own living diary, a Wikipedia for your life’s journey." />
+    content="MemoFold helps you relive your memories — from your first cry to today's smile. Build your own living diary, a Wikipedia for your life's journey." />
   <meta name="keywords"
     content="MemoFold, memories, diary, life journey, childhood, college, travel, living diary, personal archive" />
   <meta name="author" content="MemoFold Team" />
@@ -23,7 +23,7 @@
   <meta property="og:url" content="https://memofold.com/" />
   <meta property="og:title" content="Memofold - Write your life before it fades" />
   <meta property="og:description"
-    content="Watch and share your life’s journey. MemoFold captures every fold of your story — childhood, college, travels, and beyond." />
+    content="Watch and share your life's journey. MemoFold captures every fold of your story — childhood, college, travels, and beyond." />
   <meta property="og:image" content="/logo.png" />
 
   <!-- Twitter -->
@@ -33,6 +33,47 @@
   <meta property="twitter:description"
     content="Relive your memories — childhood laughs, college moments, travel escapades — and preserve them forever with MemoFold." />
   <meta property="twitter:image" content="/logo.png" />
+
+  <!-- Video Call Pages ke liye OG Tags Hide -->
+  <script>
+    // Immediately check if this is a video call page
+    if (window.location.pathname.startsWith('/call/')) {
+      // Sabhi OG tags ko remove karein
+      const removeMetaTags = () => {
+        const ogTags = document.querySelectorAll('meta[property^="og:"]');
+        ogTags.forEach(meta => meta.remove());
+        
+        const twitterTags = document.querySelectorAll('meta[property^="twitter:"]');
+        twitterTags.forEach(meta => meta.remove());
+        
+        // Description meta tag bhi remove karein
+        const descriptionMeta = document.querySelector('meta[name="description"]');
+        if (descriptionMeta) descriptionMeta.remove();
+        
+        // Title change karein
+        document.title = "Video Call - Memofold";
+        
+        // New minimal meta tags add karein
+        const newDescription = document.createElement('meta');
+        newDescription.name = "description";
+        newDescription.content = "Join the video call";
+        document.head.appendChild(newDescription);
+        
+        // OG type set karein jo card generate na kare
+        const minimalOgType = document.createElement('meta');
+        minimalOgType.setAttribute('property', 'og:type');
+        minimalOgType.content = "article";
+        document.head.appendChild(minimalOgType);
+      };
+      
+      // DOM load hone se pehle hi execute karein
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', removeMetaTags);
+      } else {
+        removeMetaTags();
+      }
+    }
+  </script>
 </head>
 
 <body>
@@ -45,7 +86,7 @@
         <h1>Memofold - Write your life before it fades</h1>
         <p>
           MemoFold helps you relive your memories — from your first cry to today's smile. Build your
-          own living diary, a Wikipedia for your life’s journey.
+          own living diary, a Wikipedia for your life's journey.
         </p>
       </header>
 
