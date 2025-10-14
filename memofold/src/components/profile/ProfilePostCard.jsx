@@ -554,7 +554,7 @@ const ProfilePostCard = ({
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             navigateToProfile(
-                                                                user.user_id
+                                                                user.id
                                                             );
                                                         }}
                                                     >
