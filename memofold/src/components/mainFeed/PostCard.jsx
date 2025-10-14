@@ -229,11 +229,17 @@ const PostCard = ({
                                             .map((user, index) => (
                                                 <span
                                                     key={index}
-                                                    className={`font-medium mr-1 ${
+                                                    className={`font-medium mr-1 cursor-pointer hover:underline ${
                                                         isDarkMode
                                                             ? "text-gray-300"
                                                             : "text-gray-700"
                                                     }`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigateToProfile(
+                                                            user.id
+                                                        ); // ✅ YAHAN CHANGE
+                                                    }}
                                                 >
                                                     {user.username}
                                                     {index <
