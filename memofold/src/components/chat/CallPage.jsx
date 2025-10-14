@@ -22,7 +22,7 @@ import toast from "react-hot-toast";
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 const PageLoader = () => (
-  <div className="flex justify-center items-center h-screen bg-gray-900">
+  <div className="flex justify-center items-center h-[93vh] md:h-screen bg-gray-900">
     <div className="text-center text-white">
       <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
       <p className="text-lg font-medium">Loading call...</p>
@@ -98,7 +98,7 @@ const CallPage = () => {
 
   if (!authUser) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-900">
+      <div className="flex items-center justify-center h-[93vh] md:h-screen bg-gray-900">
         <div className="text-center text-white max-w-md p-6">
           <div className="text-6xl mb-4">🔒</div>
           <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
@@ -114,7 +114,7 @@ const CallPage = () => {
   }
 
   return (
-    <div className="h-screen bg-gray-900 fixed inset-0">
+    <div className="h-[93vh] md:h-screen bg-gray-900 fixed inset-0">
       {client && call ? (
         <StreamVideo client={client}>
           <StreamCall call={call}>
@@ -139,7 +139,7 @@ const CallPage = () => {
   );
 };
 
-// Responsive layout: mobile -> full screen + pip, desktop -> SpeakerLayout
+// Responsive layout: mobile -> h-[93vh], desktop -> full screen
 const ResponsiveLayout = () => {
   const isMobile = window.innerWidth < 768;
   const { useCallCallingState } = useCallStateHooks();
@@ -155,7 +155,7 @@ const ResponsiveLayout = () => {
 
   if (callingState === CallingState.JOINING) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
+      <div className="h-[93vh] md:h-screen flex items-center justify-center bg-gray-900 text-white">
         <div>
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
           <p className="text-xl font-semibold">Joining call...</p>
@@ -166,7 +166,7 @@ const ResponsiveLayout = () => {
 
   return (
     <StreamTheme>
-      <div className="h-screen relative">
+      <div className="h-[93vh] md:h-screen relative">
         {isMobile ? <MobileFullScreenLayout /> : <SpeakerLayout />}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
           <CallControls />
@@ -190,7 +190,7 @@ const MobileFullScreenLayout = () => {
 
   if (!participants || participants.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-white">
+      <div className="h-[93vh] md:h-screen flex items-center justify-center text-white">
         Waiting for participants...
       </div>
     );
@@ -204,7 +204,7 @@ const MobileFullScreenLayout = () => {
   };
 
   return (
-    <div className="relative h-full w-full bg-black overflow-hidden">
+    <div className="relative h-[93vh] md:h-screen w-full bg-black overflow-hidden">
       {/* Fullscreen main */}
       {main && (
         <ParticipantView participant={main} className="w-full h-full object-cover" />

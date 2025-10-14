@@ -16,7 +16,7 @@ const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 // 🟡 Skeleton Loader
 const ChatSkeleton = () => {
   return (
-    <div className=" bg-white fixed inset-0 flex flex-col">
+    <div className="bg-white fixed inset-0 flex flex-col">
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse"></div>
@@ -59,7 +59,9 @@ const ChatPage = () => {
   const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reloadAttempted, setReloadAttempted] = useState(false);
   const [isSendingCall, setIsSendingCall] = useState(false);
+  const [initFailed, setInitFailed] = useState(false);
   const { user: authUser, token } = useAuth();
   const initializedRef = useRef(false);
 
@@ -74,75 +76,81 @@ const ChatPage = () => {
       return await apiService.getStreamToken(token);
     },
     enabled: !!token && !!authUser?._id,
-    retry: 2,
+    retry: 1,
   });
 
   useEffect(() => {
     if (tokenError) {
       console.error("Token error:", tokenError);
-      toast.error("Authentication failed. Please login again.");
       setLoading(false);
+      setInitFailed(true);
     }
   }, [tokenError]);
 
-  useEffect(() => {
-    if (initializedRef.current) return;
+  const initChat = async () => {
+    if (tokenLoading || !tokenData?.token || !authUser?._id || !targetUserId) return;
 
-    const initChat = async () => {
-      if (tokenLoading || !tokenData?.token || !authUser?._id || !targetUserId) return;
+    if (authUser._id === targetUserId) {
+      setLoading(false);
+      setInitFailed(true);
+      return;
+    }
 
-      if (authUser._id === targetUserId) {
-        toast.error("Cannot start chat with yourself.");
+    try {
+      const client = StreamChat.getInstance(STREAM_API_KEY);
+      await client.connectUser(
+        {
+          id: authUser._id,
+          name: authUser.realname || authUser.username,
+          image: authUser.profilePic,
+        },
+        tokenData.token
+      );
+
+      const channelId = [authUser._id, targetUserId].sort().join("-");
+      const currChannel = client.channel("messaging", channelId, {
+        members: [authUser._id, targetUserId],
+        name: `Chat with ${targetUserId}`,
+        created_by_id: authUser._id,
+      });
+
+      await currChannel.watch();
+      await currChannel.addMembers([authUser._id, targetUserId]);
+
+      setChannel(currChannel);
+      setChatClient(client);
+      setLoading(false);
+      initializedRef.current = true;
+      setInitFailed(false);
+    } catch (err) {
+      console.error("Chat init error:", err);
+      const statusCode = err?.response?.status;
+      if (statusCode === 400) {
         setLoading(false);
+        setInitFailed(true);
+        toast.error("Failed to initialize chat (400). Please try again.");
         return;
       }
-
-      try {
-        const client = StreamChat.getInstance(STREAM_API_KEY);
-        await client.connectUser(
-          {
-            id: authUser._id,
-            name: authUser.realname || authUser.username,
-            image: authUser.profilePic,
-          },
-          tokenData.token
-        );
-
-        const channelId = [authUser._id, targetUserId].sort().join("-");
-        const currChannel = client.channel("messaging", channelId, {
-          members: [authUser._id, targetUserId],
-          name: `Chat with ${targetUserId}`,
-          created_by_id: authUser._id,
-        });
-
-        await currChannel.watch();
-
-        // 🟢 Add both users to members list
-        await currChannel.addMembers([authUser._id, targetUserId]);
-
-        setChannel(currChannel);
-        setChatClient(client);
+      if (!reloadAttempted) {
+        setReloadAttempted(true);
+        window.location.reload();
+      } else {
         setLoading(false);
-        initializedRef.current = true;
-      } catch (err) {
-        console.error("Chat init error:", err);
-        toast.error("Could not connect to chat");
-        setLoading(false);
+        setInitFailed(true);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
+    if (initializedRef.current) return;
     initChat();
-
     return () => {
-      if (chatClient) {
-        chatClient.disconnectUser();
-      }
+      if (chatClient) chatClient.disconnectUser();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenData, authUser, targetUserId, tokenLoading]);
 
-  const handleBack = () => {
-    navigate(-1);
-  };
+  const handleBack = () => navigate(-1);
 
   const handleVideoCall = async () => {
     if (isSendingCall || !channel) return;
@@ -171,37 +179,74 @@ const ChatPage = () => {
       });
 
       window.open(fullUrl, "_blank", "noopener,noreferrer");
-      toast.success("Video call invitation sent!");
     } catch (error) {
       console.error("Error sending call message:", error);
-      toast.error("Failed to send call invitation");
     } finally {
       setIsSendingCall(false);
     }
   };
 
+  const handleRetry = () => {
+    setInitFailed(false);
+    setLoading(true);
+    setReloadAttempted(false);
+    initChat();
+  };
+
+  // ✅ Navigate to user profile
+  const navigateToUserProfile = (userId, e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (!userId) return;
+
+    if (userId === authUser._id) {
+      navigate("/profile");
+    } else {
+      navigate(`/user/${userId}`);
+    }
+  };
+
   if (loading) return <ChatSkeleton />;
 
-  if (!chatClient || !channel) {
+  if (initFailed || !chatClient || !channel) {
     return (
-      <div className=" flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="text-6xl mb-4">💬</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Chat Not Available</h2>
-          <p className="text-gray-600">Unable to load chat. Please try again.</p>
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white px-4">
+        <div className="text-center max-w-sm">
+          <div className="animate-bounce text-5xl mb-4">💬</div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Reconnecting...
+          </h2>
+          <p className="text-gray-600 mb-6">Something went wrong while connecting to the chat.</p>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center w-full">
+            <button
+              onClick={handleRetry}
+              className="px-5 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={handleBack}
+              className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // 🟡 Get target user's info from members
   const targetUser = channel.state.members[targetUserId]?.user;
   const lastSeenText = targetUser?.online
     ? "Online"
     : formatLastSeen(targetUser?.last_active);
 
   return (
-    <div className=" bg-white fixed inset-0">
+    <div className="bg-white fixed inset-0">
       <Chat client={chatClient}>
         <Channel channel={channel}>
           <div className="w-full h-full flex flex-col">
@@ -229,30 +274,34 @@ const ChatPage = () => {
                   </svg>
                 </button>
 
-                {/* Avatar */}
-                {targetUser?.image ? (
-                  <img
-                    src={targetUser.image}
-                    alt="avatar"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
-                    {targetUser?.name?.charAt(0).toUpperCase() || "U"}
-                  </div>
-                )}
+                {/* Avatar + Username Clickable */}
+                <div
+                  onClick={(e) => navigateToUserProfile(targetUser?.id, e)}
+                  className="flex items-center space-x-3 cursor-pointer group"
+                >
+                  {targetUser?.image ? (
+                    <img
+                      src={targetUser.image}
+                      alt="avatar"
+                      className="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-blue-500 transition"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg">
+                      {targetUser?.name?.charAt(0).toUpperCase() || "U"}
+                    </div>
+                  )}
 
-                {/* User Info */}
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    {targetUser?.name || "User"}
-                  </h2>
-                  <p className="text-sm text-gray-500 flex items-center">
-                    {targetUser?.online && (
-                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    )}
-                    {lastSeenText}
-                  </p>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+                      {targetUser?.name || "User"}
+                    </h2>
+                    <p className="text-sm text-gray-500 flex items-center">
+                      {targetUser?.online && (
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                      )}
+                      {lastSeenText}
+                    </p>
+                  </div>
                 </div>
               </div>
 
