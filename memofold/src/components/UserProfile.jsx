@@ -319,6 +319,7 @@ const UserProfile = () => {
                             likes: replyLikes,
                             hasUserLiked: hasUserLikedReply,
                             userId: finalReplyUserData,
+                            showReplyInput: false,
                         };
                     }
                 );
@@ -409,6 +410,7 @@ const UserProfile = () => {
                     likes: replyLikes,
                     hasUserLiked: hasUserLikedReply,
                     userId: finalReplyUserData,
+                    showReplyInput: false,
                 };
             });
 
@@ -940,6 +942,48 @@ const UserProfile = () => {
         }));
     };
 
+    // New function to toggle reply input for replies
+    const toggleReplyToReplyInput = (replyId, commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        setUserPosts((prevPosts) =>
+            prevPosts.map((post) => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.map((comment) => {
+                        if (comment._id === commentId) {
+                            const updatedReplies = comment.replies?.map((reply) =>
+                                reply._id === replyId
+                                    ? {
+                                          ...reply,
+                                          showReplyInput: !reply.showReplyInput,
+                                      }
+                                    : reply
+                            );
+                            return {
+                                ...comment,
+                                replies: updatedReplies,
+                            };
+                        }
+                        return comment;
+                    });
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                    };
+                }
+                return post;
+            })
+        );
+
+        setReplyContent((prev) => ({
+            ...prev,
+            [`${replyId}-${commentId}`]: prev[`${replyId}-${commentId}`] || "",
+        }));
+    };
+
     const handleCommentSubmit = async (postId, e) => {
         if (e) e.preventDefault();
 
@@ -1102,6 +1146,100 @@ const UserProfile = () => {
             setError(err.message);
         } finally {
             setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
+
+    // New function to handle adding reply to a reply
+    const handleAddReplyToReply = async (replyId, commentId, postId, e) => {
+        if (e) e.preventDefault();
+
+        const content = replyContent[`${replyId}-${commentId}`] || "";
+
+        if (!content.trim()) {
+            setError("Reply cannot be empty");
+            return;
+        }
+
+        if (!username) {
+            setError("You must be logged in to reply");
+            navigate("/login");
+            return;
+        }
+
+        setIsReplying((prev) => ({ ...prev, [`${replyId}-${commentId}`]: true }));
+        setError(null);
+
+        try {
+            const responseData = await apiService.addCommentReply(
+                commentId, // We reply to the parent comment, but reference the reply
+                content,
+                postId,
+                token
+            );
+            const createdReply = responseData.reply || responseData;
+
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const newReply = {
+                                        ...createdReply,
+                                        _id:
+                                            createdReply._id ||
+                                            `temp-${Date.now()}`,
+                                        content: content,
+                                        userId: {
+                                            _id: user._id,
+                                            username: username,
+                                            realname:
+                                                currentUserProfile?.realname ||
+                                                user?.realname ||
+                                                username,
+                                            profilePic:
+                                                currentUserProfile?.profilePic ||
+                                                user?.profilePic,
+                                        },
+                                        likes: [],
+                                        hasUserLiked: false,
+                                        createdAt:
+                                            createdReply.createdAt ||
+                                            new Date().toISOString(),
+                                    };
+
+                                    const updatedReplies = [
+                                        ...(comment.replies || []),
+                                        newReply,
+                                    ];
+
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                        replyCount: updatedReplies.length,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            setReplyContent((prev) => ({ ...prev, [`${replyId}-${commentId}`]: "" }));
+            setSuccessMessage("Reply posted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error posting reply:", err);
+            setError(err.message);
+        } finally {
+            setIsReplying((prev) => ({ ...prev, [`${replyId}-${commentId}`]: false }));
         }
     };
 
@@ -1346,6 +1484,22 @@ const UserProfile = () => {
                             </button>
 
                             <div className="flex space-x-2">
+                                {/* Reply button for replies */}
+                                <button
+                                    className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                    onClick={(e) =>
+                                        toggleReplyToReplyInput(
+                                            reply._id,
+                                            commentId,
+                                            postId,
+                                            e
+                                        )
+                                    }
+                                    title="Reply to this reply"
+                                >
+                                    <FaReply />
+                                </button>
+
                                 {(reply.userId?.username === username ||
                                     commentOwner === username) && (
                                     <button
@@ -1370,6 +1524,105 @@ const UserProfile = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Reply Input for Reply */}
+                        {reply.showReplyInput && (
+                            <div className="mt-2">
+                                <form
+                                    onSubmit={(e) =>
+                                        handleAddReplyToReply(
+                                            reply._id,
+                                            commentId,
+                                            postId,
+                                            e
+                                        )
+                                    }
+                                    className="flex items-center space-x-2"
+                                >
+                                    <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                        {currentUserProfile?.profilePic ||
+                                        user?.profilePic ? (
+                                            <img
+                                                src={
+                                                    currentUserProfile?.profilePic ||
+                                                    user?.profilePic
+                                                }
+                                                alt={username}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display =
+                                                        "none";
+                                                }}
+                                            />
+                                        ) : null}
+                                        <div
+                                            className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                                currentUserProfile?.profilePic ||
+                                                user?.profilePic
+                                                    ? "hidden"
+                                                    : "flex"
+                                            }`}
+                                        >
+                                            {username
+                                                ?.charAt(0)
+                                                .toUpperCase() || "U"}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 flex space-x-2">
+                                        <input
+                                            type="text"
+                                            className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                                isDarkMode
+                                                    ? "bg-gray-700 border-gray-600 text-white"
+                                                    : "bg-white border-gray-300"
+                                            } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                            placeholder="Write a reply..."
+                                            value={
+                                                replyContent[
+                                                    `${reply._id}-${commentId}`
+                                                ] || ""
+                                            }
+                                            onChange={(e) =>
+                                                setReplyContent({
+                                                    ...replyContent,
+                                                    [`${reply._id}-${commentId}`]:
+                                                        e.target.value,
+                                                })
+                                            }
+                                        />
+                                        <button
+                                            type="submit"
+                                            className={`px-2 py-1 rounded-full text-xs ${
+                                                !replyContent[
+                                                    `${reply._id}-${commentId}`
+                                                ]?.trim() ||
+                                                isReplying[
+                                                    `${reply._id}-${commentId}`
+                                                ]
+                                                    ? "bg-blue-300 cursor-not-allowed"
+                                                    : "bg-blue-500 hover:bg-blue-600"
+                                            } text-white transition-colors`}
+                                            disabled={
+                                                !replyContent[
+                                                    `${reply._id}-${commentId}`
+                                                ]?.trim() ||
+                                                isReplying[
+                                                    `${reply._id}-${commentId}`
+                                                ]
+                                            }
+                                        >
+                                            {isReplying[
+                                                `${reply._id}-${commentId}`
+                                            ] ? (
+                                                <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                            ) : (
+                                                "Reply"
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
