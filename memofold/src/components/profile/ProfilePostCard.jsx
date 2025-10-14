@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate } from "../../services/dateUtils";
+import { useNavigate } from "react-router-dom";
 import ProfileCommentSection from "./ProfileCommentSection";
 
 const ProfilePostCard = ({
@@ -67,6 +68,7 @@ const ProfilePostCard = ({
 }) => {
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
+    const navigate = useNavigate();
 
     // Properly handle like count
     const getLikeCount = () => {
@@ -160,7 +162,16 @@ const ProfilePostCard = ({
             onShowLikesModal(post._id);
         }
     };
+    const navigateToProfile = (userId) => {
+        // Check if this is the current user
+        const isCurrentUser = userId === getUserId();
 
+        if (isCurrentUser) {
+            navigate("/profile");
+        } else {
+            navigate(`/user/${userId}`);
+        }
+    };
     // File preview rendering function
     const renderFilePreview = (file) => {
         if (file.type.startsWith("image/")) {
@@ -535,11 +546,17 @@ const ProfilePostCard = ({
                                                 .map((user, index) => (
                                                     <span
                                                         key={index}
-                                                        className={`font-medium mr-1 ${
+                                                        className={`font-medium mr-1 cursor-pointer hover:underline ${
                                                             isDarkMode
                                                                 ? "text-gray-300"
                                                                 : "text-gray-700"
                                                         }`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigateToProfile(
+                                                                user.user_id
+                                                            );
+                                                        }}
                                                     >
                                                         {user.username}
                                                         {index <
