@@ -6,7 +6,7 @@ import {
     FaSpinner,
 } from "react-icons/fa";
 import config from "../hooks/config";
-import ConfirmationModal from "../common/ConfirmationModal"; // Import the modal
+import ConfirmationModal from "../common/ConfirmationModal";
 
 const FriendButton = ({ targetUserId, currentUserId }) => {
     const [buttonState, setButtonState] = useState("loading");
@@ -200,10 +200,10 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
                 handleAddFriend();
                 break;
             case "cancel":
-                setShowCancelModal(true); // Show confirmation modal instead of directly canceling
+                setShowCancelModal(true);
                 break;
             case "remove":
-                setShowRemoveModal(true); // Show confirmation modal instead of directly removing
+                setShowRemoveModal(true);
                 break;
             default:
                 break;
@@ -225,37 +225,33 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
         switch (buttonState) {
             case "add":
                 return {
-                    icon: <FaUserPlus size={18} />,
-                    className:
-                        "bg-blue-400 hover:bg-blue-500 text-white shadow-sm hover:shadow-md",
-                    title: "Add Friend",
+                    icon: <FaUserPlus size={14} className="mr-1" />,
+                    text: "Add Friend",
+                    className: "bg-blue-500 hover:bg-blue-600 text-white",
                 };
             case "cancel":
                 return {
-                    icon: <FaUserClock size={18} />,
-                    className:
-                        "bg-amber-400 hover:bg-amber-500 text-white shadow-sm hover:shadow-md",
-                    title: "Cancel Request",
+                    icon: <FaUserClock size={14} className="mr-1" />,
+                    text: "Cancel Request",
+                    className: "bg-amber-500 hover:bg-amber-600 text-white",
                 };
             case "remove":
                 return {
-                    icon: <FaUserCheck size={18} />,
-                    className:
-                        "bg-rose-400 hover:bg-rose-500 text-white shadow-sm hover:shadow-md",
-                    title: "Remove Friend",
+                    icon: <FaUserCheck size={14} className="mr-1" />,
+                    text: "Remove Friend",
+                    className: "bg-green-500 hover:bg-green-600 text-white",
                 };
             case "loading":
                 return {
-                    icon: <FaSpinner size={18} className="animate-spin" />,
-                    className: "bg-gray-300 cursor-not-allowed",
-                    title: "Loading",
+                    icon: <FaSpinner size={14} className="animate-spin mr-1" />,
+                    text: "Loading",
+                    className: "bg-gray-400 cursor-not-allowed",
                 };
             default:
                 return {
-                    icon: <FaUserPlus size={18} />,
-                    className:
-                        "bg-blue-400 hover:bg-blue-500 text-white shadow-sm hover:shadow-md",
-                    title: "Add Friend",
+                    icon: <FaUserPlus size={14} className="mr-1" />,
+                    text: "Add Friend",
+                    className: "bg-blue-500 hover:bg-blue-600 text-white",
                 };
         }
     };
@@ -272,24 +268,25 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
 
     return (
         <>
-            {/* Friend Button */}
+            {/* Text Button */}
             <button
                 onClick={handleButtonClick}
                 disabled={isLoading || buttonState === "loading"}
-                className={`flex items-center justify-center p-3 rounded-full font-medium transition-all duration-200 ${
+                className={`flex items-center gap-2  rounded-xl  transition-all duration-200 text-xs sm:text-sm font-medium ${
                     buttonConfig.className
                 } ${
-                    isLoading
+                    isLoading || buttonState === "loading"
                         ? "opacity-60 cursor-not-allowed"
-                        : "cursor-pointer hover:scale-105"
+                        : "cursor-pointer hover:opacity-90"
                 }`}
-                title={buttonConfig.title}
+                title={buttonConfig.text}
             >
                 {isLoading ? (
-                    <FaSpinner size={18} className="animate-spin" />
+                    <FaSpinner size={14} className="animate-spin" />
                 ) : (
                     buttonConfig.icon
                 )}
+                <span>{buttonConfig.text}</span>
             </button>
 
             {/* Cancel Request Confirmation Modal */}

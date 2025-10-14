@@ -57,8 +57,6 @@ export const formatDate = (dateString) => {
     try {
         if (!dateString) return "Just now";
 
-        console.log("Formatting date:", dateString);
-
         // Try to detect if this is a comment date that needs adjustment
         const date = new Date(dateString);
         const now = new Date();
@@ -67,14 +65,11 @@ export const formatDate = (dateString) => {
 
         // If it's a future date (negative), it's probably a mislabeled IST time
         if (diffInSeconds < 0) {
-            console.log("Future date detected, adjusting...");
             // Add 5.5 hours to convert from "UTC-labeled-IST" to actual time
             diffInSeconds = Math.floor(
                 (now - new Date(date.getTime() - 5.5 * 60 * 60 * 1000)) / 1000
             );
         }
-
-        console.log("Final time difference:", diffInSeconds, "seconds");
 
         if (diffInSeconds < 60) return "Just now";
         if (diffInSeconds < 3600)

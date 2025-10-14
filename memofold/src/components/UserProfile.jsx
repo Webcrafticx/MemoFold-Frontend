@@ -954,13 +954,15 @@ const UserProfile = () => {
                 if (post._id === postId) {
                     const updatedComments = post.comments?.map((comment) => {
                         if (comment._id === commentId) {
-                            const updatedReplies = comment.replies?.map((reply) =>
-                                reply._id === replyId
-                                    ? {
-                                          ...reply,
-                                          showReplyInput: !reply.showReplyInput,
-                                      }
-                                    : reply
+                            const updatedReplies = comment.replies?.map(
+                                (reply) =>
+                                    reply._id === replyId
+                                        ? {
+                                              ...reply,
+                                              showReplyInput:
+                                                  !reply.showReplyInput,
+                                          }
+                                        : reply
                             );
                             return {
                                 ...comment,
@@ -1166,7 +1168,10 @@ const UserProfile = () => {
             return;
         }
 
-        setIsReplying((prev) => ({ ...prev, [`${replyId}-${commentId}`]: true }));
+        setIsReplying((prev) => ({
+            ...prev,
+            [`${replyId}-${commentId}`]: true,
+        }));
         setError(null);
 
         try {
@@ -1232,14 +1237,20 @@ const UserProfile = () => {
                 })
             );
 
-            setReplyContent((prev) => ({ ...prev, [`${replyId}-${commentId}`]: "" }));
+            setReplyContent((prev) => ({
+                ...prev,
+                [`${replyId}-${commentId}`]: "",
+            }));
             setSuccessMessage("Reply posted successfully!");
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
         } finally {
-            setIsReplying((prev) => ({ ...prev, [`${replyId}-${commentId}`]: false }));
+            setIsReplying((prev) => ({
+                ...prev,
+                [`${replyId}-${commentId}`]: false,
+            }));
         }
     };
 
@@ -1771,16 +1782,6 @@ const UserProfile = () => {
                             : "bg-white text-gray-900"
                     }`}
                 >
-                    {/* Friend Button — Top Right */}
-                    {userData._id && user?._id && userData._id !== user._id && (
-                        <div className="absolute top-4 right-4">
-                            <FriendButton
-                                targetUserId={userData._id}
-                                currentUserId={user._id}
-                            />
-                        </div>
-                    )}
-
                     <div
                         className="
           flex flex-col items-center text-center 
@@ -1790,7 +1791,7 @@ const UserProfile = () => {
                     >
                         {/* Profile Image with Click Handler */}
                         <div className="relative flex-shrink-0">
-                            <div 
+                            <div
                                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-md cursor-pointer hover:border-blue-600 transition-all duration-300"
                                 onClick={() => {
                                     if (userData.profilePic) {
@@ -1804,7 +1805,9 @@ const UserProfile = () => {
                                         src={userData.profilePic}
                                         alt={userData.username}
                                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                                        onError={(e) => (e.target.style.display = "none")}
+                                        onError={(e) =>
+                                            (e.target.style.display = "none")
+                                        }
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-3xl font-bold">
@@ -1867,7 +1870,7 @@ const UserProfile = () => {
                                             ? "bg-gray-700"
                                             : "bg-gray-100"
                                     }`}
-                                    >
+                                >
                                     <FaChartBar
                                         className={
                                             isDarkMode
@@ -1891,6 +1894,22 @@ const UserProfile = () => {
                                         {userStats.friendsCount} Friends
                                     </span>
                                 </div>
+                                {userData._id &&
+                                    user?._id &&
+                                    userData._id !== user._id && (
+                                        <div
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+                                                isDarkMode
+                                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                                    : "bg-blue-500 hover:bg-blue-600 text-white"
+                                            }`}
+                                        >
+                                            <FriendButton
+                                                targetUserId={userData._id}
+                                                currentUserId={user._id}
+                                            />
+                                        </div>
+                                    )}
                             </div>
                         </div>
                     </div>
@@ -1946,12 +1965,16 @@ const UserProfile = () => {
                                         }`}
                                     >
                                         <div className="flex items-center gap-3 mb-3">
-                                            <div 
+                                            <div
                                                 className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 cursor-pointer hover:border-blue-500 transition-all"
                                                 onClick={() => {
                                                     if (userData.profilePic) {
-                                                        setPreviewImage(userData.profilePic);
-                                                        setShowImagePreview(true);
+                                                        setPreviewImage(
+                                                            userData.profilePic
+                                                        );
+                                                        setShowImagePreview(
+                                                            true
+                                                        );
                                                     }
                                                 }}
                                             >

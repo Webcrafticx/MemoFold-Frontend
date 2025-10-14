@@ -3,6 +3,7 @@ import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom"; // ✅ ADD THIS IMPORT
 
 const PostCard = ({
     post,
@@ -41,7 +42,18 @@ const PostCard = ({
     onShowLikesModal, // ✅ ADDED: New prop for likes modal
 }) => {
     const likeButtonRef = useRef(null);
+    const navigate = useNavigate();
 
+    const navigateToProfile = (userId) => {
+        // Check if this is the current user
+        const isCurrentUser = userId === (currentUserProfile?._id || user?._id);
+
+        if (isCurrentUser) {
+            navigate("/profile");
+        } else {
+            navigate(`/user/${userId}`);
+        }
+    };
     // Updated function to get liked users based on API response
     const getLikedUsers = () => {
         // Use likesPreview from API
@@ -64,24 +76,20 @@ const PostCard = ({
 
     // ✅ IMPROVED: Better like handler with proper event handling
     const handleLikeClick = (e) => {
-        // ✅ Always get the button position for floating hearts
         let rect;
-        
+
         if (e.target) {
-            // Check if click is on icon or span
-            const likeButton = e.target.closest('button') || e.currentTarget;
+            const likeButton = e.target.closest("button") || e.currentTarget;
             rect = likeButton.getBoundingClientRect();
         } else {
-            // Fallback position
             rect = {
                 left: window.innerWidth / 2,
                 top: window.innerHeight / 2,
                 width: 0,
-                height: 0
+                height: 0,
             };
         }
 
-        // ✅ Call the parent like handler with the event
         onLike(post._id, e, rect);
     };
 
@@ -124,7 +132,11 @@ const PostCard = ({
                             onError={handleProfilePicError}
                         />
                     ) : null}
-                    <div className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg ${post.userId.profilePic ? 'hidden' : 'flex'}`}>
+                    <div
+                        className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg ${
+                            post.userId.profilePic ? "hidden" : "flex"
+                        }`}
+                    >
                         {post.userId.username?.charAt(0).toUpperCase() || "U"}
                     </div>
                 </div>
@@ -212,19 +224,27 @@ const PostCard = ({
                             <div className="flex items-center flex-wrap">
                                 {likedUsers.length > 0 ? (
                                     <>
-                                        {likedUsers.slice(0, 2).map((user, index) => (
-                                            <span
-                                                key={index}
-                                                className={`font-medium mr-1 ${
-                                                    isDarkMode
-                                                        ? "text-gray-300"
-                                                        : "text-gray-700"
-                                                }`}
-                                            >
-                                                {user.username}
-                                                {index < Math.min(2, likedUsers.length - 1) ? "," : ""}
-                                            </span>
-                                        ))}
+                                        {likedUsers
+                                            .slice(0, 2)
+                                            .map((user, index) => (
+                                                <span
+                                                    key={index}
+                                                    className={`font-medium mr-1 ${
+                                                        isDarkMode
+                                                            ? "text-gray-300"
+                                                            : "text-gray-700"
+                                                    }`}
+                                                >
+                                                    {user.username}
+                                                    {index <
+                                                    Math.min(
+                                                        2,
+                                                        likedUsers.length - 1
+                                                    )
+                                                        ? ","
+                                                        : ""}
+                                                </span>
+                                            ))}
 
                                         {totalLikes > 2 && (
                                             <button
@@ -239,17 +259,18 @@ const PostCard = ({
                                             </button>
                                         )}
 
-                                        {totalLikes === 2 && likedUsers.length === 1 && (
-                                            <span
-                                                className={`font-medium mr-1 ${
-                                                    isDarkMode
-                                                        ? "text-gray-300"
-                                                        : "text-gray-700"
-                                                }`}
-                                            >
-                                                and 1 other
-                                            </span>
-                                        )}
+                                        {totalLikes === 2 &&
+                                            likedUsers.length === 1 && (
+                                                <span
+                                                    className={`font-medium mr-1 ${
+                                                        isDarkMode
+                                                            ? "text-gray-300"
+                                                            : "text-gray-700"
+                                                    }`}
+                                                >
+                                                    and 1 other
+                                                </span>
+                                            )}
                                     </>
                                 ) : (
                                     <button
@@ -260,7 +281,8 @@ const PostCard = ({
                                                 : "text-blue-500"
                                         } hover:underline`}
                                     >
-                                        {totalLikes} {totalLikes === 1 ? "like" : "likes"}
+                                        {totalLikes}{" "}
+                                        {totalLikes === 1 ? "like" : "likes"}
                                     </button>
                                 )}
                             </div>
@@ -275,9 +297,7 @@ const PostCard = ({
                 >
                     <FaComment />
                     {/* FIXED: Use commentCount from API */}
-                    <span className="text-sm">
-                        {post.commentCount || 0}
-                    </span>
+                    <span className="text-sm">{post.commentCount || 0}</span>
                     {loadingComments[post._id] && (
                         <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
                     )}
