@@ -224,24 +224,33 @@ const About = () => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Development Credit */}
-                    <div className="text-center mt-12 pt-8 border-t border-gray-200">
-                        <p className="text-gray-600 mb-2">Developed by</p>
-                        <a 
-                            href="https://www.webcrafticx.com/" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 border border-gray-100"
-                        >
-                            <span className="text-lg font-bold text-blue-700">WebCrafticX</span>
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                        </a>
-                    </div>
                 </div>
             </section>
+
+            {/* Footer */}
+            <footer className="bg-white border-t border-gray-200 py-1">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        {/* Left side - Developed By */}
+                        <div className="flex items-center gap-2 text-gray-600">
+                            <span>Developed by</span>
+                            <a 
+                                href="https://www.webcrafticx.com/" 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors cursor-pointer"
+                            >
+                                WebCrafticX
+                            </a>
+                        </div>
+
+                        {/* Right side - Copyright */}
+                        <div className="text-gray-600 text-sm">
+                            © Copyright 2025 MemoFold | All Rights Reserved
+                        </div>
+                    </div>
+                </div>
+            </footer>
         </div>
     );
 };
