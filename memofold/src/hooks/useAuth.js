@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import config from "./config";
-import { apiService } from "../services/api";// Import apiService
+import { apiService } from "../services/api";
 
 export const useAuth = () => {
     const [token, setToken] = useState(localStorage.getItem("token"));
@@ -11,17 +10,15 @@ export const useAuth = () => {
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic")
     );
-    const [streamToken, setStreamToken] = useState(localStorage.getItem("streamToken")); // New state for Stream token
+    const [streamToken, setStreamToken] = useState(localStorage.getItem("streamToken"));
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const navigate = useNavigate();
 
     const login = async (username, password) => {
         setLoading(true);
         setError(null);
         const name = username.trim();
         const isemail = name.includes("@");
-
 
         try {
             const response = await fetch(`${config.apiUrl}/auth/login`, {
@@ -77,10 +74,10 @@ export const useAuth = () => {
                 }
             } catch (streamError) {
                 console.error("Failed to fetch Stream token:", streamError);
-                // Continue with login even if Stream token fails
             }
 
-            navigate("/feed");
+            // Use window.location instead of navigate
+            window.location.href = "/feed";
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -95,7 +92,6 @@ export const useAuth = () => {
         setError(null);
 
         try {
-            // Step 1: Register the user
             const registerResponse = await fetch(
                 `${config.apiUrl}/auth/register`,
                 {
@@ -121,7 +117,6 @@ export const useAuth = () => {
                 );
             }
 
-            // Step 2: Automatically log the user in after successful registration
             const loginResponse = await fetch(`${config.apiUrl}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -140,7 +135,6 @@ export const useAuth = () => {
                 );
             }
 
-            // Store user data and token
             const userData = {
                 token: loginData.token,
                 username: loginData.username || username,
@@ -175,11 +169,10 @@ export const useAuth = () => {
                 }
             } catch (streamError) {
                 console.error("Failed to fetch Stream token after registration:", streamError);
-                // Continue with registration even if Stream token fails
             }
 
-            // Redirect to feed page
-            navigate("/feed");
+            // Use window.location instead of navigate
+            window.location.href = "/feed";
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -196,8 +189,10 @@ export const useAuth = () => {
         setRealname(null);
         setUserId(null);
         setProfilePic(null);
-        setStreamToken(null); // Clear Stream token on logout
-        navigate("/login");
+        setStreamToken(null);
+        
+        // Use window.location instead of navigate
+        window.location.href = "/login";
     };
 
     const requestPasswordReset = async (email) => {
@@ -258,7 +253,6 @@ export const useAuth = () => {
         }
     };
 
-    // Add a method to update user profile data
     const updateUserProfile = (userData) => {
         if (userData._id) {
             localStorage.setItem("userId", userData._id);
@@ -278,7 +272,6 @@ export const useAuth = () => {
         }
     };
 
-    // Method to refresh Stream token if needed
     const refreshStreamToken = async () => {
         try {
             const streamTokenData = await apiService.getStreamToken(token);
@@ -299,7 +292,7 @@ export const useAuth = () => {
         realname,
         userId,
         profilePic,
-        streamToken, // Export streamToken
+        streamToken,
         loading,
         error,
         login,
@@ -308,7 +301,7 @@ export const useAuth = () => {
         requestPasswordReset,
         resetPassword,
         updateUserProfile,
-        refreshStreamToken, // Export refresh method
+        refreshStreamToken,
         user: {
             _id: userId,
             username,

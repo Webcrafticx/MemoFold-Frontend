@@ -1,5 +1,5 @@
 import React from "react";
-import { FaTrashAlt, FaReply, FaChevronDown, FaChevronUp, FaHeart, FaRegHeart } from "react-icons/fa";
+import { FaTrashAlt, FaReply, FaChevronDown, FaChevronUp } from "react-icons/fa";
 import ReplyItem from "../mainFeed/ReplyItem";
 
 const ProfileCommentSection = ({
@@ -81,16 +81,16 @@ const ProfileCommentSection = ({
     return getReplyCount(comment) > 0;
   };
 
-  // Handle chevron click - API hit only when showing replies (chevron UP → DOWN)
-  const handleChevronClick = (postId, commentId, comment) => {
+  // Handle chevron click - API hit IMMEDIATELY when clicking UP chevron
+  const handleChevronClick = async (postId, commentId, comment) => {
     const isRepliesVisible = comment.showReplies;
     
     if (!isRepliesVisible) {
-      // Chevron UP → DOWN: API hit to fetch replies
-      onToggleReplies(postId, commentId);
+      // Chevron UP → DOWN: IMMEDIATE API hit to fetch replies
+      await onToggleReplies(postId, commentId);
     } else {
       // Chevron DOWN → UP: Just hide replies, no API hit
-      onToggleReplies(postId, commentId);
+      await onToggleReplies(postId, commentId);
     }
   };
 
@@ -176,7 +176,7 @@ const ProfileCommentSection = ({
                             // Chevron DOWN (replies visible) - clicking will hide without API
                             <FaChevronDown className="mr-1" />
                           ) : (
-                            // Chevron UP (replies hidden) - clicking will fetch with API
+                            // Chevron UP (replies hidden) - clicking will IMMEDIATELY fetch with API
                             <FaChevronUp className="mr-1" />
                           )}
                           <span className="ml-1">{replyCount}</span>
@@ -264,6 +264,11 @@ const ProfileCommentSection = ({
                               isDeletingReply={isDeletingReply}
                               navigateToUserProfile={navigateToUserProfile}
                               onToggleReplyInput={onToggleReplyInput}
+                              // Pass additional props needed for your ReplyItem
+                              isReplying={isReplying}
+                              replyContent={replyContent}
+                              onSetReplyContent={onSetReplyContent}
+                              onAddReply={onReplySubmit}
                             />
                           ))
                         )}

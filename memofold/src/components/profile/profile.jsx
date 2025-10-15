@@ -707,114 +707,122 @@ const ProfilePage = () => {
         }));
     };
 
-    const handleToggleReplies = async (postId, commentId) => {
-        // Toggle showReplies state immediately
-        setProfileData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) =>
-                post._id === postId
+ const handleToggleReplies = async (postId, commentId) => {
+  // Find the current comment state
+  const post = profileData.posts.find((p) => p._id === postId);
+  const comment = post?.comments.find((c) => c._id === commentId);
+  
+  const isRepliesVisible = comment?.showReplies;
+
+  // If replies are NOT visible (chevron UP), fetch replies immediately
+  if (!isRepliesVisible) {
+    try {
+      setCommentState((prev) => ({
+        ...prev,
+        isFetchingReplies: {
+          ...prev.isFetchingReplies,
+          [commentId]: true,
+        },
+      }));
+
+      const token = localStorage.getItem("token");
+      const response = await apiService.fetchCommentReplies(
+        commentId,
+        token
+      );
+
+      if (!response || response.success === false) {
+        throw new Error(
+          response?.message || "Failed to load replies"
+        );
+      }
+
+      // CORRECT MAPPING - Use profilepic (small p) from API
+      const replies = (response.replies || []).map((reply) => {
+        // Profile picture API se aa raha hai reply.user.profilepic mein
+        const profilePic = reply.user?.profilepic || 
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.user?.username || "Unknown")}&background=random`;
+
+        const username = reply.user?.username || "unknown";
+        const realname = reply.user?.realname || username;
+
+        return {
+          ...reply,
+          // Proper user data structure with profilePic
+          userId: {
+            _id: reply.user?._id || "unknown",
+            username: username,
+            realname: realname,
+            profilePic: profilePic 
+          },
+          username: username,
+          profilePic: profilePic, 
+          hasUserLiked: reply.likes && reply.likes.includes(localStorage.getItem("userId")),
+          likes: reply.likes || [],
+        };
+      });
+
+      console.log("✅ Processed replies:", replies.map(r => ({
+        username: r.username,
+        profilePic: r.profilePic,
+        userIdProfilePic: r.userId.profilePic
+      })));
+
+      
+      setProfileData((prev) => ({
+        ...prev,
+        posts: prev.posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                comments: post.comments.map((comment) =>
+                  comment._id === commentId
                     ? {
-                          ...post,
-                          comments: post.comments.map((comment) =>
-                              comment._id === commentId
-                                  ? {
-                                        ...comment,
-                                        showReplies: !comment.showReplies,
-                                    }
-                                  : comment
-                          ),
+                        ...comment,
+                        replies,
+                        replyCount: replies.length,
+                        showReplies: true, 
                       }
-                    : post
-            ),
-        }));
-
-        const post = profileData.posts.find((p) => p._id === postId);
-        const comment = post?.comments.find((c) => c._id === commentId);
-
-        // ALWAYS fetch replies when toggling (as requested)
-        if (comment && comment.showReplies) {
-            try {
-                setCommentState((prev) => ({
-                    ...prev,
-                    isFetchingReplies: {
-                        ...prev.isFetchingReplies,
-                        [commentId]: true,
-                    },
-                }));
-
-                const token = localStorage.getItem("token");
-                const response = await apiService.fetchCommentReplies(
-                    commentId,
-                    token
-                );
-
-                if (!response || response.success === false) {
-                    throw new Error(
-                        response?.message || "Failed to load replies"
-                    );
-                }
-
-                // Properly map the API response to ensure user data is correct
-                const replies = (response.replies || []).map((reply) => ({
-                    ...reply,
-                    // Map user data from response - use actual API data
-                    userId: reply.user
-                        ? {
-                              _id: reply.user._id,
-                              username: reply.user.username,
-                              realname: reply.user.realname,
-                              profilePic: reply.user.profilePic,
-                          }
-                        : {
-                              _id: reply.userId?._id || "unknown",
-                              username: reply.username || "unknown",
-                              realname:
-                                  reply.userId?.realname || "Unknown User",
-                              profilePic:
-                                  reply.userId?.profilePic || reply.profilePic,
-                          },
-                    username:
-                        reply.user?.username || reply.username || "unknown",
-                    profilePic: reply.user?.profilePic || reply.profilePic,
-                    hasUserLiked:
-                        reply.likes &&
-                        reply.likes.includes(localStorage.getItem("userId")),
-                    likes: reply.likes || [],
-                }));
-
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                  ...post,
-                                  comments: post.comments.map((comment) =>
-                                      comment._id === commentId
-                                          ? {
-                                                ...comment,
-                                                replies,
-                                                replyCount: replies.length,
-                                            }
-                                          : comment
-                                  ),
-                              }
-                            : post
-                    ),
-                }));
-            } catch (error) {
-                console.error("Error fetching replies:", error);
-                toast.error("Unable to load replies.");
-            } finally {
-                setCommentState((prev) => ({
-                    ...prev,
-                    isFetchingReplies: {
-                        ...prev.isFetchingReplies,
-                        [commentId]: false,
-                    },
-                }));
+                    : comment
+                ),
+              }
+            : post
+        ),
+      }));
+    } catch (error) {
+      console.error("Error fetching replies:", error);
+      toast.error("Unable to load replies.");
+    } finally {
+      setCommentState((prev) => ({
+        ...prev,
+        isFetchingReplies: {
+          ...prev.isFetchingReplies,
+          [commentId]: false,
+        },
+      }));
+    }
+  } else {
+    
+    setProfileData((prev) => ({
+      ...prev,
+      posts: prev.posts.map((post) =>
+        post._id === postId
+          ? {
+              ...post,
+              comments: post.comments.map((comment) =>
+                comment._id === commentId
+                  ? {
+                      ...comment,
+                      showReplies: false, 
+                    }
+                  : comment
+              ),
             }
-        }
-    };
+          : post
+      ),
+    }));
+  }
+};
 
     const handleLikeReply = async (replyId, commentId, event) => {
         try {
