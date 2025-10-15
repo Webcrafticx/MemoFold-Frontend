@@ -27,7 +27,7 @@ import Post from "./components/post/Post";
 import ChatPage from "./components/chat/ChatPage";
 import CallPage from "./components/chat/CallPage";
 
-// React Query Client create karein
+
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
@@ -37,38 +37,33 @@ const queryClient = new QueryClient({
     },
 });
 
-// Authentication wrapper component
-const ProtectedRoute = ({ children }) => {
-    const { token, loading } = useAuth();
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-        );
+const ProtectedRoute = ({ children }) => {
+    const { token } = useAuth();
+
+ 
+    if (!token) {
+        return <Navigate to="/login" replace />;
     }
 
-    return token ? children : <Navigate to="/login" replace />;
+    return children;
 };
 
 // Public route for already authenticated users
 const PublicRoute = ({ children }) => {
-    const { token, loading } = useAuth();
+    const { token } = useAuth();
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-        );
+    // Agar token hai toh feed pe redirect
+    if (token) {
+        return <Navigate to="/feed" replace />;
     }
 
-    return token ? <Navigate to="/feed" replace /> : children;
+    return children;
 };
 
 function App() {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const { token } = useAuth();
 
     // Check maintenance mode (could be from an API call)
     useEffect(() => {
@@ -82,6 +77,17 @@ function App() {
         };
         maintenanceCheck();
     }, []);
+
+
+    useEffect(() => {
+        const currentPath = window.location.pathname;
+        const protectedPaths = ['/feed', '/profile', '/chat', '/call'];
+        const isProtectedPath = protectedPaths.some(path => currentPath.includes(path));
+        
+        if (!token && isProtectedPath) {
+            window.location.href = '/login';
+        }
+    }, [token]);
 
     if (maintenanceMode) {
         return <MaintenancePage />;
