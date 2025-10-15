@@ -1434,7 +1434,7 @@ const ProfilePage = () => {
 
                 <Navbar onDarkModeChange={handleDarkModeChange} />
 
-                <div className="pt-4 sm:pt-6 pb-12">
+                <div className="pt-4 sm:pt-6 pb-12 px-4">
                     <ProfileHeader
                         profilePic={profileData.profilePic}
                         username={profileData.username}
