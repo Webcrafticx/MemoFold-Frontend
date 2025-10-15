@@ -272,7 +272,7 @@ const FriendButton = ({ targetUserId, currentUserId }) => {
             <button
                 onClick={handleButtonClick}
                 disabled={isLoading || buttonState === "loading"}
-                className={`flex items-center gap-2  rounded-xl  transition-all duration-200 text-xs sm:text-sm font-medium ${
+                className={`flex items-center gap-2 px-3 py-1.5  rounded-xl  transition-all duration-200 text-xs sm:text-sm font-medium ${
                     buttonConfig.className
                 } ${
                     isLoading || buttonState === "loading"
