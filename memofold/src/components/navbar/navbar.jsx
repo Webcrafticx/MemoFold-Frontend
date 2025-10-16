@@ -80,12 +80,15 @@ const Navbar = ({ onDarkModeChange }) => {
                     },
                 });
 
+                console.log("Status code:", response.status);
+
                 if (response.ok) {
                     const result = await response.json();
                     const userData = result.user;
 
                     setCurrentUserProfile(userData);
 
+                    // Store user data in localStorage
                     localStorage.setItem("userId", userData._id);
                     localStorage.setItem("realname", userData.realname);
                     localStorage.setItem("username", userData.username);
@@ -94,6 +97,7 @@ const Navbar = ({ onDarkModeChange }) => {
                     localStorage.setItem("updatedAt", userData.updatedAt);
                     localStorage.setItem("user", JSON.stringify(userData));
 
+                    // Handle profile picture
                     if (userData.profilePic) {
                         setProfilePic(userData.profilePic);
                         localStorage.setItem("profilePic", userData.profilePic);
@@ -101,6 +105,13 @@ const Navbar = ({ onDarkModeChange }) => {
                         setProfilePic("");
                         localStorage.removeItem("profilePic");
                     }
+                } else if (response.status === 401) {
+                    // Clear invalid token and redirect to login
+                    localStorage.removeItem("token");
+                    navigate("/login", { replace: true });
+                } else {
+                    console.error("Unexpected error:", response.status);
+                    // Handle other error statuses if needed
                 }
             } catch (error) {
                 console.error("Error fetching user data:", error);
@@ -109,9 +120,11 @@ const Navbar = ({ onDarkModeChange }) => {
 
         if (token) {
             fetchUserData();
+        } else {
+            // If no token, redirect to login
+            navigate("/login");
         }
-    }, [token]);
-
+    }, [token, navigate]);
     const toggleDarkMode = () => {
         const newMode = !darkMode;
         setDarkMode(newMode);
