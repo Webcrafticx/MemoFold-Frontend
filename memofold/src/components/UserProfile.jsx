@@ -102,6 +102,13 @@ const UserProfile = () => {
         return localStorage.getItem("darkMode") === "true";
     });
 
+    const [paginationState, setPaginationState] = useState({
+    nextCursor: null,
+    hasMore: true,
+    isLoadingMore: false
+});
+
+
     // Save activeReplies to localStorage whenever it changes
     useEffect(() => {
         localStorage.setItem(
@@ -187,86 +194,178 @@ const UserProfile = () => {
     };
 
     const fetchUserProfile = async () => {
-        try {
-            const response = await fetch(
-                `${config.apiUrl}/user/user/${userId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
+    try {
+        const response = await fetch(
+            `${config.apiUrl}/user/user/${userId}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch user profile");
+        }
+
+        const data = await response.json();
+        const userDataFromApi = data.user || data;
+        setUserData(userDataFromApi);
+
+        if (data.profile && data.profile.description) {
+            setUserDescription(data.profile.description);
+        } else if (data.description) {
+            setUserDescription(data.description);
+        }
+
+        if (data.stats) {
+            setUserStats({
+                postCount: data.stats.postCount || 0,
+                friendsCount: data.stats.friendsCount || 0,
+            });
+        }
+
+        if (userDataFromApi.username) {
+            // Initial load without cursor
+            await fetchUserPosts(userDataFromApi.username);
+        }
+    } catch (err) {
+        console.error("Error fetching user profile:", err);
+        setError(err.message);
+        setIsLoading(false);
+    }
+};
+
+const fetchUserPosts = async (username, cursor = null, isLoadMore = false) => {
+    try {
+        // console.log('🔄 fetchUserPosts called:', { username, cursor, isLoadMore });
+
+        if (isLoadMore) {
+            setPaginationState(prev => ({ ...prev, isLoadingMore: true }));
+        } else {
+            setIsLoading(true);
+        }
+
+        const data = await apiService.fetchUserPosts(token, username, cursor);
+        // console.log('📊 API Data received:', {
+        //     postsCount: data.posts?.length,
+        //     nextCursor: data.nextCursor,
+        //     hasNextCursor: !!data.nextCursor
+        // });
+
+        const postsData = Array.isArray(data) ? data : data.posts || [];
+        
+        const storedLikes = getStoredLikes();
+        const currentUsername = localStorage.getItem("username");
+
+        const postsWithLikes = postsData.map((post) => {
+            const hasUserLiked = post.likesPreview?.some(
+                (like) => like.username === currentUsername
             );
 
-            if (!response.ok) {
-                throw new Error("Failed to fetch user profile");
-            }
+            return {
+                ...post,
+                isLiked: hasUserLiked || false,
+                likes: post.likeCount || 0,
+                comments: post.comments || [],
+                commentCount: post.commentCount || 0,
+            };
+        });
 
-            const data = await response.json();
-            const userDataFromApi = data.user || data;
-            setUserData(userDataFromApi);
-
-            if (data.profile && data.profile.description) {
-                setUserDescription(data.profile.description);
-            } else if (data.description) {
-                setUserDescription(data.description);
-            }
-
-            if (data.stats) {
-                setUserStats({
-                    postCount: data.stats.postCount || 0,
-                    friendsCount: data.stats.friendsCount || 0,
-                });
-            }
-
-            if (userDataFromApi.username) {
-                fetchUserPosts(userDataFromApi.username);
-            }
-        } catch (err) {
-            console.error("Error fetching user profile:", err);
-            setError(err.message);
-            setIsLoading(false);
-        }
-    };
-
-    const fetchUserPosts = async (username) => {
-        try {
-            const data = await apiService.fetchUserPosts(token, username);
-            const postsData = Array.isArray(data) ? data : data.posts || [];
-
-            const storedLikes = getStoredLikes();
-            const currentUsername = localStorage.getItem("username");
-
-            const postsWithLikes = postsData.map((post) => {
-                const hasUserLiked = post.likesPreview?.some(
-                    (like) => like.username === currentUsername
-                );
-
-                return {
-                    ...post,
-                    isLiked: hasUserLiked || false,
-                    likes: post.likeCount || 0,
-                    comments: post.comments || [],
-                    commentCount: post.commentCount || 0,
-                };
+        // Load more case mein existing posts ke saath merge karo
+        if (isLoadMore) {
+            setUserPosts(prev => {
+                const existingIds = new Set(prev.map(p => p._id));
+                const newPosts = postsWithLikes.filter(post => !existingIds.has(post._id));
+                
+                // console.log(`📦 Merging ${newPosts.length} new posts with ${prev.length} existing posts`);
+                
+                return [...prev, ...newPosts];
             });
-
+        } else {
             setUserPosts(postsWithLikes);
+        }
 
-            const likesByPost = {};
-            postsData.forEach((post) => {
-                const storedPostLikes =
-                    storedLikes[post._id] || post.likes || [];
-                likesByPost[post._id] = storedPostLikes;
-            });
+        // Pagination state update karo
+        setPaginationState(prev => ({
+            ...prev,
+            nextCursor: data.nextCursor || null,
+            hasMore: !!data.nextCursor,
+            isLoadingMore: false
+        }));
 
-            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-        } catch (err) {
-            console.error("Error fetching user posts:", err);
-            setError(err.message);
-        } finally {
+        // console.log('✅ Pagination updated:', {
+        //     nextCursor: data.nextCursor,
+        //     hasMore: !!data.nextCursor
+        // });
+
+        const likesByPost = {};
+        postsData.forEach((post) => {
+            const storedPostLikes = storedLikes[post._id] || post.likes || [];
+            likesByPost[post._id] = storedPostLikes;
+        });
+
+        localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+    } catch (err) {
+        console.error("Error fetching user posts:", err);
+        setError(err.message);
+        
+        if (isLoadMore) {
+            setPaginationState(prev => ({ ...prev, isLoadingMore: false }));
+        }
+    } finally {
+        if (!isLoadMore) {
             setIsLoading(false);
         }
+    }
+};
+
+// Scroll handler
+useEffect(() => {
+    // console.log('📜 Scroll handler setup');
+
+    const handleScroll = () => {
+        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+        const { hasMore, isLoadingMore, nextCursor } = paginationState;
+        
+        const scrollPosition = scrollTop + clientHeight;
+        const threshold = scrollHeight - 200; // 200px threshold
+        
+        // console.log('🖱️ Scroll check:', {
+        //     scrollPosition,
+        //     threshold,
+        //     hasMore,
+        //     isLoadingMore,
+        //     nextCursor
+        // });
+        
+        if (scrollPosition >= threshold && hasMore && !isLoadingMore && nextCursor) {
+            // console.log('🚀 Loading more posts...');
+            loadMorePosts();
+        }
     };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+}, [paginationState]);
+
+const loadMorePosts = async () => {
+    const { nextCursor } = paginationState;
+    
+    // console.log('🎯 loadMorePosts triggered with cursor:', nextCursor);
+    
+    if (!nextCursor) {
+        // console.log('❌ No cursor available');
+        return;
+    }
+
+    try {
+        await fetchUserPosts(userData.username, nextCursor, true);
+    } catch (error) {
+        console.error("Error loading more posts:", error);
+        setError("Unable to load more posts.");
+    }
+};
 
     const fetchComments = async (postId) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
@@ -1928,7 +2027,7 @@ const UserProfile = () => {
                         Posts
                     </h3>
 
-                    {userPosts.length === 0 ? (
+                    {userPosts.length === 0 && !isLoading && !paginationState.isLoadingMore  ? (
                         <div
                             className={`rounded-lg p-6 text-center ${
                                 isDarkMode ? "bg-gray-800" : "bg-white"
@@ -2856,6 +2955,27 @@ const UserProfile = () => {
                             })}
                         </div>
                     )}
+
+                    {/* Loading More Indicator */}
+    {paginationState.isLoadingMore && (
+        <div className="flex justify-center items-center py-6">
+            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                isDarkMode ? 'border-white' : 'border-blue-500'
+            }`}></div>
+            <span className={`ml-3 ${
+                isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>Loading more posts...</span>
+        </div>
+    )}
+    
+    {/* End of Posts Message */}
+    {!paginationState.hasMore && userPosts.length > 0 && (
+        <div className={`text-center py-6 ${
+            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+        }`}>
+            <p>You've reached the end of {userData.username} posts</p>
+        </div>
+    )}
                 </div>
             </section>
         </div>
