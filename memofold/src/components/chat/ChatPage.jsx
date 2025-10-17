@@ -131,10 +131,15 @@ const ChatPage = () => {
         toast.error("Failed to initialize chat (400). Please try again.");
         return;
       }
+      
+      // Pehli baar error pe automatically reload karein
       if (!reloadAttempted) {
         setReloadAttempted(true);
-        window.location.reload();
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } else {
+        // Dusri baar reload ke baad bhi error aaye toh error screen dikhayein
         setLoading(false);
         setInitFailed(true);
       }
@@ -190,6 +195,7 @@ const ChatPage = () => {
     setInitFailed(false);
     setLoading(true);
     setReloadAttempted(false);
+    initializedRef.current = false;
     initChat();
   };
 
@@ -211,7 +217,8 @@ const ChatPage = () => {
 
   if (loading) return <ChatSkeleton />;
 
-  if (initFailed || !chatClient || !channel) {
+  // Yeh condition change karein - sirf reload attempted hone ke baad hi error screen dikhayein
+  if ((initFailed && reloadAttempted) || !chatClient || !channel) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-white px-4">
         <div className="text-center max-w-sm">
