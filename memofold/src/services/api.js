@@ -28,9 +28,9 @@ export const apiService = {
     },
 
     // Profile-specific endpoints
-    fetchUserPosts: async (token, username, cursor = null) => {
+    fetchUserPosts: async (token, username, cursors = null) => {
     const url = cursor 
-        ? `${config.apiUrl}/posts/user/${username}?cursor=${cursor}`
+        ? `${config.apiUrl}/posts/user/${username}?cursors=${cursor}`
         : `${config.apiUrl}/posts/user/${username}`;
 
     const response = await fetch(url, {
