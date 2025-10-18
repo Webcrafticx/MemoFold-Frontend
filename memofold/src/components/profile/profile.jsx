@@ -262,7 +262,7 @@ const ProfilePage = () => {
         }
     };
 
-    const fetchUserPosts = async (token, cursors = null, isLoadMore = false) => {
+    const fetchUserPosts = async (token, cursor = null, isLoadMore = false) => {
         try {
                 if (isLoadMore) {
             setPaginationState(prev => ({ ...prev, isLoadingMore: true }));
@@ -271,7 +271,7 @@ const ProfilePage = () => {
             const responseData = await apiService.fetchUserPosts(
                 token,
                 username,
-                cursors
+                cursor
             );
 
             if (!responseData || responseData.success === false) {
