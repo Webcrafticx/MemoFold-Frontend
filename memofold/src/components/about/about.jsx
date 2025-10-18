@@ -54,25 +54,16 @@ const About = () => {
 
                         {/* Login Button - Improved */}
                         <button
-                            onClick={handleAuthAction}
-                            className="flex items-center cursor-pointer gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group"
-                        >
-                            <span>{token ? "Logout" : "Log in"}</span>
-
-                            <svg
-                                className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M13 7l5 5-5 5M6 12h12"
-                                />
-                            </svg>
-                        </button>
+                                                onClick={handleAuthAction}
+                                                className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2 px-5 rounded-full shadow-lg hover:from-blue-600 hover:to-cyan-500 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+                                            >
+                                                <img
+                                                    src={logo}
+                                                    alt="User"
+                                                    className="w-7 h-7 rounded-full object-cover shadow-sm cursor-pointer"
+                                                />
+                                                {token ? "My Profile" : "Log in"}
+                                            </button>
                     </div>
                 </div>
             </header>

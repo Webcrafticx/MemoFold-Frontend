@@ -125,10 +125,10 @@ const PrivacyPolicy = () => {
                     <p className="mt-3">
                         Reach us at{" "}
                         <a
-                            href="mailto:privacy@memofold.com"
+                    href="mailto:memofold@gmail.com"
                             className="text-blue-600 hover:underline cursor-pointer"
                         >
-                            privacy@memofold.com
+                            memofold@gmail.com
                         </a>{" "}
                         for any privacy request.
                     </p>
