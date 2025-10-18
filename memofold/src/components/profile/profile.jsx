@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -111,6 +111,13 @@ const ProfilePage = () => {
         isDeletingPost: false,
     });
 
+     const [paginationState, setPaginationState] = useState({
+    nextCursor: null,
+    hasMore: true,
+    isLoadingMore: false
+});
+
+
     // Confirmation modal state
     const [confirmationModal, setConfirmationModal] = useState({
         isOpen: false,
@@ -145,33 +152,36 @@ const ProfilePage = () => {
     }, []);
 
     const initializeApp = async () => {
-        const token = localStorage.getItem("token");
-        if (!token) {
-            navigate("/login");
-            return;
-        }
+    const token = localStorage.getItem("token");
+    if (!token) {
+        navigate("/login");
+        return;
+    }
 
-        try {
-            setUiState((prev) => ({ ...prev, loading: true }));
-            await Promise.all([
-                fetchUserData(token),
-                fetchUserPosts(token),
-                fetchCurrentUserData(token),
-            ]);
-        } catch (error) {
-            console.error("Initialization error:", error);
-            const errorMessage = handleApiError(
-                error,
-                "Failed to load profile data"
-            );
-            setUiState((prev) => ({
-                ...prev,
-                error: errorMessage,
-            }));
-        } finally {
-            setUiState((prev) => ({ ...prev, loading: false }));
-        }
-    };
+    try {
+        setUiState((prev) => ({ ...prev, loading: true }));
+        setPaginationState(prev => ({ ...prev, isInitialLoading: true }));
+        
+        await Promise.all([
+            fetchUserData(token),
+            fetchUserPosts(token), // cursor nahi pass karo - initial load
+            fetchCurrentUserData(token),
+        ]);
+    } catch (error) {
+        console.error("Initialization error:", error);
+        const errorMessage = handleApiError(
+            error,
+            "Failed to load profile data"
+        );
+        setUiState((prev) => ({
+            ...prev,
+            error: errorMessage,
+        }));
+    } finally {
+        setUiState((prev) => ({ ...prev, loading: false }));
+        setPaginationState(prev => ({ ...prev, isInitialLoading: false }));
+    }
+};
 
     // API functions
     const fetchCurrentUserData = async (token) => {
@@ -252,12 +262,16 @@ const ProfilePage = () => {
         }
     };
 
-    const fetchUserPosts = async (token) => {
+    const fetchUserPosts = async (token, cursor = null, isLoadMore = false) => {
         try {
+                if (isLoadMore) {
+            setPaginationState(prev => ({ ...prev, isLoadingMore: true }));
+        }
             const username = localStorage.getItem("username");
             const responseData = await apiService.fetchUserPosts(
                 token,
-                username
+                username,
+                cursor
             );
 
             if (!responseData || responseData.success === false) {
@@ -301,14 +315,66 @@ const ProfilePage = () => {
                     username: post.userId?.username || username,
                 };
             });
+            if (isLoadMore) {
+            setProfileData(prev => {
+                const existingIds = new Set(prev.posts.map(p => p._id));
+                const newPosts = postsWithComments.filter(post => !existingIds.has(post._id));
+                
+                return { 
+                    ...prev, 
+                    posts: [...prev.posts, ...newPosts] 
+                };
+            });
+        } else {
+            setProfileData(prev => ({ ...prev, posts: postsWithComments }));
+        }
+setPaginationState(prev => ({
+            ...prev,
+            nextCursor: responseData.nextCursor || null,
+            hasMore: !!responseData.nextCursor,
+            isLoadingMore: false
+        }));
 
-            setProfileData((prev) => ({ ...prev, posts: postsWithComments }));
-        } catch (error) {
-            console.error("Error fetching posts:", error);
-            const errorMessage = handleApiError(error, "Failed to load posts");
-            throw new Error(errorMessage);
+    } catch (error) {
+        console.error("Error fetching posts:", error);
+        const errorMessage = handleApiError(error, "Failed to load posts");
+        
+        if (isLoadMore) {
+            setPaginationState(prev => ({ ...prev, isLoadingMore: false }));
+        }
+        throw new Error(errorMessage);
+    }
+    };
+
+    const loadMorePosts = useCallback(async () => {
+    const { nextCursor, hasMore, isLoadingMore } = paginationState;
+    
+    if (!hasMore || isLoadingMore || !nextCursor) return;
+
+    try {
+        const token = localStorage.getItem("token");
+        await fetchUserPosts(token, nextCursor, true);
+    } catch (error) {
+        console.error("Error loading more posts:", error);
+        toast.error("Unable to load more posts.");
+    }
+}, [paginationState]);
+
+// Scroll handler
+useEffect(() => {
+    const handleScroll = () => {
+        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+        
+        // Check if user has scrolled to bottom (with 100px threshold)
+        if (scrollTop + clientHeight >= scrollHeight - 100) {
+            loadMorePosts();
         }
     };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+}, [loadMorePosts]);
+
 
     // File upload handlers for edit mode
     const handleEditFileSelect = (e) => {
@@ -1517,7 +1583,7 @@ const ProfilePage = () => {
 
                     {/* Posts Section with ProfilePostCard */}
                     <section className="max-w-2xl mx-auto px-3 sm:px-4">
-                        {profileData.posts.length === 0 ? (
+                        {profileData.posts.length === 0 && !uiState.loading  ? (
                             <div
                                 className={`text-center py-8 ${
                                     uiState.darkMode
@@ -1632,6 +1698,25 @@ const ProfilePage = () => {
                                 ))}
                             </div>
                         )}
+                        {paginationState.isLoadingMore && (
+        <div className="flex justify-center items-center py-6">
+            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                uiState.darkMode ? 'border-white' : 'border-blue-500'
+            }`}></div>
+            <span className={`ml-3 ${
+                uiState.darkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>Loading more posts...</span>
+        </div>
+    )}
+    
+    {/* End of Posts Message */}
+    {!paginationState.hasMore && profileData.posts.length > 0 && (
+        <div className={`text-center py-6 ${
+            uiState.darkMode ? 'text-gray-400' : 'text-gray-500'
+        }`}>
+            <p>You've reached the end of your posts</p>
+        </div>
+    )}
                     </section>
                 </div>
             </div>
