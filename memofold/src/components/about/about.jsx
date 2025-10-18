@@ -57,7 +57,7 @@ const About = () => {
                             onClick={handleAuthAction}
                             className="flex items-center cursor-pointer gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group"
                         >
-                            <span>{token ? "Logout" : "Get Started"}</span>
+                            <span>{token ? "Logout" : "Log in"}</span>
 
                             <svg
                                 className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1"
