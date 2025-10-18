@@ -233,9 +233,9 @@ const About = () => {
                         {/* Founder Card */}
                         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300 border border-gray-100">
                             <div className="text-center">
-                                <div className="w-24 h-24 sm:w-32 sm:h-32 mx-auto mb-3 sm:mb-4 transition-all duration-300 hover:scale-105">
+                                <div className="w-40 h-40 mx-auto mb-3 sm:mb-4 transition-all duration-300 hover:scale-105">
                                     <img
-                                        className="w-full h-full p-1 rounded-full object-cover border-4 border-white shadow-md"
+                                        className="w-full h-full  rounded-full object-contain border-4 border-white shadow-md"
                                         src={founder}
                                         alt="Sumit Kumar - Founder"
                                     />
@@ -258,9 +258,9 @@ const About = () => {
                         {/* Co-founder Card */}
                         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300 border border-gray-100">
                             <div className="text-center">
-                                <div className="w-24 h-24 sm:w-32 sm:h-32 mx-auto mb-3 sm:mb-4 transition-all duration-300 hover:scale-105 overflow-hidden rounded-full border-4 border-white shadow-md">
+                                <div className="w-40 h-40 mx-auto mb-3 sm:mb-4 transition-all duration-300 hover:scale-105 overflow-hidden rounded-full border-4 border-white shadow-md">
                                     <img
-                                        className="w-full h-full p-1 rounded-full object-[top] border-4 border-white shadow-md"
+                                        className="w-full h-full  rounded-full object-contain border-4 border-white shadow-md"
                                         src={cofounder}
                                         alt="Anurag Verma - Co-founder"
                                     />
