@@ -1,5 +1,14 @@
 import React, { useState, useRef } from "react";
-import { FaCamera, FaEdit, FaCalendar, FaCog, FaUsers, FaUpload, FaEye, FaTimes } from "react-icons/fa";
+import {
+    FaCamera,
+    FaEdit,
+    FaCalendar,
+    FaCog,
+    FaUsers,
+    FaUpload,
+    FaEye,
+    FaTimes,
+} from "react-icons/fa";
 import { motion } from "framer-motion";
 import EditProfileModal from "./EditProfileModal";
 
@@ -49,7 +58,11 @@ const ProfileHeader = ({
     };
 
     const handleProfilePicClick = () => {
-        if (profilePic && profilePic !== "https://ui-avatars.com/api/?name=User&background=random") {
+        if (
+            profilePic &&
+            profilePic !==
+                "https://ui-avatars.com/api/?name=User&background=random"
+        ) {
             setShowProfileView(true);
         }
     };
@@ -87,7 +100,7 @@ const ProfileHeader = ({
                             className="hidden"
                             accept="image/*"
                         />
-                        
+
                         {/* Camera Options Dropdown - Smaller */}
                         {showCameraOptions && (
                             <motion.div
@@ -95,8 +108,8 @@ const ProfileHeader = ({
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: 5 }}
                                 className={`absolute bottom-12 right-0 z-50 min-w-40 rounded-lg shadow-xl border ${
-                                    isDarkMode 
-                                        ? "bg-gray-800 border-gray-600 text-gray-100" 
+                                    isDarkMode
+                                        ? "bg-gray-800 border-gray-600 text-gray-100"
                                         : "bg-white border-gray-200 text-gray-800"
                                 } p-1 space-y-0.5`}
                             >
@@ -113,9 +126,15 @@ const ProfileHeader = ({
                                 </button>
                                 <button
                                     onClick={handleViewProfile}
-                                    disabled={!profilePic || profilePic === "https://ui-avatars.com/api/?name=User&background=random"}
+                                    disabled={
+                                        !profilePic ||
+                                        profilePic ===
+                                            "https://ui-avatars.com/api/?name=User&background=random"
+                                    }
                                     className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors text-sm ${
-                                        (!profilePic || profilePic === "https://ui-avatars.com/api/?name=User&background=random")
+                                        !profilePic ||
+                                        profilePic ===
+                                            "https://ui-avatars.com/api/?name=User&background=random"
                                             ? "opacity-50 cursor-not-allowed"
                                             : isDarkMode
                                             ? "hover:bg-gray-700 text-gray-100"
@@ -130,7 +149,7 @@ const ProfileHeader = ({
 
                         {/* Profile Picture Container */}
                         <div className="relative">
-                            <div 
+                            <div
                                 className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 border-4 border-blue-400 shadow-lg cursor-pointer"
                                 onClick={handleProfilePicClick}
                             >
@@ -162,8 +181,7 @@ const ProfileHeader = ({
                                             : {}
                                     }
                                 >
-                                    {username?.charAt(0).toUpperCase() ||
-                                        "U"}
+                                    {username?.charAt(0).toUpperCase() || "U"}
                                 </span>
                                 {uploadingProfilePic && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full cursor-pointer">
@@ -171,7 +189,7 @@ const ProfileHeader = ({
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* Camera Icon Button */}
                             <button
                                 onClick={handleCameraClick}
@@ -261,12 +279,12 @@ const ProfileHeader = ({
 
             {/* Profile Picture View Modal */}
             {showProfileView && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur bg-transparent bg-opacity-80 p-10">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
-                        className={`relative max-w-2xl max-h-[90vh] rounded-lg ${
+                        className={`relative max-w-2xl max-h-screen rounded-lg ${
                             isDarkMode ? "bg-gray-800" : "bg-white"
                         }`}
                     >
@@ -274,14 +292,14 @@ const ProfileHeader = ({
                         <button
                             onClick={() => setShowProfileView(false)}
                             className={`absolute -top-3 -right-3 z-10 p-2 rounded-full ${
-                                isDarkMode 
-                                    ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                                isDarkMode
+                                    ? "bg-gray-700 hover:bg-gray-600 text-white"
                                     : "bg-white hover:bg-gray-100 text-gray-800"
                             } shadow-lg transition-colors cursor-pointer`}
                         >
                             <FaTimes className="text-lg" />
                         </button>
-                        
+
                         {/* Profile Image */}
                         <div className="p-2">
                             <img
@@ -290,19 +308,29 @@ const ProfileHeader = ({
                                 className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
                             />
                         </div>
-                        
+
                         {/* User Info */}
-                        <div className={`p-4 border-t ${
-                            isDarkMode ? "border-gray-700" : "border-gray-200"
-                        }`}>
-                            <h3 className={`text-lg font-semibold ${
-                                isDarkMode ? "text-white" : "text-gray-800"
-                            }`}>
+                        <div
+                            className={`p-4 border-t ${
+                                isDarkMode
+                                    ? "border-gray-700"
+                                    : "border-gray-200"
+                            }`}
+                        >
+                            <h3
+                                className={`text-lg font-semibold ${
+                                    isDarkMode ? "text-white" : "text-gray-800"
+                                }`}
+                            >
                                 {realName}
                             </h3>
-                            <p className={`text-sm ${
-                                isDarkMode ? "text-gray-300" : "text-gray-600"
-                            }`}>
+                            <p
+                                className={`text-sm ${
+                                    isDarkMode
+                                        ? "text-gray-300"
+                                        : "text-gray-600"
+                                }`}
+                            >
                                 @{username}
                             </p>
                         </div>
@@ -324,7 +352,7 @@ const ProfileHeader = ({
 
             {/* Overlay to close camera options when clicking outside */}
             {showCameraOptions && (
-                <div 
+                <div
                     className="fixed inset-0 z-40"
                     onClick={() => setShowCameraOptions(false)}
                 />

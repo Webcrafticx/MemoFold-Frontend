@@ -103,11 +103,10 @@ const UserProfile = () => {
     });
 
     const [paginationState, setPaginationState] = useState({
-    nextCursor: null,
-    hasMore: true,
-    isLoadingMore: false
-});
-
+        nextCursor: null,
+        hasMore: true,
+        isLoadingMore: false,
+    });
 
     // Save activeReplies to localStorage whenever it changes
     useEffect(() => {
@@ -194,304 +193,346 @@ const UserProfile = () => {
     };
 
     const fetchUserProfile = async () => {
-    try {
-        const response = await fetch(
-            `${config.apiUrl}/user/user/${userId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            }
-        );
-
-        if (!response.ok) {
-            throw new Error("Failed to fetch user profile");
-        }
-
-        const data = await response.json();
-        const userDataFromApi = data.user || data;
-        setUserData(userDataFromApi);
-
-        if (data.profile && data.profile.description) {
-            setUserDescription(data.profile.description);
-        } else if (data.description) {
-            setUserDescription(data.description);
-        }
-
-        if (data.stats) {
-            setUserStats({
-                postCount: data.stats.postCount || 0,
-                friendsCount: data.stats.friendsCount || 0,
-            });
-        }
-
-        if (userDataFromApi.username) {
-            // Initial load without cursor
-            await fetchUserPosts(userDataFromApi.username);
-        }
-    } catch (err) {
-        console.error("Error fetching user profile:", err);
-        setError(err.message);
-        setIsLoading(false);
-    }
-};
-
-const fetchUserPosts = async (username, cursor = null, isLoadMore = false) => {
-    try {
-        if (isLoadMore) {
-            setPaginationState(prev => ({ ...prev, isLoadingMore: true }));
-        } else {
-            setIsLoading(true);
-        }
-
-        const data = await apiService.fetchUserPosts(token, username, cursor);
-        const postsData = Array.isArray(data) ? data : data.posts || [];
-        
-        const storedLikes = getStoredLikes();
-        const currentUsername = localStorage.getItem("username");
-
-        const postsWithLikes = postsData.map((post) => {
-            const hasUserLiked = post.likesPreview?.some(
-                (like) => like.username === currentUsername
+        try {
+            const response = await fetch(
+                `${config.apiUrl}/user/user/${userId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
             );
 
-            return {
-                ...post,
-                isLiked: hasUserLiked || false,
-                likes: post.likeCount || 0,
-                comments: post.comments || [],
-                commentCount: post.commentCount || 0,
-            };
-        });
+            if (!response.ok) {
+                throw new Error("Failed to fetch user profile");
+            }
 
-        // Load more case mein existing posts ke saath merge karo
-        if (isLoadMore) {
-            setUserPosts(prev => {
-                const existingIds = new Set(prev.map(p => p._id));
-                const newPosts = postsWithLikes.filter(post => !existingIds.has(post._id));
-                
-                // console.log(`📦 Merging ${newPosts.length} new posts with ${prev.length} existing posts`);
-                
-                return [...prev, ...newPosts];
-            });
-        } else {
-            setUserPosts(postsWithLikes);
-        }
+            const data = await response.json();
+            const userDataFromApi = data.user || data;
+            setUserData(userDataFromApi);
 
-        // Pagination state update karo
-        setPaginationState(prev => ({
-            ...prev,
-            nextCursor: data.nextCursor || null,
-            hasMore: !!data.nextCursor,
-            isLoadingMore: false
-        }));
+            if (data.profile && data.profile.description) {
+                setUserDescription(data.profile.description);
+            } else if (data.description) {
+                setUserDescription(data.description);
+            }
 
-        // console.log('✅ Pagination updated:', {
-        //     nextCursor: data.nextCursor,
-        //     hasMore: !!data.nextCursor
-        // });
+            if (data.stats) {
+                setUserStats({
+                    postCount: data.stats.postCount || 0,
+                    friendsCount: data.stats.friendsCount || 0,
+                });
+            }
 
-        const likesByPost = {};
-        postsData.forEach((post) => {
-            const storedPostLikes = storedLikes[post._id] || post.likes || [];
-            likesByPost[post._id] = storedPostLikes;
-        });
-
-        localStorage.setItem("postLikes", JSON.stringify(likesByPost));
-    } catch (err) {
-        console.error("Error fetching user posts:", err);
-        setError(err.message);
-        
-        if (isLoadMore) {
-            setPaginationState(prev => ({ ...prev, isLoadingMore: false }));
-        }
-    } finally {
-        if (!isLoadMore) {
+            if (userDataFromApi.username) {
+                // Initial load without cursor
+                await fetchUserPosts(userDataFromApi.username);
+            }
+        } catch (err) {
+            console.error("Error fetching user profile:", err);
+            setError(err.message);
             setIsLoading(false);
-        }
-    }
-};
-
-// Scroll handler
-useEffect(() => {
-    // console.log('📜 Scroll handler setup');
-
-    const handleScroll = () => {
-        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-        const { hasMore, isLoadingMore, nextCursor } = paginationState;
-        
-        const scrollPosition = scrollTop + clientHeight;
-        const threshold = scrollHeight - 200; // 200px threshold
-        
-        // console.log('🖱️ Scroll check:', {
-        //     scrollPosition,
-        //     threshold,
-        //     hasMore,
-        //     isLoadingMore,
-        //     nextCursor
-        // });
-        
-        if (scrollPosition >= threshold && hasMore && !isLoadingMore && nextCursor) {
-            // console.log('🚀 Loading more posts...');
-            loadMorePosts();
         }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-}, [paginationState]);
+    const fetchUserPosts = async (
+        username,
+        cursor = null,
+        isLoadMore = false
+    ) => {
+        try {
+            if (isLoadMore) {
+                setPaginationState((prev) => ({
+                    ...prev,
+                    isLoadingMore: true,
+                }));
+            } else {
+                setIsLoading(true);
+            }
 
-const loadMorePosts = async () => {
-    const { nextCursor } = paginationState;
-    
-    // console.log('🎯 loadMorePosts triggered with cursor:', nextCursor);
-    
-    if (!nextCursor) {
-        // console.log('❌ No cursor available');
-        return;
-    }
+            const data = await apiService.fetchUserPosts(
+                token,
+                username,
+                cursor
+            );
+            const postsData = Array.isArray(data) ? data : data.posts || [];
 
-    try {
-        await fetchUserPosts(userData.username, nextCursor, true);
-    } catch (error) {
-        console.error("Error loading more posts:", error);
-        setError("Unable to load more posts.");
-    }
-};
+            const storedLikes = getStoredLikes();
+            const currentUsername = localStorage.getItem("username");
 
-const fetchComments = async (postId) => {
-    setLoadingComments((prev) => ({ ...prev, [postId]: true }));
+            const postsWithLikes = postsData.map((post) => {
+                const hasUserLiked = post.likesPreview?.some(
+                    (like) => like.username === currentUsername
+                );
 
-    try {
-        const responseData = await apiService.fetchComments(postId, token);
-        const comments = responseData.comments || [];
-        const totalCount = responseData.count || comments.length;
-
-        const storedCommentLikes = getStoredCommentLikes();
-        const storedReplyLikes = getStoredReplyLikes();
-
-        const commentsWithLikes = comments.map((comment) => {
-            const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
-            const hasUserLiked = commentLikes.includes(user._id);
-
-            const userData = comment.userId || comment.user || {
-                _id: "unknown",
-                username: "Unknown",
-                realname: "Unknown User",
-                profilePic: "",
-            };
-
-            const finalUserData = {
-                _id: userData._id || "unknown",
-                username: userData.username || "Unknown",
-                realname: userData.realname || userData.username || "Unknown User",
-                profilePic: userData.profilePic || "",
-            };
-            return {
-                ...comment,
-                likes: commentLikes,
-                hasUserLiked: hasUserLiked,
-                userId: finalUserData,
-                replies: [], 
-                replyCount: comment.replyCount || 0,
-                showReplyInput: false,
-            };
-        });
-
-        setUserPosts((posts) =>
-            posts.map((post) =>
-                post._id === postId
-                    ? {
-                          ...post,
-                          comments: commentsWithLikes,
-                          commentCount: totalCount,
-                      }
-                    : post
-            )
-        );
-        setActiveReplies((prev) => {
-            const newActiveReplies = { ...prev };
-            comments.forEach(comment => {
-                if (newActiveReplies[comment._id]) {
-                    delete newActiveReplies[comment._id];
-                }
+                return {
+                    ...post,
+                    isLiked: hasUserLiked || false,
+                    likes: post.likeCount || 0,
+                    comments: post.comments || [],
+                    commentCount: post.commentCount || 0,
+                };
             });
-            return newActiveReplies;
-        });
 
-        const likesByComment = {};
-        comments.forEach((comment) => {
-            likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
-        });
+            // Load more case mein existing posts ke saath merge karo
+            if (isLoadMore) {
+                setUserPosts((prev) => {
+                    const existingIds = new Set(prev.map((p) => p._id));
+                    const newPosts = postsWithLikes.filter(
+                        (post) => !existingIds.has(post._id)
+                    );
 
-        localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
-    } catch (err) {
-        setError(err.message);
-        console.error("Error fetching comments:", err);
-    } finally {
-        setLoadingComments((prev) => ({ ...prev, [postId]: false }));
-    }
-};
-const fetchCommentReplies = async (commentId, postId) => {
-    try {
-        const responseData = await apiService.fetchCommentReplies(commentId, token);
-        const replies = responseData.replies || [];
+                    // console.log(`📦 Merging ${newPosts.length} new posts with ${prev.length} existing posts`);
 
-        const storedReplyLikes = getStoredReplyLikes();
+                    return [...prev, ...newPosts];
+                });
+            } else {
+                setUserPosts(postsWithLikes);
+            }
 
-        const repliesWithLikes = replies.map((reply) => {
-            const replyLikes = storedReplyLikes[reply._id] || reply.likes || [];
-            const hasUserLikedReply = replyLikes.includes(user._id);
-            const replyUser = reply.user || reply.userId || {};
-            const profilePic = replyUser.profilepic || replyUser.profilePic || "";
+            // Pagination state update karo
+            setPaginationState((prev) => ({
+                ...prev,
+                nextCursor: data.nextCursor || null,
+                hasMore: !!data.nextCursor,
+                isLoadingMore: false,
+            }));
 
-            const finalReplyUserData = {
-                _id: replyUser._id || "unknown",
-                username: replyUser.username || "Unknown",
-                realname: replyUser.realname || replyUser.username || "Unknown User",
-                profilePic: profilePic,
-            };
+            // console.log('✅ Pagination updated:', {
+            //     nextCursor: data.nextCursor,
+            //     hasMore: !!data.nextCursor
+            // });
 
-            return {
-                ...reply,
-                likes: replyLikes,
-                hasUserLiked: hasUserLikedReply,
-                userId: finalReplyUserData,
-                showReplyInput: false,
-            };
-        });
+            const likesByPost = {};
+            postsData.forEach((post) => {
+                const storedPostLikes =
+                    storedLikes[post._id] || post.likes || [];
+                likesByPost[post._id] = storedPostLikes;
+            });
 
-        setUserPosts((prevPosts) =>
-            prevPosts.map((post) => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.map((comment) =>
-                        comment._id === commentId
-                            ? {
-                                  ...comment,
-                                  replies: repliesWithLikes,
-                                  replyCount: repliesWithLikes.length,
-                              }
-                            : comment
-                    ) || [];
-                    return {
-                        ...post,
-                        comments: updatedComments,
+            localStorage.setItem("postLikes", JSON.stringify(likesByPost));
+        } catch (err) {
+            console.error("Error fetching user posts:", err);
+            setError(err.message);
+
+            if (isLoadMore) {
+                setPaginationState((prev) => ({
+                    ...prev,
+                    isLoadingMore: false,
+                }));
+            }
+        } finally {
+            if (!isLoadMore) {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    // Scroll handler
+    useEffect(() => {
+        // console.log('📜 Scroll handler setup');
+
+        const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } =
+                document.documentElement;
+            const { hasMore, isLoadingMore, nextCursor } = paginationState;
+
+            const scrollPosition = scrollTop + clientHeight;
+            const threshold = scrollHeight - 200; // 200px threshold
+
+            // console.log('🖱️ Scroll check:', {
+            //     scrollPosition,
+            //     threshold,
+            //     hasMore,
+            //     isLoadingMore,
+            //     nextCursor
+            // });
+
+            if (
+                scrollPosition >= threshold &&
+                hasMore &&
+                !isLoadingMore &&
+                nextCursor
+            ) {
+                // console.log('🚀 Loading more posts...');
+                loadMorePosts();
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, [paginationState]);
+
+    const loadMorePosts = async () => {
+        const { nextCursor } = paginationState;
+
+        // console.log('🎯 loadMorePosts triggered with cursor:', nextCursor);
+
+        if (!nextCursor) {
+            // console.log('❌ No cursor available');
+            return;
+        }
+
+        try {
+            await fetchUserPosts(userData.username, nextCursor, true);
+        } catch (error) {
+            console.error("Error loading more posts:", error);
+            setError("Unable to load more posts.");
+        }
+    };
+
+    const fetchComments = async (postId) => {
+        setLoadingComments((prev) => ({ ...prev, [postId]: true }));
+
+        try {
+            const responseData = await apiService.fetchComments(postId, token);
+            const comments = responseData.comments || [];
+            const totalCount = responseData.count || comments.length;
+
+            const storedCommentLikes = getStoredCommentLikes();
+            const storedReplyLikes = getStoredReplyLikes();
+
+            const commentsWithLikes = comments.map((comment) => {
+                const commentLikes =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+                const hasUserLiked = commentLikes.includes(user._id);
+
+                const userData = comment.userId ||
+                    comment.user || {
+                        _id: "unknown",
+                        username: "Unknown",
+                        realname: "Unknown User",
+                        profilePic: "",
                     };
-                }
-                return post;
-            })
-        );
 
-        const likesByReply = {};
-        replies.forEach((reply) => {
-            likesByReply[reply._id] = storedReplyLikes[reply._id] || reply.likes || [];
-        });
+                const finalUserData = {
+                    _id: userData._id || "unknown",
+                    username: userData.username || "Unknown",
+                    realname:
+                        userData.realname ||
+                        userData.username ||
+                        "Unknown User",
+                    profilePic: userData.profilePic || "",
+                };
+                return {
+                    ...comment,
+                    likes: commentLikes,
+                    hasUserLiked: hasUserLiked,
+                    userId: finalUserData,
+                    replies: [],
+                    replyCount: comment.replyCount || 0,
+                    showReplyInput: false,
+                };
+            });
 
-        localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
-    } catch (err) {
-        setError("Failed to load replies");
-    }
-};
+            setUserPosts((posts) =>
+                posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              comments: commentsWithLikes,
+                              commentCount: totalCount,
+                          }
+                        : post
+                )
+            );
+            setActiveReplies((prev) => {
+                const newActiveReplies = { ...prev };
+                comments.forEach((comment) => {
+                    if (newActiveReplies[comment._id]) {
+                        delete newActiveReplies[comment._id];
+                    }
+                });
+                return newActiveReplies;
+            });
+
+            const likesByComment = {};
+            comments.forEach((comment) => {
+                likesByComment[comment._id] =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+            });
+
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(likesByComment)
+            );
+        } catch (err) {
+            setError(err.message);
+            console.error("Error fetching comments:", err);
+        } finally {
+            setLoadingComments((prev) => ({ ...prev, [postId]: false }));
+        }
+    };
+    const fetchCommentReplies = async (commentId, postId) => {
+        try {
+            const responseData = await apiService.fetchCommentReplies(
+                commentId,
+                token
+            );
+            const replies = responseData.replies || [];
+
+            const storedReplyLikes = getStoredReplyLikes();
+
+            const repliesWithLikes = replies.map((reply) => {
+                const replyLikes =
+                    storedReplyLikes[reply._id] || reply.likes || [];
+                const hasUserLikedReply = replyLikes.includes(user._id);
+                const replyUser = reply.user || reply.userId || {};
+                const profilePic =
+                    replyUser.profilepic || replyUser.profilePic || "";
+
+                const finalReplyUserData = {
+                    _id: replyUser._id || "unknown",
+                    username: replyUser.username || "Unknown",
+                    realname:
+                        replyUser.realname ||
+                        replyUser.username ||
+                        "Unknown User",
+                    profilePic: profilePic,
+                };
+
+                return {
+                    ...reply,
+                    likes: replyLikes,
+                    hasUserLiked: hasUserLikedReply,
+                    userId: finalReplyUserData,
+                    showReplyInput: false,
+                };
+            });
+
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments =
+                            post.comments?.map((comment) =>
+                                comment._id === commentId
+                                    ? {
+                                          ...comment,
+                                          replies: repliesWithLikes,
+                                          replyCount: repliesWithLikes.length,
+                                      }
+                                    : comment
+                            ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const likesByReply = {};
+            replies.forEach((reply) => {
+                likesByReply[reply._id] =
+                    storedReplyLikes[reply._id] || reply.likes || [];
+            });
+
+            localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
+        } catch (err) {
+            setError("Failed to load replies");
+        }
+    };
 
     // Likes modal handlers
     const handleShowLikesModal = (postId) => {
@@ -939,33 +980,34 @@ const fetchCommentReplies = async (commentId, postId) => {
         }));
     };
 
-const toggleReplies = async (commentId, postId, e) => {
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    const post = userPosts.find(p => p._id === postId);
-    const comment = post?.comments?.find(c => c._id === commentId);
-    
-    const repliesAlreadyLoaded = comment?.replies && comment.replies.length > 0;
-
-    // Only fetch if we're opening replies and they're not already loaded
-    if (!activeReplies[commentId] && !repliesAlreadyLoaded) {
-        try {
-            await fetchCommentReplies(commentId, postId);
-        } catch (err) {
-            setError("Failed to load replies");
-            return;
+    const toggleReplies = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
         }
-    }
 
-    // Toggle the active state
-    setActiveReplies((prev) => ({
-        ...prev,
-        [commentId]: !prev[commentId],
-    }));
-};
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+
+        const repliesAlreadyLoaded =
+            comment?.replies && comment.replies.length > 0;
+
+        // Only fetch if we're opening replies and they're not already loaded
+        if (!activeReplies[commentId] && !repliesAlreadyLoaded) {
+            try {
+                await fetchCommentReplies(commentId, postId);
+            } catch (err) {
+                setError("Failed to load replies");
+                return;
+            }
+        }
+
+        // Toggle the active state
+        setActiveReplies((prev) => ({
+            ...prev,
+            [commentId]: !prev[commentId],
+        }));
+    };
     const toggleReplyInput = (commentId, e) => {
         if (e) {
             e.preventDefault();
@@ -994,54 +1036,55 @@ const toggleReplies = async (commentId, postId, e) => {
     };
 
     // New function to toggle reply input for replies
-const toggleReplyToReplyInput = (replyId, commentId, postId, e) => {
-    if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
+    const toggleReplyToReplyInput = (replyId, commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    const contentKey = `${replyId}-${commentId}`;
+        const contentKey = `${replyId}-${commentId}`;
 
-    setUserPosts((prevPosts) =>
-        prevPosts.map((post) => {
-            if (post._id === postId) {
-                const updatedComments = post.comments?.map((comment) => {
-                    if (comment._id === commentId) {
-                        const updatedReplies = comment.replies?.map(
-                            (reply) =>
-                                reply._id === replyId
-                                    ? {
-                                          ...reply,
-                                          showReplyInput: !reply.showReplyInput,
-                                      }
-                                    : reply
-                        );
-                        return {
-                            ...comment,
-                            replies: updatedReplies,
-                        };
-                    }
-                    return comment;
-                });
+        setUserPosts((prevPosts) =>
+            prevPosts.map((post) => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.map((comment) => {
+                        if (comment._id === commentId) {
+                            const updatedReplies = comment.replies?.map(
+                                (reply) =>
+                                    reply._id === replyId
+                                        ? {
+                                              ...reply,
+                                              showReplyInput:
+                                                  !reply.showReplyInput,
+                                          }
+                                        : reply
+                            );
+                            return {
+                                ...comment,
+                                replies: updatedReplies,
+                            };
+                        }
+                        return comment;
+                    });
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                    };
+                }
+                return post;
+            })
+        );
+
+        setReplyContent((prev) => {
+            if (prev[contentKey] === undefined) {
                 return {
-                    ...post,
-                    comments: updatedComments,
+                    ...prev,
+                    [contentKey]: "",
                 };
             }
-            return post;
-        })
-    );
-
-    setReplyContent((prev) => {
-        if (prev[contentKey] === undefined) {
-            return {
-                ...prev,
-                [contentKey]: "",
-            };
-        }
-        return prev; 
-    });
-};
+            return prev;
+        });
+    };
 
     const handleCommentSubmit = async (postId, e) => {
         if (e) e.preventDefault();
@@ -1209,131 +1252,149 @@ const toggleReplyToReplyInput = (replyId, commentId, postId, e) => {
     };
 
     // New function to handle adding reply to a reply
-const handleAddReplyToReply = async (replyId, commentId, postId, e, content = null) => {
-    if (e) e.preventDefault();
+    const handleAddReplyToReply = async (
+        replyId,
+        commentId,
+        postId,
+        e,
+        content = null
+    ) => {
+        if (e) e.preventDefault();
 
-    const contentKey = `${replyId}-${commentId}`;
-    const contentToUse = content || replyContent[contentKey] || "";
+        const contentKey = `${replyId}-${commentId}`;
+        const contentToUse = content || replyContent[contentKey] || "";
 
-    if (!contentToUse.trim()) {
-        setError("Reply cannot be empty");
-        return;
-    }
+        if (!contentToUse.trim()) {
+            setError("Reply cannot be empty");
+            return;
+        }
 
-    if (!username) {
-        setError("You must be logged in to reply");
-        navigate("/login");
-        return;
-    }
+        if (!username) {
+            setError("You must be logged in to reply");
+            navigate("/login");
+            return;
+        }
 
-    setIsReplying((prev) => ({
-        ...prev,
-        [contentKey]: true,
-    }));
-    setError(null);
-
-    try {
-        const responseData = await apiService.addCommentReply(
-            commentId,
-            contentToUse,
-            postId,
-            token
-        );
-        const createdReply = responseData.reply || responseData;
-
-        setUserPosts((prevPosts) =>
-            prevPosts.map((post) => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.map(
-                        (comment) => {
-                            if (comment._id === commentId) {
-                                const newReply = {
-                                    ...createdReply,
-                                    _id: createdReply._id || `temp-${Date.now()}`,
-                                    content: contentToUse, 
-                                    userId: {
-                                        _id: user._id,
-                                        username: username,
-                                        realname: currentUserProfile?.realname || user?.realname || username,
-                                        profilePic: currentUserProfile?.profilePic || user?.profilePic,
-                                    },
-                                    likes: [],
-                                    hasUserLiked: false,
-                                    createdAt: createdReply.createdAt || new Date().toISOString(),
-                                };
-
-                                const updatedReplies = [
-                                    ...(comment.replies || []),
-                                    newReply,
-                                ];
-
-                                return {
-                                    ...comment,
-                                    replies: updatedReplies,
-                                    replyCount: updatedReplies.length,
-                                };
-                            }
-                            return comment;
-                        }
-                    );
-
-                    return {
-                        ...post,
-                        comments: updatedComments,
-                    };
-                }
-                return post;
-            })
-        );
-
-        // Input clear karo
-        setReplyContent((prev) => ({
-            ...prev,
-            [contentKey]: "",
-        }));
-        
-        // Hide the reply input after successful submission
-        setUserPosts((prevPosts) =>
-            prevPosts.map((post) => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.map((comment) => {
-                        if (comment._id === commentId) {
-                            const updatedReplies = comment.replies?.map((reply) =>
-                                reply._id === replyId
-                                    ? {
-                                          ...reply,
-                                          showReplyInput: false,
-                                      }
-                                    : reply
-                            );
-                            return {
-                                ...comment,
-                                replies: updatedReplies,
-                            };
-                        }
-                        return comment;
-                    });
-                    return {
-                        ...post,
-                        comments: updatedComments,
-                    };
-                }
-                return post;
-            })
-        );
-
-        setSuccessMessage("Reply posted successfully!");
-        setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-        console.error("Error posting reply:", err);
-        setError(err.message);
-    } finally {
         setIsReplying((prev) => ({
             ...prev,
-            [contentKey]: false,
+            [contentKey]: true,
         }));
-    }
-};
+        setError(null);
+
+        try {
+            const responseData = await apiService.addCommentReply(
+                commentId,
+                contentToUse,
+                postId,
+                token
+            );
+            const createdReply = responseData.reply || responseData;
+
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const newReply = {
+                                        ...createdReply,
+                                        _id:
+                                            createdReply._id ||
+                                            `temp-${Date.now()}`,
+                                        content: contentToUse,
+                                        userId: {
+                                            _id: user._id,
+                                            username: username,
+                                            realname:
+                                                currentUserProfile?.realname ||
+                                                user?.realname ||
+                                                username,
+                                            profilePic:
+                                                currentUserProfile?.profilePic ||
+                                                user?.profilePic,
+                                        },
+                                        likes: [],
+                                        hasUserLiked: false,
+                                        createdAt:
+                                            createdReply.createdAt ||
+                                            new Date().toISOString(),
+                                    };
+
+                                    const updatedReplies = [
+                                        ...(comment.replies || []),
+                                        newReply,
+                                    ];
+
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                        replyCount: updatedReplies.length,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            // Input clear karo
+            setReplyContent((prev) => ({
+                ...prev,
+                [contentKey]: "",
+            }));
+
+            // Hide the reply input after successful submission
+            setUserPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const updatedReplies = comment.replies?.map(
+                                        (reply) =>
+                                            reply._id === replyId
+                                                ? {
+                                                      ...reply,
+                                                      showReplyInput: false,
+                                                  }
+                                                : reply
+                                    );
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            setSuccessMessage("Reply posted successfully!");
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            console.error("Error posting reply:", err);
+            setError(err.message);
+        } finally {
+            setIsReplying((prev) => ({
+                ...prev,
+                [contentKey]: false,
+            }));
+        }
+    };
 
     // Floating Hearts Animation Component
     const FloatingHearts = () => (
@@ -1469,230 +1530,285 @@ const handleAddReplyToReply = async (replyId, commentId, postId, e, content = nu
 
     // Reply Item Component
 
-const ReplyItem = React.memo(({ reply, commentId, postId, commentOwner }) => {
-    const contentKey = `${reply._id}-${commentId}`;
-    
-    // Use local state only - don't sync with parent state during typing
-    const [localInputValue, setLocalInputValue] = useState("");
+    const ReplyItem = React.memo(
+        ({ reply, commentId, postId, commentOwner }) => {
+            const contentKey = `${reply._id}-${commentId}`;
 
-    // Initialize with parent state when input becomes visible
-    useEffect(() => {
-        if (reply.showReplyInput) {
-            setLocalInputValue(replyContent[contentKey] || "");
-        }
-    }, [reply.showReplyInput, contentKey]);
+            // Use local state only - don't sync with parent state during typing
+            const [localInputValue, setLocalInputValue] = useState("");
 
-    const handleInputChange = (e) => {
-        const value = e.target.value;
-        setLocalInputValue(value);
-    };
-const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!localInputValue.trim()) {
-        setError("Reply cannot be empty");
-        return;
-    }
+            // Initialize with parent state when input becomes visible
+            useEffect(() => {
+                if (reply.showReplyInput) {
+                    setLocalInputValue(replyContent[contentKey] || "");
+                }
+            }, [reply.showReplyInput, contentKey]);
 
-    // Directly pass localInputValue to handleAddReplyToReply as 5th parameter
-    handleAddReplyToReply(reply._id, commentId, postId, e, localInputValue);
-    
-    // Clear local input immediately
-    setLocalInputValue("");
-};
+            const handleInputChange = (e) => {
+                const value = e.target.value;
+                setLocalInputValue(value);
+            };
+            const handleSubmit = (e) => {
+                e.preventDefault();
 
-    return (
-        <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
-            <div className="flex items-start space-x-2">
-                <div
-                    className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (reply.userId?._id === currentUserProfile?._id) {
-                            navigate("/profile");
-                        } else {
-                            navigate(`/user/${reply.userId?._id}`);
-                        }
-                    }}
-                >
-                    {reply.userId?.profilePic ? (
-                        <img
-                            src={reply.userId.profilePic}
-                            alt={reply.userId.username}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.style.display = "none";
-                            }}
-                        />
-                    ) : null}
-                    <div
-                        className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                            reply.userId?.profilePic ? "hidden" : "flex"
-                        }`}
-                    >
-                        {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
-                    </div>
-                </div>
-                <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                        <span
-                            className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
+                if (!localInputValue.trim()) {
+                    setError("Reply cannot be empty");
+                    return;
+                }
+
+                // Directly pass localInputValue to handleAddReplyToReply as 5th parameter
+                handleAddReplyToReply(
+                    reply._id,
+                    commentId,
+                    postId,
+                    e,
+                    localInputValue
+                );
+
+                // Clear local input immediately
+                setLocalInputValue("");
+            };
+
+            return (
+                <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
+                    <div className="flex items-start space-x-2">
+                        <div
+                            className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (reply.userId?._id === currentUserProfile?._id) {
+                                if (
+                                    reply.userId?._id ===
+                                    currentUserProfile?._id
+                                ) {
                                     navigate("/profile");
                                 } else {
                                     navigate(`/user/${reply.userId?._id}`);
                                 }
                             }}
                         >
-                            {reply.userId?.username || "Unknown"}
-                        </span>
-                        <span
-                            className={`text-xs ${
-                                isDarkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
-                        >
-                            {formatDate(reply.createdAt)}
-                        </span>
-                    </div>
-                    <p
-                        className={`text-xs whitespace-pre-line mt-1 ${
-                            isDarkMode ? "text-gray-200" : "text-gray-700"
-                        }`}
-                    >
-                        {reply.content}
-                    </p>
-
-                    <div className="mt-1 flex items-center justify-between">
-                        <button
-                            className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                            onClick={(e) =>
-                                handleLikeReply(reply._id, commentId, postId, e)
-                            }
-                            disabled={isLikingReply[reply._id]}
-                        >
-                            {isLikingReply[reply._id] ? (
-                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                            ) : reply.hasUserLiked ? (
-                                <FaHeart className="text-xs text-red-500" />
-                            ) : (
-                                <FaRegHeart
-                                    className={`text-xs ${
-                                        isDarkMode ? "text-gray-400" : "text-gray-500"
-                                    }`}
+                            {reply.userId?.profilePic ? (
+                                <img
+                                    src={reply.userId.profilePic}
+                                    alt={reply.userId.username}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.target.style.display = "none";
+                                    }}
                                 />
-                            )}
-                            <span
-                                className={`text-xs ${
-                                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                            ) : null}
+                            <div
+                                className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                    reply.userId?.profilePic ? "hidden" : "flex"
                                 }`}
                             >
-                                {reply.likes?.length || 0}
-                            </span>
-                        </button>
-
-                        <div className="flex space-x-2">
-                            <button
-                                className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
-                                onClick={(e) =>
-                                    toggleReplyToReplyInput(reply._id, commentId, postId, e)
-                                }
-                                title="Reply to this reply"
-                            >
-                                <FaReply />
-                            </button>
-
-                            {(reply.userId?.username === username ||
-                                commentOwner === username) && (
-                                <button
-                                    className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                    onClick={(e) =>
-                                        handleDeleteReply(reply._id, commentId, postId, e)
-                                    }
-                                    disabled={isDeletingReply[reply._id]}
-                                    title="Delete reply"
+                                {reply.userId?.username
+                                    ?.charAt(0)
+                                    .toUpperCase() || "U"}
+                            </div>
+                        </div>
+                        <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                                <span
+                                    className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (
+                                            reply.userId?._id ===
+                                            currentUserProfile?._id
+                                        ) {
+                                            navigate("/profile");
+                                        } else {
+                                            navigate(
+                                                `/user/${reply.userId?._id}`
+                                            );
+                                        }
+                                    }}
                                 >
-                                    {isDeletingReply[reply._id] ? (
+                                    {reply.userId?.username || "Unknown"}
+                                </span>
+                                <span
+                                    className={`text-xs ${
+                                        isDarkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                >
+                                    {formatDate(reply.createdAt)}
+                                </span>
+                            </div>
+                            <p
+                                className={`text-xs whitespace-pre-line mt-1 ${
+                                    isDarkMode
+                                        ? "text-gray-200"
+                                        : "text-gray-700"
+                                }`}
+                            >
+                                {reply.content}
+                            </p>
+
+                            <div className="mt-1 flex items-center justify-between">
+                                <button
+                                    className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
+                                    onClick={(e) =>
+                                        handleLikeReply(
+                                            reply._id,
+                                            commentId,
+                                            postId,
+                                            e
+                                        )
+                                    }
+                                    disabled={isLikingReply[reply._id]}
+                                >
+                                    {isLikingReply[reply._id] ? (
                                         <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                    ) : reply.hasUserLiked ? (
+                                        <FaHeart className="text-xs text-red-500" />
                                     ) : (
-                                        <FaTrashAlt />
+                                        <FaRegHeart
+                                            className={`text-xs ${
+                                                isDarkMode
+                                                    ? "text-gray-400"
+                                                    : "text-gray-500"
+                                            }`}
+                                        />
                                     )}
+                                    <span
+                                        className={`text-xs ${
+                                            isDarkMode
+                                                ? "text-gray-400"
+                                                : "text-gray-600"
+                                        }`}
+                                    >
+                                        {reply.likes?.length || 0}
+                                    </span>
                                 </button>
+
+                                <div className="flex space-x-2">
+                                    <button
+                                        className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
+                                        onClick={(e) =>
+                                            toggleReplyToReplyInput(
+                                                reply._id,
+                                                commentId,
+                                                postId,
+                                                e
+                                            )
+                                        }
+                                        title="Reply to this reply"
+                                    >
+                                        <FaReply />
+                                    </button>
+
+                                    {(reply.userId?.username === username ||
+                                        commentOwner === username) && (
+                                        <button
+                                            className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
+                                            onClick={(e) =>
+                                                handleDeleteReply(
+                                                    reply._id,
+                                                    commentId,
+                                                    postId,
+                                                    e
+                                                )
+                                            }
+                                            disabled={
+                                                isDeletingReply[reply._id]
+                                            }
+                                            title="Delete reply"
+                                        >
+                                            {isDeletingReply[reply._id] ? (
+                                                <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <FaTrashAlt />
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Reply Input for Reply */}
+                            {reply.showReplyInput && (
+                                <div className="mt-2">
+                                    <form
+                                        onSubmit={handleSubmit}
+                                        className="flex items-center space-x-2"
+                                    >
+                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                            {currentUserProfile?.profilePic ||
+                                            user?.profilePic ? (
+                                                <img
+                                                    src={
+                                                        currentUserProfile?.profilePic ||
+                                                        user?.profilePic
+                                                    }
+                                                    alt={username}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.style.display =
+                                                            "none";
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div
+                                                className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                                    currentUserProfile?.profilePic ||
+                                                    user?.profilePic
+                                                        ? "hidden"
+                                                        : "flex"
+                                                }`}
+                                            >
+                                                {username
+                                                    ?.charAt(0)
+                                                    .toUpperCase() || "U"}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 flex space-x-2">
+                                            <input
+                                                type="text"
+                                                className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                                    isDarkMode
+                                                        ? "bg-gray-700 border-gray-600 text-white"
+                                                        : "bg-white border-gray-300"
+                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                placeholder="Write a reply..."
+                                                value={localInputValue}
+                                                onChange={handleInputChange}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        handleSubmit(e);
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="submit"
+                                                className={`px-2 py-1 rounded-full text-xs ${
+                                                    !localInputValue.trim() ||
+                                                    isReplying[contentKey]
+                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                        : "bg-blue-500 hover:bg-blue-600"
+                                                } text-white transition-colors`}
+                                                disabled={
+                                                    !localInputValue.trim() ||
+                                                    isReplying[contentKey]
+                                                }
+                                            >
+                                                {isReplying[contentKey] ? (
+                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    "Reply"
+                                                )}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
                             )}
                         </div>
                     </div>
-
-                    {/* Reply Input for Reply */}
-                    {reply.showReplyInput && (
-                        <div className="mt-2">
-                            <form
-                                onSubmit={handleSubmit}
-                                className="flex items-center space-x-2"
-                            >
-                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                    {currentUserProfile?.profilePic || user?.profilePic ? (
-                                        <img
-                                            src={currentUserProfile?.profilePic || user?.profilePic}
-                                            alt={username}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                e.target.style.display = "none";
-                                            }}
-                                        />
-                                    ) : null}
-                                    <div
-                                        className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                                            currentUserProfile?.profilePic || user?.profilePic ? "hidden" : "flex"
-                                        }`}
-                                    >
-                                        {username?.charAt(0).toUpperCase() || "U"}
-                                    </div>
-                                </div>
-                                <div className="flex-1 flex space-x-2">
-                                    <input
-                                        type="text"
-                                        className={`flex-1 px-3 py-1 rounded-full text-xs border ${
-                                            isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300"
-                                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                        placeholder="Write a reply..."
-                                        value={localInputValue}
-                                        onChange={handleInputChange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                handleSubmit(e);
-                                            }
-                                        }}
-                                    />
-                                    <button
-                                        type="submit"
-                                        className={`px-2 py-1 rounded-full text-xs ${
-                                            !localInputValue.trim() || 
-                                            isReplying[contentKey]
-                                                ? "bg-blue-300 cursor-not-allowed"
-                                                : "bg-blue-500 hover:bg-blue-600"
-                                        } text-white transition-colors`}
-                                        disabled={
-                                            !localInputValue.trim() || 
-                                            isReplying[contentKey]
-                                        }
-                                    >
-                                        {isReplying[contentKey] ? (
-                                            <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                        ) : (
-                                            "Reply"
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
                 </div>
-            </div>
-        </div>
+            );
+        }
     );
-});
 
     if (isLoading) {
         return <ProfileSkeleton isDarkMode={isDarkMode} />;
@@ -1771,7 +1887,7 @@ const handleSubmit = (e) => {
                     onClick={() => setShowImagePreview(false)}
                 >
                     <div
-                        className="relative max-w-full max-h-full flex items-center justify-center"
+                        className="relative max-w-screen max-h-screen flex items-center justify-center"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <img
@@ -1971,7 +2087,9 @@ const handleSubmit = (e) => {
                         Posts
                     </h3>
 
-                    {userPosts.length === 0 && !isLoading && !paginationState.isLoadingMore  ? (
+                    {userPosts.length === 0 &&
+                    !isLoading &&
+                    !paginationState.isLoadingMore ? (
                         <div
                             className={`rounded-lg p-6 text-center ${
                                 isDarkMode ? "bg-gray-800" : "bg-white"
@@ -2901,25 +3019,40 @@ const handleSubmit = (e) => {
                     )}
 
                     {/* Loading More Indicator */}
-    {paginationState.isLoadingMore && (
-        <div className="flex justify-center items-center py-6">
-            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
-                isDarkMode ? 'border-white' : 'border-blue-500'
-            }`}></div>
-            <span className={`ml-3 ${
-                isDarkMode ? 'text-gray-300' : 'text-gray-600'
-            }`}>Loading more posts...</span>
-        </div>
-    )}
-    
-    {/* End of Posts Message */}
-    {!paginationState.hasMore && userPosts.length > 0 && (
-        <div className={`text-center py-6 ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-            <p>You've reached the end of {userData.username} posts</p>
-        </div>
-    )}
+                    {paginationState.isLoadingMore && (
+                        <div className="flex justify-center items-center py-6">
+                            <div
+                                className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                                    isDarkMode
+                                        ? "border-white"
+                                        : "border-blue-500"
+                                }`}
+                            ></div>
+                            <span
+                                className={`ml-3 ${
+                                    isDarkMode
+                                        ? "text-gray-300"
+                                        : "text-gray-600"
+                                }`}
+                            >
+                                Loading more posts...
+                            </span>
+                        </div>
+                    )}
+
+                    {/* End of Posts Message */}
+                    {!paginationState.hasMore && userPosts.length > 0 && (
+                        <div
+                            className={`text-center py-6 ${
+                                isDarkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                        >
+                            <p>
+                                You've reached the end of {userData.username}{" "}
+                                posts
+                            </p>
+                        </div>
+                    )}
                 </div>
             </section>
         </div>
