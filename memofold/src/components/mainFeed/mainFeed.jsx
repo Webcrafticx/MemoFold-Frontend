@@ -660,78 +660,82 @@ const MainFeed = () => {
     }
 };
 
-    const toggleReplies = async (commentId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+   const toggleReplies = async (commentId, e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
 
-        let postId = null;
-        for (const post of posts) {
-            if (post.comments?.some(comment => comment._id === commentId)) {
-                postId = post._id;
-                break;
-            }
+    let postId = null;
+    for (const post of posts) {
+        if (post.comments?.some(comment => comment._id === commentId)) {
+            postId = post._id;
+            break;
         }
+    }
 
-        if (!postId) {
-            setError("Post not found for this comment");
+    if (!postId) {
+        setError("Post not found for this comment");
+        return;
+    }
+
+    const newActiveRepliesState = {
+        ...activeReplies,
+        [commentId]: !activeReplies[commentId]
+    };
+
+    if (!activeReplies[commentId]) {
+        try {
+            const responseData = await apiService.fetchCommentReplies(commentId, token);
+            const replies = responseData.replies || [];
+
+            setPosts(prevPosts =>
+                prevPosts.map(post => ({
+                    ...post,
+                    comments: post.comments?.map(comment =>
+                        comment._id === commentId
+                            ? {
+                                  ...comment,
+                                  replies: replies.map(reply => {
+                                      // ✅ FIXED: Properly handle reply user data with profilepic (small case)
+                                      const replyUserData = reply.user || reply.userId || {
+                                          username: 'Unknown',
+                                          profilepic: ''
+                                      };
+
+                                    
+
+                                      const finalReplyUserData = {
+                                          _id: reply.user?._id || 'unknown',
+                                          username: replyUserData.username || 'Unknown',
+                                          realname: replyUserData.realname || replyUserData.username || 'Unknown User',
+                                          // ✅ FIXED: Use profilepic (small case) from API response
+                                          profilePic: replyUserData.profilepic || replyUserData.profilePic || ''
+                                      };
+
+                                      return {
+                                          ...reply,
+                                          userId: finalReplyUserData,
+                                          username: finalReplyUserData.username,
+                                          profilePic: finalReplyUserData.profilePic,
+                                          likes: reply.likes || [],
+                                          hasUserLiked: (reply.likes || []).includes(user._id),
+                                      };
+                                  }),
+                                  replyCount: replies.length
+                              }
+                            : comment
+                    ) || [],
+                }))
+            );
+        } catch (err) {
+            setError("Failed to load replies");
             return;
         }
+    }
 
-        const newActiveRepliesState = {
-            ...activeReplies,
-            [commentId]: !activeReplies[commentId]
-        };
-
-        if (!activeReplies[commentId]) {
-            try {
-                const responseData = await apiService.fetchCommentReplies(commentId, token);
-                const replies = responseData.replies || [];
-
-                setPosts(prevPosts =>
-                    prevPosts.map(post => ({
-                        ...post,
-                        comments: post.comments?.map(comment =>
-                            comment._id === commentId
-                                ? {
-                                      ...comment,
-                                      replies: replies.map(reply => {
-                                          const replyUserData = reply.userId || reply.user || {
-                                              _id: 'unknown',
-                                              username: 'Unknown',
-                                              realname: 'Unknown User',
-                                              profilePic: ''
-                                          };
-
-                                          const finalReplyUserData = {
-                                              _id: replyUserData._id || 'unknown',
-                                              username: replyUserData.username || 'Unknown',
-                                              realname: replyUserData.realname || replyUserData.username || 'Unknown User',
-                                              profilePic: replyUserData.profilePic || ''
-                                          };
-
-                                          return {
-                                              ...reply,
-                                              likes: reply.likes || [],
-                                              hasUserLiked: (reply.likes || []).includes(user._id),
-                                              userId: finalReplyUserData,
-                                          };
-                                      }),
-                                      replyCount: replies.length
-                                  }
-                                : comment
-                        ) || [],
-                    }))
-                );
-            } catch (err) {
-                setError("Failed to load replies");
-                return;
-            }
-        }
-
-        setActiveReplies(newActiveRepliesState);
-    };
+    setActiveReplies(newActiveRepliesState);
+};
 
     const toggleReplyInput = (commentId, replyId = null, e) => {
         if (e) {
@@ -896,7 +900,7 @@ const MainFeed = () => {
             e.stopPropagation();
         }
 
-        console.log("🚀 DELETE REPLY - ReplyId:", replyId, "CommentId:", commentId);
+      
 
         let replyOwner = "";
         let foundPostId = "";
@@ -953,9 +957,9 @@ const MainFeed = () => {
                 )
             );
 
-            console.log("📞 Calling deleteReply API with replyId:", replyId);
+    
             const result = await apiService.deleteReply(replyId, token);
-            console.log("📩 API Response:", result);
+         
 
             if (result.success) {
                 setTimeout(() => setSuccessMessage(null), 3000);

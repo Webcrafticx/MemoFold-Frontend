@@ -1,3 +1,4 @@
+import React from "react";
 import { FaHeart, FaRegHeart, FaTrashAlt, FaReply } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 
@@ -17,6 +18,8 @@ const ReplyItem = ({
     replyContent,
     onSetReplyContent,
     onAddReply,
+    postId,
+    activeReplyInputs
 }) => {
     const handleProfilePicError = (e) => {
         e.target.style.display = "none";
@@ -25,50 +28,146 @@ const ReplyItem = ({
         }
     };
 
-    const handleReplySubmit = (e) => {
-        if (e) e.preventDefault();
-        onAddReply(commentId, reply.postId || reply._id, e);
+    // Safe access to all props with fallbacks
+    const replyKey = reply?._id || 'unknown';
+    
+    // FIXED: Properly handle replyContent for both main comments and nested replies
+    const currentReplyContent = replyContent ? 
+        (typeof replyContent === 'object' ? replyContent[commentId] || "" : replyContent) : "";
+    
+    // FIXED: Properly handle activeReplyInputs
+    const isReplyInputActive = activeReplyInputs ? 
+        (typeof activeReplyInputs === 'object' ? activeReplyInputs[commentId] || false : false) : false;
+    
+    // FIXED: Properly handle loading states
+    const isCurrentlyReplying = isReplying ? 
+        (typeof isReplying === 'object' ? isReplying[commentId] || false : false) : false;
+    
+    const isCurrentlyLiking = isLikingReply ? 
+        (typeof isLikingReply === 'object' ? isLikingReply[replyKey] || false : false) : false;
+    
+    const isCurrentlyDeleting = isDeletingReply ? 
+        (typeof isDeletingReply === 'object' ? isDeletingReply[replyKey] || false : false) : false;
+
+    // Safe user data access
+    const replyUser = reply?.userId || reply?.user || {};
+    const replyUsername = replyUser?.username || reply?.username || "Unknown";
+    const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic || 
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(replyUsername)}&background=random`;
+    const replyUserId = replyUser?._id || replyUser?.id || 'unknown';
+
+    // Check if current user can delete reply
+    const canDeleteReply = () => {
+        const currentUserId = localStorage.getItem("userId");
+        const currentUsername = localStorage.getItem("username");
+        
+        return (
+            replyUser?._id === currentUserId ||
+            replyUsername === currentUsername ||
+            commentOwner === currentUsername ||
+            replyUser?.id === currentUserId
+        );
     };
 
+    const handleReplySubmit = () => {
+        if (!currentReplyContent?.trim()) {
+            console.error("❌ Reply content is empty");
+            return;
+        }
+
+        if (onAddReply && postId && commentId) {
+            onAddReply(postId, commentId, replyKey);
+        } else {
+            console.error("❌ Missing required parameters for reply:", {
+                onAddReply: !!onAddReply,
+                postId,
+                commentId,
+                replyKey
+            });
+        }
+    };
+
+    const handleInputKeyPress = (e) => {
+        if (e.key === "Enter") {
+            handleReplySubmit();
+        }
+    };
+
+    const handleInputChange = (e) => {
+        if (onSetReplyContent) {
+            if (typeof onSetReplyContent === 'function') {
+                // FIXED: Use commentId as key for all replies (both main and nested)
+                onSetReplyContent(commentId, e.target.value);
+            }
+        }
+    };
+
+    const handleToggleReply = () => {
+        if (onToggleReplyInput) {
+           
+            onToggleReplyInput(commentId);
+        }
+    };
+
+    const handleLikeClick = (e) => {
+        if (onLikeReply && replyKey && commentId) {
+            onLikeReply(replyKey, commentId, e);
+        }
+    };
+
+    const handleDeleteClick = () => {
+        if (onDeleteReply && replyKey && commentId) {
+            onDeleteReply(replyKey, commentId);
+        }
+    };
+
+    const handleNavigateToProfile = () => {
+        if (navigateToUserProfile && replyUserId) {
+            navigateToUserProfile(replyUserId);
+        }
+    };
+
+    if (!reply) {
+        return null;
+    }
+
     return (
-        <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
+        <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
             <div className="flex items-start space-x-2">
                 <div
-                    className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                    onClick={(e) => navigateToUserProfile(reply.userId?._id, e)}
+                    className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer"
+                    onClick={handleNavigateToProfile}
                 >
-                    {reply.userId?.profilePic ? (
+                    {replyUserProfilePic ? (
                         <img
-                            src={reply.userId.profilePic}
-                            alt={reply.userId.username}
+                            src={replyUserProfilePic}
+                            alt={replyUsername}
                             className="w-full h-full object-cover"
                             onError={handleProfilePicError}
                         />
                     ) : null}
                     <div
                         className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                            reply.userId?.profilePic ? "hidden" : "flex"
+                            replyUserProfilePic ? "hidden" : "flex"
                         }`}
                     >
-                        {reply.userId?.username?.charAt(0).toUpperCase() || "U"}
+                        {replyUsername?.charAt(0).toUpperCase() || "U"}
                     </div>
                 </div>
                 <div className="flex-1">
                     <div className="flex items-center space-x-2">
                         <span
                             className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
-                            onClick={(e) =>
-                                navigateToUserProfile(reply.userId?._id, e)
-                            }
+                            onClick={handleNavigateToProfile}
                         >
-                            {reply.userId?.username || "Unknown"}
+                            {replyUsername}
                         </span>
                         <span
                             className={`text-xs ${
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
                             }`}
                         >
-                            {formatDate(reply.createdAt)}
+                            {reply?.createdAt ? formatDate(reply.createdAt) : 'Recently'}
                         </span>
                     </div>
                     <p
@@ -76,26 +175,24 @@ const ReplyItem = ({
                             isDarkMode ? "text-gray-200" : "text-gray-700"
                         }`}
                     >
-                        {reply.content}
+                        {reply?.content || ""}
                     </p>
 
                     <div className="mt-1 flex items-center justify-between">
                         <button
                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
-                            onClick={(e) =>
-                                onLikeReply(reply._id, commentId, e)
-                            }
-                            disabled={isLikingReply[reply._id]}
+                            onClick={handleLikeClick}
+                            disabled={isCurrentlyLiking}
                         >
-                            {isLikingReply[reply._id] ? (
+                            {isCurrentlyLiking ? (
                                 <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                            ) : reply.hasUserLiked ? (
+                            ) : reply?.hasUserLiked ? (
                                 <FaHeart className="text-xs text-red-500" />
                             ) : (
                                 <FaRegHeart className="text-xs" />
                             )}
                             <span className="text-xs">
-                                {reply.likes?.length || 0}
+                                {reply?.likes?.length || 0}
                             </span>
                         </button>
 
@@ -103,23 +200,20 @@ const ReplyItem = ({
                             {/* Reply to reply functionality */}
                             <button
                                 className="text-blue-500 hover:text-blue-700 transition-colors cursor-pointer text-xs"
-                                onClick={(e) => onToggleReplyInput(commentId, reply._id, e)}
+                                onClick={handleToggleReply}
                                 title="Reply to this reply"
                             >
                                 <FaReply />
                             </button>
 
-                            {(reply.userId?.username === username ||
-                                commentOwner === username) && (
+                            {canDeleteReply() && (
                                 <button
                                     className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
-                                    onClick={(e) =>
-                                        onDeleteReply(reply._id, commentId, e)
-                                    }
-                                    disabled={isDeletingReply[reply._id]}
+                                    onClick={handleDeleteClick}
+                                    disabled={isCurrentlyDeleting}
                                     title="Delete reply"
                                 >
-                                    {isDeletingReply[reply._id] ? (
+                                    {isCurrentlyDeleting ? (
                                         <div className="inline-block h-3 w-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
                                         <FaTrashAlt />
@@ -129,79 +223,44 @@ const ReplyItem = ({
                         </div>
                     </div>
 
-                    {/* Reply input for replying to replies */}
-                    {reply.showReplyInput && (
+                    {/* Reply input for replying to replies - OPENS BELOW THE REPLY */}
+                    {isReplyInputActive && (
                         <div className="mt-2 ml-2">
-                            <form onSubmit={handleReplySubmit} className="flex flex-col space-y-2">
-                                <textarea
-                                    value={replyContent[commentId] || ""}
-                                    onChange={(e) => onSetReplyContent(commentId, e.target.value)}
-                                    placeholder={`Reply to ${reply.userId?.username || "this reply"}...`}
-                                    className={`w-full px-3 py-2 text-xs rounded-lg border ${
-                                        isDarkMode 
-                                            ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400" 
-                                            : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none`}
-                                    rows="2"
-                                    maxLength="500"
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="text"
+                                    className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                        isDarkMode
+                                            ? "bg-gray-600 border-gray-500 text-white"
+                                            : "bg-white border-gray-300 text-gray-800"
+                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                    placeholder={`Reply to ${replyUsername}...`}
+                                    value={currentReplyContent || ""}
+                                    onChange={handleInputChange}
+                                    onKeyPress={handleInputKeyPress}
                                 />
-                                <div className="flex justify-end space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => onToggleReplyInput(commentId, reply._id, e)}
-                                        className={`px-3 py-1 text-xs rounded-lg ${
-                                            isDarkMode 
-                                                ? "bg-gray-600 text-gray-300 hover:bg-gray-500" 
-                                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                        } transition-colors cursor-pointer`}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isReplying[commentId] || !replyContent[commentId]?.trim()}
-                                        className={`px-3 py-1 text-xs rounded-lg text-white ${
-                                            isReplying[commentId] || !replyContent[commentId]?.trim()
-                                                ? "bg-blue-400 cursor-not-allowed"
-                                                : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                                        } transition-colors`}
-                                    >
-                                        {isReplying[commentId] ? (
-                                            <div className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        ) : (
-                                            "Reply"
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
+                                <button
+                                    className={`px-2 py-1 rounded-full cursor-pointer text-xs ${
+                                        !currentReplyContent?.trim() || isCurrentlyReplying
+                                            ? "bg-blue-300 cursor-not-allowed"
+                                            : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                                    } text-white transition-colors`}
+                                    onClick={handleReplySubmit}
+                                    disabled={!currentReplyContent?.trim() || isCurrentlyReplying}
+                                >
+                                    {isCurrentlyReplying ? "Posting..." : "Post"}
+                                </button>
+                                <button
+                                    onClick={handleToggleReply}
+                                    className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {/* Nested replies (replies to this reply) */}
-                    {reply.replies && reply.replies.length > 0 && (
-                        <div className="mt-2">
-                            {reply.replies.map((nestedReply) => (
-                                <ReplyItem
-                                    key={nestedReply._id}
-                                    reply={nestedReply}
-                                    commentId={commentId}
-                                    username={username}
-                                    commentOwner={commentOwner}
-                                    isDarkMode={isDarkMode}
-                                    onLikeReply={onLikeReply}
-                                    onDeleteReply={onDeleteReply}
-                                    onToggleReplyInput={onToggleReplyInput}
-                                    isLikingReply={isLikingReply}
-                                    isDeletingReply={isDeletingReply}
-                                    isReplying={isReplying}
-                                    replyContent={replyContent}
-                                    onSetReplyContent={onSetReplyContent}
-                                    onAddReply={onAddReply}
-                                    navigateToUserProfile={navigateToUserProfile}
-                                />
-                            ))}
-                        </div>
-                    )}
+                    {/* NOTE: No nested replies - all replies stay at same level */}
                 </div>
             </div>
         </div>
