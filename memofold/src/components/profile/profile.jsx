@@ -393,55 +393,63 @@ useEffect(() => {
     };
 
     // Comment handlers
-    const handleToggleCommentDropdown = async (postId) => {
-        if (commentState.activeCommentPostId === postId) {
-            setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
-            return;
+  const handleToggleCommentDropdown = async (postId) => {
+    if (commentState.activeCommentPostId === postId) {
+        setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
+        return;
+    }
+
+    setCommentState((prev) => ({
+        ...prev,
+        activeCommentPostId: postId,
+        isFetchingComments: true,
+    }));
+
+    try {
+        const token = localStorage.getItem("token");
+        const responseData = await apiService.fetchComments(postId, token);
+
+        if (!responseData || responseData.success === false) {
+            throw new Error(
+                responseData?.message || "Failed to load comments"
+            );
         }
 
-        setCommentState((prev) => ({
-            ...prev,
-            activeCommentPostId: postId,
-            isFetchingComments: true,
+        const comments = responseData.comments || [];
+        // ✅ USE THE COUNT FROM API RESPONSE, NOT comments.length
+        const commentCount = responseData.count || comments.length;
+
+  
+        const commentsWithReplies = comments.map((comment) => ({
+            ...comment,
+            replies: comment.replies || [],
+            showReplies: false,
+            replyCount: comment.replyCount || comment.replies?.length || 0,
         }));
 
-        try {
-            const token = localStorage.getItem("token");
-            const responseData = await apiService.fetchComments(postId, token);
-
-            if (!responseData || responseData.success === false) {
-                throw new Error(
-                    responseData?.message || "Failed to load comments"
-                );
-            }
-
-            const comments = (responseData.comments || []).map((comment) => ({
-                ...comment,
-                replies: comment.replies || [],
-                showReplies: false,
-                replyCount: comment.replyCount || comment.replies?.length || 0,
-            }));
-
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments,
-                          }
-                        : post
-                ),
-            }));
-        } catch (error) {
-            console.error("Error fetching comments:", error);
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isFetchingComments: false,
-            }));
-        }
-    };
+        setProfileData((prev) => ({
+            ...prev,
+            posts: prev.posts.map((post) =>
+                post._id === postId
+                    ? {
+                          ...post,
+                          comments: commentsWithReplies,
+                          // ✅ FIXED: Use the count from API response
+                          commentCount: commentCount,
+                      }
+                    : post
+            ),
+        }));
+    } catch (error) {
+        console.error("Error fetching comments:", error);
+        toast.error("Unable to load comments.");
+    } finally {
+        setCommentState((prev) => ({
+            ...prev,
+            isFetchingComments: false,
+        }));
+    }
+};
 
     const handleCommentSubmit = async (postId) => {
         if (!commentState.commentContent[postId]?.trim()) {
@@ -577,194 +585,179 @@ useEffect(() => {
         }));
     };
 
-    const handleReplySubmit = async (postId, commentId) => {
-        const key = commentId;
-        const content = commentState.replyContent[key];
+const handleReplySubmit = async (postId, commentId, replyId = null) => {
 
-        if (!content?.trim()) {
-            toast.error("Reply cannot be empty");
-            return;
-        }
+    const key = commentId;
+    const content = commentState.replyContent[key];
 
-        try {
-            setCommentState((prev) => ({
-                ...prev,
-                isReplying: { ...prev.isReplying, [key]: true },
-            }));
 
-            const token = localStorage.getItem("token");
-            const currentUsername = localStorage.getItem("username");
-            const currentRealName = localStorage.getItem("realname");
-            const currentProfilePic = localStorage.getItem("profilePic");
-            const currentUserId = localStorage.getItem("userId");
 
-            // Optimistically add the reply with Indian time
-            // Optimistically add the reply with UTC time
-            const optimisticReply = {
-                _id: `temp-${Date.now()}`, // Temporary ID
-                content: content,
-                likes: [],
-                hasUserLiked: false,
-                createdAt: getCurrentUTCTime(), // ✅ UTC time use karen
-                userId: {
-                    _id: currentUserId,
-                    username: currentUsername,
-                    realname: currentRealName,
-                    profilePic: currentProfilePic,
-                },
+    if (!content?.trim()) {
+        toast.error("Reply cannot be empty");
+        return;
+    }
+
+    try {
+        setCommentState((prev) => ({
+            ...prev,
+            isReplying: { ...prev.isReplying, [key]: true },
+        }));
+
+        const token = localStorage.getItem("token");
+        const currentUsername = localStorage.getItem("username");
+        const currentRealName = localStorage.getItem("realname");
+        const currentProfilePic = localStorage.getItem("profilePic");
+        const currentUserId = localStorage.getItem("userId");
+
+        // For ALL replies, we use the main commentId for API call
+        // Reply-to-reply bhi same comment ke replies array mein jayega
+        const targetCommentId = commentId;
+
+      
+
+        // Optimistically add the reply with UTC time
+        const optimisticReply = {
+            _id: `temp-${Date.now()}`,
+            content: content,
+            likes: [],
+            hasUserLiked: false,
+            createdAt: getCurrentUTCTime(),
+            userId: {
+                _id: currentUserId,
                 username: currentUsername,
+                realname: currentRealName,
                 profilePic: currentProfilePic,
-                user: {
-                    username: currentUsername,
-                },
-            };
+            },
+            username: currentUsername,
+            profilePic: currentProfilePic,
+        };
 
-            // Optimistically update the UI
+        
+
+        // Update the UI optimistically
+        // ALL REPLIES (including reply-to-reply) GO TO THE MAIN COMMENT'S REPLIES ARRAY
+        setProfileData((prev) => ({
+            ...prev,
+            posts: prev.posts.map((post) =>
+                post._id === postId
+                    ? {
+                          ...post,
+                          commentCount: (post.commentCount || 0) + 1,
+                          comments: post.comments.map((comment) =>
+                              comment._id === commentId
+                                  ? {
+                                        ...comment,
+                                        replies: [
+                                            ...(comment.replies || []),
+                                            optimisticReply,
+                                        ],
+                                        replyCount: (comment.replyCount || 0) + 1,
+                                        showReplies: true,
+                                    }
+                                  : comment
+                          ),
+                      }
+                    : post
+            ),
+        }));
+
+        // API call - for ALL replies, we use the main commentId
+        const response = await apiService.addCommentReply(
+            targetCommentId, // Always use the main commentId
+            content,
+            postId,
+            token
+        );
+
+       
+        if (!response || response.success === false) {
+            throw new Error(response?.message || "Failed to add reply");
+        }
+
+        // Update with real data from API if available
+        if (response.comment) {
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
                               ...post,
-                              commentCount: (post.commentCount || 0) + 1,
-                              comments: post.comments.map((comment) =>
-                                  comment._id === commentId
-                                      ? {
-                                            ...comment,
-                                            replies: [
-                                                ...(comment.replies || []),
-                                                optimisticReply,
-                                            ],
-                                            replyCount:
-                                                (comment.replyCount || 0) + 1,
-                                            showReplies: true, // Automatically show replies
-                                        }
-                                      : comment
-                              ),
+                              comments: post.comments.map((comment) => {
+                                  if (comment._id === commentId) {
+                                      const updatedReplies = (comment.replies || []).map((reply) =>
+                                          reply._id === optimisticReply._id
+                                              ? {
+                                                    ...response.comment,
+                                                    userId: response.comment.userId || {
+                                                        _id: currentUserId,
+                                                        username: currentUsername,
+                                                        realname: currentRealName,
+                                                        profilePic: currentProfilePic,
+                                                    },
+                                                    username: response.comment.username || currentUsername,
+                                                    profilePic: response.comment.profilePic || currentProfilePic,
+                                                    hasUserLiked: false,
+                                                    likes: response.comment.likes || [],
+                                                }
+                                              : reply
+                                      );
+                                      return {
+                                          ...comment,
+                                          replies: updatedReplies,
+                                      };
+                                  }
+                                  return comment;
+                              }),
                           }
                         : post
                 ),
-            }));
-
-            // API call
-            const response = await apiService.addCommentReply(
-                commentId,
-                content,
-                postId,
-                token
-            );
-
-            // ✅ Check if API call was successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to add reply");
-            }
-
-            // If API returns the created reply, update with real data
-            if (response.comment) {
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                  ...post,
-                                  comments: post.comments.map((comment) =>
-                                      comment._id === commentId
-                                          ? {
-                                                ...comment,
-                                                replies: comment.replies.map(
-                                                    (reply) =>
-                                                        reply._id ===
-                                                        optimisticReply._id
-                                                            ? {
-                                                                  ...response.comment,
-                                                                  userId: response
-                                                                      .comment
-                                                                      .userId || {
-                                                                      _id: currentUserId,
-                                                                      username:
-                                                                          currentUsername,
-                                                                      realname:
-                                                                          currentRealName,
-                                                                      profilePic:
-                                                                          currentProfilePic,
-                                                                  },
-                                                                  username:
-                                                                      response
-                                                                          .comment
-                                                                          .username ||
-                                                                      currentUsername,
-                                                                  profilePic:
-                                                                      response
-                                                                          .comment
-                                                                          .profilePic ||
-                                                                      currentProfilePic,
-                                                                  hasUserLiked: false,
-                                                                  likes:
-                                                                      response
-                                                                          .comment
-                                                                          .likes ||
-                                                                      [],
-                                                              }
-                                                            : reply
-                                                ),
-                                            }
-                                          : comment
-                                  ),
-                              }
-                            : post
-                    ),
-                }));
-            }
-
-            setCommentState((prev) => ({
-                ...prev,
-                replyContent: { ...prev.replyContent, [key]: "" },
-                activeReplyInputs: { ...prev.activeReplyInputs, [key]: false },
-            }));
-        } catch (error) {
-            console.error("Error adding reply:", error);
-
-            // Revert optimistic update on error
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              commentCount: Math.max(
-                                  0,
-                                  (post.commentCount || 0) - 1
-                              ),
-                              comments: post.comments.map((comment) =>
-                                  comment._id === commentId
-                                      ? {
-                                            ...comment,
-                                            replies: comment.replies.filter(
-                                                (reply) =>
-                                                    !reply._id.startsWith(
-                                                        "temp-"
-                                                    )
-                                            ),
-                                            replyCount: Math.max(
-                                                0,
-                                                (comment.replyCount || 0) - 1
-                                            ),
-                                        }
-                                      : comment
-                              ),
-                          }
-                        : post
-                ),
-            }));
-
-            toast.error("Unable to add reply.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isReplying: { ...prev.isReplying, [key]: false },
             }));
         }
-    };
+
+        // Clear the input and close it
+        setCommentState((prev) => ({
+            ...prev,
+            replyContent: { ...prev.replyContent, [key]: "" },
+            activeReplyInputs: { ...prev.activeReplyInputs, [key]: false },
+        }));
+
+      
+
+    } catch (error) {
+        console.error("❌ Error adding reply:", error);
+
+        // Revert optimistic update on error
+        setProfileData((prev) => ({
+            ...prev,
+            posts: prev.posts.map((post) =>
+                post._id === postId
+                    ? {
+                          ...post,
+                          commentCount: Math.max(0, (post.commentCount || 0) - 1),
+                          comments: post.comments.map((comment) =>
+                              comment._id === commentId
+                                  ? {
+                                        ...comment,
+                                        replies: (comment.replies || []).filter(
+                                            (reply) => !reply._id.startsWith("temp-")
+                                        ),
+                                        replyCount: Math.max(0, (comment.replyCount || 0) - 1),
+                                    }
+                                  : comment
+                          ),
+                      }
+                    : post
+            ),
+        }));
+
+        toast.error("Unable to add reply.");
+    } finally {
+        setCommentState((prev) => ({
+            ...prev,
+            isReplying: { ...prev.isReplying, [key]: false },
+        }));
+    }
+};
 
     const handleSetReplyContent = (key, content) => {
         setCommentState((prev) => ({
@@ -1058,7 +1051,7 @@ useEffect(() => {
             if (responseData.profilePicUrl) {
                 const imageUrl = responseData.profilePicUrl;
                 setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
-                toast.success("Profile picture updated successfully!");
+               
             }
         } catch (error) {
             console.error("Upload error:", error);
@@ -1118,7 +1111,6 @@ useEffect(() => {
                 image: imageData,
             };
 
-            console.log("Creating post with UTC date:", postData.createdAt);
 
             const response = await apiService.createPost(token, postData);
 

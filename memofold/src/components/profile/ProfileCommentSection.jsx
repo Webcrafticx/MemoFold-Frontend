@@ -202,7 +202,7 @@ const ProfileCommentSection = ({
                       )}
                     </div>
 
-                    {/* Reply Input */}
+                    {/* Reply Input for Main Comment */}
                     {activeReplyInputs[replyKey] && (
                       <div className="mt-2 flex items-center space-x-2">
                         <input
@@ -264,11 +264,12 @@ const ProfileCommentSection = ({
                               isDeletingReply={isDeletingReply}
                               navigateToUserProfile={navigateToUserProfile}
                               onToggleReplyInput={onToggleReplyInput}
-                              // Pass additional props needed for your ReplyItem
                               isReplying={isReplying}
                               replyContent={replyContent}
                               onSetReplyContent={onSetReplyContent}
                               onAddReply={onReplySubmit}
+                              postId={post._id}
+                              activeReplyInputs={activeReplyInputs}
                             />
                           ))
                         )}
