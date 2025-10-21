@@ -171,6 +171,21 @@ const UserProfile = () => {
     };
 
     useEffect(() => {
+        if (showImagePreview) {
+            // Disable scroll
+            document.body.style.overflow = "hidden";
+        } else {
+            // Re-enable scroll
+            document.body.style.overflow = "auto";
+        }
+
+        // Cleanup on unmount
+        return () => {
+            document.body.style.overflow = "auto";
+        };
+    }, [showImagePreview]);
+
+    useEffect(() => {
         if (token) {
             fetchCurrentUserProfile();
             fetchUserProfile();
