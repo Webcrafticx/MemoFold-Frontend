@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     FaCamera,
     FaEdit,
@@ -66,6 +66,20 @@ const ProfileHeader = ({
             setShowProfileView(true);
         }
     };
+    useEffect(() => {
+        if (showProfileView) {
+            // Disable background scroll
+            document.body.style.overflow = "hidden";
+        } else {
+            // Restore scroll when closed
+            document.body.style.overflow = "auto";
+        }
+
+        // Cleanup on unmount
+        return () => {
+            document.body.style.overflow = "auto";
+        };
+    }, [showProfileView]);
 
     return (
         <>
