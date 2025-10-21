@@ -10,7 +10,9 @@ export const useAuth = () => {
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic")
     );
-    const [streamToken, setStreamToken] = useState(localStorage.getItem("streamToken"));
+    const [streamToken, setStreamToken] = useState(
+        localStorage.getItem("streamToken")
+    );
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -25,7 +27,7 @@ export const useAuth = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                ...(isemail ? { email: name } : { username: name }),
+                    ...(isemail ? { email: name } : { username: name }),
                     password: password.trim(),
                 }),
                 credentials: "include",
@@ -64,7 +66,9 @@ export const useAuth = () => {
 
             // Fetch Stream token after successful login
             try {
-                const streamTokenData = await apiService.getStreamToken(userData.token);
+                const streamTokenData = await apiService.getStreamToken(
+                    userData.token
+                );
                 if (streamTokenData.token) {
                     localStorage.setItem("streamToken", streamTokenData.token);
                     setStreamToken(streamTokenData.token);
@@ -76,8 +80,7 @@ export const useAuth = () => {
                 console.error("Failed to fetch Stream token:", streamError);
             }
 
-            // Use window.location instead of navigate
-            window.location.href = "/feed";
+            navigate("/feed");
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -159,20 +162,29 @@ export const useAuth = () => {
 
             // Fetch Stream token after successful registration
             try {
-                const streamTokenData = await apiService.getStreamToken(userData.token);
+                const streamTokenData = await apiService.getStreamToken(
+                    userData.token
+                );
                 if (streamTokenData.token) {
                     localStorage.setItem("streamToken", streamTokenData.token);
                     setStreamToken(streamTokenData.token);
-                    console.log("Stream token fetched successfully after registration");
+                    console.log(
+                        "Stream token fetched successfully after registration"
+                    );
                 } else {
-                    console.warn("Stream token not received after registration:", streamTokenData);
+                    console.warn(
+                        "Stream token not received after registration:",
+                        streamTokenData
+                    );
                 }
             } catch (streamError) {
-                console.error("Failed to fetch Stream token after registration:", streamError);
+                console.error(
+                    "Failed to fetch Stream token after registration:",
+                    streamError
+                );
             }
 
-            // Use window.location instead of navigate
-            window.location.href = "/feed";
+            navigate("/feed");
             return { success: true };
         } catch (err) {
             setError(err.message);
@@ -190,9 +202,8 @@ export const useAuth = () => {
         setUserId(null);
         setProfilePic(null);
         setStreamToken(null);
-        
-        // Use window.location instead of navigate
-        window.location.href = "/login";
+
+        navigate("/login");
     };
 
     const requestPasswordReset = async (email) => {

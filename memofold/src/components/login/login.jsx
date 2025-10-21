@@ -12,11 +12,11 @@ const LoginPage = () => {
         email: "",
         password: "",
     });
+    const navigate = useNavigate();
     const [formErrors, setFormErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [isHovering, setIsHovering] = useState(null);
-    const { login, loading, error, token } = useAuth();
-    const navigate = useNavigate();
+    const { login, loading, error, token } = useAuth(navigate);
 
     useEffect(() => {
         if (token) {
@@ -127,7 +127,8 @@ const LoginPage = () => {
                                 />
                                 {formErrors.username && (
                                     <p className="mt-1 text-xs text-red-600 text-left">
-                                        {formErrors.username || formErrors.email}
+                                        {formErrors.username ||
+                                            formErrors.email}
                                     </p>
                                 )}
                             </div>
