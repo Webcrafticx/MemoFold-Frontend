@@ -31,17 +31,20 @@ const ReplyItem = ({
     // Safe access to all props with fallbacks
     const replyKey = reply?._id || 'unknown';
     
-    // FIXED: Properly handle replyContent for both main comments and nested replies
+    // FIXED: Unique key for each reply's input box
+    const replyInputKey = `${commentId}-${replyKey}`;
+    
+    // FIXED: Properly handle replyContent for this specific reply
     const currentReplyContent = replyContent ? 
-        (typeof replyContent === 'object' ? replyContent[commentId] || "" : replyContent) : "";
+        (typeof replyContent === 'object' ? replyContent[replyInputKey] || "" : "") : "";
     
-    // FIXED: Properly handle activeReplyInputs
+    // FIXED: Check if THIS specific reply's input is active
     const isReplyInputActive = activeReplyInputs ? 
-        (typeof activeReplyInputs === 'object' ? activeReplyInputs[commentId] || false : false) : false;
+        (typeof activeReplyInputs === 'object' ? activeReplyInputs[replyInputKey] || false : false) : false;
     
-    // FIXED: Properly handle loading states
+    // FIXED: Properly handle loading states for this reply
     const isCurrentlyReplying = isReplying ? 
-        (typeof isReplying === 'object' ? isReplying[commentId] || false : false) : false;
+        (typeof isReplying === 'object' ? isReplying[replyInputKey] || false : false) : false;
     
     const isCurrentlyLiking = isLikingReply ? 
         (typeof isLikingReply === 'object' ? isLikingReply[replyKey] || false : false) : false;
@@ -76,13 +79,14 @@ const ReplyItem = ({
         }
 
         if (onAddReply && postId && commentId) {
-            onAddReply(postId, commentId, replyKey);
+            // FIXED: Pass the replyInputKey to identify which reply we're replying to
+            onAddReply(postId, commentId, replyInputKey);
         } else {
             console.error("❌ Missing required parameters for reply:", {
                 onAddReply: !!onAddReply,
                 postId,
                 commentId,
-                replyKey
+                replyInputKey
             });
         }
     };
@@ -96,16 +100,16 @@ const ReplyItem = ({
     const handleInputChange = (e) => {
         if (onSetReplyContent) {
             if (typeof onSetReplyContent === 'function') {
-                // FIXED: Use commentId as key for all replies (both main and nested)
-                onSetReplyContent(commentId, e.target.value);
+                // FIXED: Use replyInputKey for reply-to-reply
+                onSetReplyContent(replyInputKey, e.target.value);
             }
         }
     };
 
     const handleToggleReply = () => {
         if (onToggleReplyInput) {
-           
-            onToggleReplyInput(commentId);
+            // FIXED: Use replyInputKey to toggle THIS specific reply's input
+            onToggleReplyInput(replyInputKey);
         }
     };
 
@@ -223,7 +227,7 @@ const ReplyItem = ({
                         </div>
                     </div>
 
-                    {/* Reply input for replying to replies - OPENS BELOW THE REPLY */}
+                    {/* Reply input for replying to replies - ONLY FOR THIS SPECIFIC REPLY */}
                     {isReplyInputActive && (
                         <div className="mt-2 ml-2">
                             <div className="flex items-center space-x-2">
@@ -259,8 +263,6 @@ const ReplyItem = ({
                             </div>
                         </div>
                     )}
-
-                    {/* NOTE: No nested replies - all replies stay at same level */}
                 </div>
             </div>
         </div>
