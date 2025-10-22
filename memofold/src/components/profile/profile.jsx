@@ -570,27 +570,24 @@ useEffect(() => {
         }
     };
 
-    // Reply handlers
-    const handleToggleReplyInput = (commentId) => {
+    // Reply handlers - UPDATED
+    const handleToggleReplyInput = (inputKey) => {
         setCommentState((prev) => ({
             ...prev,
             activeReplyInputs: {
                 ...prev.activeReplyInputs,
-                [commentId]: !prev.activeReplyInputs[commentId],
+                [inputKey]: !prev.activeReplyInputs[inputKey],
             },
             replyContent: {
                 ...prev.replyContent,
-                [commentId]: prev.replyContent[commentId] || "",
+                [inputKey]: prev.replyContent[inputKey] || "",
             },
         }));
     };
 
-const handleReplySubmit = async (postId, commentId, replyId = null) => {
-
-    const key = commentId;
-    const content = commentState.replyContent[key];
-
-
+const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
+    // FIXED: Use replyInputKey to get the specific content
+    const content = commentState.replyContent[replyInputKey];
 
     if (!content?.trim()) {
         toast.error("Reply cannot be empty");
@@ -600,7 +597,7 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
     try {
         setCommentState((prev) => ({
             ...prev,
-            isReplying: { ...prev.isReplying, [key]: true },
+            isReplying: { ...prev.isReplying, [replyInputKey]: true },
         }));
 
         const token = localStorage.getItem("token");
@@ -612,8 +609,6 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
         // For ALL replies, we use the main commentId for API call
         // Reply-to-reply bhi same comment ke replies array mein jayega
         const targetCommentId = commentId;
-
-      
 
         // Optimistically add the reply with UTC time
         const optimisticReply = {
@@ -631,8 +626,6 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
             username: currentUsername,
             profilePic: currentProfilePic,
         };
-
-        
 
         // Update the UI optimistically
         // ALL REPLIES (including reply-to-reply) GO TO THE MAIN COMMENT'S REPLIES ARRAY
@@ -669,7 +662,6 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
             token
         );
 
-       
         if (!response || response.success === false) {
             throw new Error(response?.message || "Failed to add reply");
         }
@@ -717,11 +709,9 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
         // Clear the input and close it
         setCommentState((prev) => ({
             ...prev,
-            replyContent: { ...prev.replyContent, [key]: "" },
-            activeReplyInputs: { ...prev.activeReplyInputs, [key]: false },
+            replyContent: { ...prev.replyContent, [replyInputKey]: "" },
+            activeReplyInputs: { ...prev.activeReplyInputs, [replyInputKey]: false },
         }));
-
-      
 
     } catch (error) {
         console.error("❌ Error adding reply:", error);
@@ -754,15 +744,19 @@ const handleReplySubmit = async (postId, commentId, replyId = null) => {
     } finally {
         setCommentState((prev) => ({
             ...prev,
-            isReplying: { ...prev.isReplying, [key]: false },
+            isReplying: { ...prev.isReplying, [replyInputKey]: false },
         }));
     }
 };
 
+    // UPDATED: handleSetReplyContent function
     const handleSetReplyContent = (key, content) => {
         setCommentState((prev) => ({
             ...prev,
-            replyContent: { ...prev.replyContent, [key]: content },
+            replyContent: { 
+                ...prev.replyContent, 
+                [key]: content 
+            },
         }));
     };
 

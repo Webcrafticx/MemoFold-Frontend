@@ -117,6 +117,8 @@ const ProfileCommentSection = ({
             const commentUsername = getCommentUsername(comment);
             const commentUserProfilePic = getCommentUserProfilePic(comment);
             const commentUserId = getCommentUserId(comment);
+            
+            // FIXED: Use comment._id for main comment replies
             const replyKey = comment._id;
             
             const replyCount = getReplyCount(comment);
@@ -159,7 +161,7 @@ const ProfileCommentSection = ({
                     <div className="flex items-center justify-end space-x-3 mt-1">
                       {/* Reply Button */}
                       <button
-                        onClick={() => onToggleReplyInput(comment._id)}
+                        onClick={() => onToggleReplyInput(replyKey)}
                         className="text-blue-500 hover:text-blue-700 text-xs flex items-center cursor-pointer"
                       >
                         <FaReply className="mr-1" />
@@ -217,7 +219,7 @@ const ProfileCommentSection = ({
                           onChange={(e) => onSetReplyContent(replyKey, e.target.value)}
                           onKeyPress={(e) => {
                             if (e.key === "Enter") {
-                              onReplySubmit(post._id, comment._id);
+                              onReplySubmit(post._id, comment._id, replyKey);
                             }
                           }}
                         />
@@ -227,13 +229,13 @@ const ProfileCommentSection = ({
                               ? "bg-blue-300 cursor-not-allowed"
                               : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
                           } text-white transition-colors`}
-                          onClick={() => onReplySubmit(post._id, comment._id)}
+                          onClick={() => onReplySubmit(post._id, comment._id, replyKey)}
                           disabled={!replyContent[replyKey]?.trim() || isReplying[replyKey]}
                         >
                           {isReplying[replyKey] ? "Posting..." : "Post"}
                         </button>
                         <button
-                          onClick={() => onToggleReplyInput(comment._id)}
+                          onClick={() => onToggleReplyInput(replyKey)}
                           className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
                         >
                           Cancel
