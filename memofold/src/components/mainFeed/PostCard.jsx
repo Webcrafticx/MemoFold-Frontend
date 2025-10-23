@@ -40,6 +40,7 @@ const PostCard = ({
     onImagePreview,
     token,
     onShowLikesModal, // ✅ ADDED: New prop for likes modal
+    activeReplyInputs, // ✅ PROFILE-MATCHING: Add activeReplyInputs prop
 }) => {
     const likeButtonRef = useRef(null);
     const navigate = useNavigate();
@@ -339,6 +340,7 @@ const PostCard = ({
                 onDeleteReply={onDeleteReply}
                 onSetReplyContent={onSetReplyContent}
                 navigateToUserProfile={navigateToUserProfile}
+                activeReplyInputs={activeReplyInputs} // ✅ PROFILE-MATCHING: Pass activeReplyInputs to CommentSection
             />
         </div>
     );
