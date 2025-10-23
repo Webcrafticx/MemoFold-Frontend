@@ -136,10 +136,10 @@ const ReplyItem = ({
     }
 
     return (
-        <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
+        <div className="ml-4 md:ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
             <div className="flex items-start space-x-2">
                 <div
-                    className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer"
+                    className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0"
                     onClick={handleNavigateToProfile}
                 >
                     {replyUserProfilePic ? (
@@ -158,10 +158,10 @@ const ReplyItem = ({
                         {replyUsername?.charAt(0).toUpperCase() || "U"}
                     </div>
                 </div>
-                <div className="flex-1">
-                    <div className="flex items-center space-x-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex flex-col xs:flex-row xs:items-center xs:space-x-2 gap-1">
                         <span
-                            className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
+                            className="font-semibold text-xs hover:text-blue-500 cursor-pointer truncate"
                             onClick={handleNavigateToProfile}
                         >
                             {replyUsername}
@@ -169,20 +169,20 @@ const ReplyItem = ({
                         <span
                             className={`text-xs ${
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
+                            } whitespace-nowrap`}
                         >
                             {reply?.createdAt ? formatDate(reply.createdAt) : 'Recently'}
                         </span>
                     </div>
                     <p
-                        className={`text-xs whitespace-pre-line mt-1 ${
+                        className={`text-xs whitespace-pre-line mt-1 break-words ${
                             isDarkMode ? "text-gray-200" : "text-gray-700"
                         }`}
                     >
                         {reply?.content || ""}
                     </p>
 
-                    <div className="mt-1 flex items-center justify-between">
+                    <div className="mt-1 flex items-center justify-between flex-wrap gap-2">
                         <button
                             className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
                             onClick={handleLikeClick}
@@ -229,37 +229,39 @@ const ReplyItem = ({
 
                     {/* Reply input for replying to replies - ONLY FOR THIS SPECIFIC REPLY */}
                     {isReplyInputActive && (
-                        <div className="mt-2 ml-2">
-                            <div className="flex items-center space-x-2">
+                        <div className="mt-2 ml-0 sm:ml-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                 <input
                                     type="text"
                                     className={`flex-1 px-3 py-1 rounded-full text-xs border ${
                                         isDarkMode
                                             ? "bg-gray-600 border-gray-500 text-white"
                                             : "bg-white border-gray-300 text-gray-800"
-                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                    } focus:outline-none focus:ring-1 focus:ring-blue-500 w-full`}
                                     placeholder={`Reply to ${replyUsername}...`}
                                     value={currentReplyContent || ""}
                                     onChange={handleInputChange}
                                     onKeyPress={handleInputKeyPress}
                                 />
-                                <button
-                                    className={`px-2 py-1 rounded-full cursor-pointer text-xs ${
-                                        !currentReplyContent?.trim() || isCurrentlyReplying
-                                            ? "bg-blue-300 cursor-not-allowed"
-                                            : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                                    } text-white transition-colors`}
-                                    onClick={handleReplySubmit}
-                                    disabled={!currentReplyContent?.trim() || isCurrentlyReplying}
-                                >
-                                    {isCurrentlyReplying ? "Posting..." : "Post"}
-                                </button>
-                                <button
-                                    onClick={handleToggleReply}
-                                    className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
+                                <div className="flex space-x-2 self-end sm:self-auto">
+                                    <button
+                                        className={`px-2 py-1 rounded-full text-xs ${
+                                            !currentReplyContent?.trim() || isCurrentlyReplying
+                                                ? "bg-blue-300 cursor-not-allowed"
+                                                : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                                        } text-white transition-colors whitespace-nowrap`}
+                                        onClick={handleReplySubmit}
+                                        disabled={!currentReplyContent?.trim() || isCurrentlyReplying}
+                                    >
+                                        {isCurrentlyReplying ? "Posting..." : "Post"}
+                                    </button>
+                                    <button
+                                        onClick={handleToggleReply}
+                                        className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer whitespace-nowrap"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
