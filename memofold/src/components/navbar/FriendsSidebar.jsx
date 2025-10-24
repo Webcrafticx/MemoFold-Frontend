@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FiX, FiSearch } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import config from "../../hooks/config";
@@ -15,9 +15,12 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
   const [chatClient, setChatClient] = useState(null);
   const [friendsWithUnread, setFriendsWithUnread] = useState({});
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [fetchingMore, setFetchingMore] = useState(false);
   const navigate = useNavigate();
+  const listRef = useRef();
 
-  // ✅ Initialize Stream Chat Client
+  //  Initialize Stream Chat Client
   useEffect(() => {
     const initStreamClient = async () => {
       if (!token || !isOpen) return;
@@ -56,39 +59,65 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
     };
   }, [token, isOpen]);
 
-  // ✅ Fetch Friends List
+  //  Fetch initial friends
   useEffect(() => {
     if (isOpen && token) {
       fetchFriends();
     }
   }, [isOpen, token]);
 
-  // ✅ Fetch Unread Messages Count & Presence
+  //  Fetch more on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!listRef.current || fetchingMore || !nextCursor) return;
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      if (scrollTop + clientHeight >= scrollHeight - 50) {
+        fetchFriends(nextCursor);
+      }
+    };
+
+    const refCurrent = listRef.current;
+    if (refCurrent) {
+      refCurrent.addEventListener("scroll", handleScroll);
+    }
+
+    return () => {
+      if (refCurrent) refCurrent.removeEventListener("scroll", handleScroll);
+    };
+  }, [nextCursor, fetchingMore, friends]);
+
+  //  Fetch unread messages
   useEffect(() => {
     if (chatClient && friends.length > 0) {
       fetchUnreadMessages();
 
-      // Poll every 5 seconds for updates
       const interval = setInterval(fetchUnreadMessages, 5000);
       return () => clearInterval(interval);
     }
   }, [chatClient, friends]);
 
-  const fetchFriends = async () => {
+  const fetchFriends = async (cursor = null) => {
     try {
-      setLoading(true);
-      const response = await fetch(`${config.apiUrl}/friends/friends-list`, {
+      setFetchingMore(true);
+      if (!cursor) setLoading(true);
+
+      const url = new URL(`${config.apiUrl}/friends/friends-list`);
+      if (cursor) url.searchParams.append("cursor", cursor);
+
+      const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
         const result = await response.json();
-        setFriends(result.friends || []);
+        setFriends((prev) => [...prev, ...(result.friends || [])]);
+        setNextCursor(result.nextCursor || null);
       }
     } catch (error) {
       console.error("Error fetching friends:", error);
     } finally {
       setLoading(false);
+      setFetchingMore(false);
     }
   };
 
@@ -109,13 +138,11 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
           const unreadCount = channel.countUnread();
           const lastMessage = state.messages[state.messages.length - 1];
 
-          // ✅ Clean the message text to remove URLs / Markdown
           const cleanText = lastMessage?.text
             ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
             ?.replace(/https?:\/\/\S+/g, "")
             ?.trim() || "";
 
-          // ✅ Check presence (online/offline)
           const friendUser = chatClient.state?.users?.[friend._id];
           const isOnline = friendUser?.online ?? false;
 
@@ -135,16 +162,13 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
 
       setFriendsWithUnread(unreadData);
       setTotalUnreadCount(totalUnread);
-
-      if (onUnreadCountUpdate) {
-        onUnreadCountUpdate(totalUnread);
-      }
+      onUnreadCountUpdate?.(totalUnread);
     } catch (error) {
       console.error("Error fetching unread messages:", error);
     }
   };
 
-  // ✅ Sort friends: by last message time + unread
+  // Sorting and filtering
   const sortedFriends = [...friends].sort((a, b) => {
     const aData = friendsWithUnread[a._id];
     const bData = friendsWithUnread[b._id];
@@ -164,12 +188,12 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
       friend.realname?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleChat = async (friendId, username) => {
+  const handleChat = async (friendId) => {
     try {
       setChatLoading(friendId);
       const tokenData = await apiService.getStreamToken(token);
 
-      if (tokenData && tokenData.token) {
+      if (tokenData?.token) {
         navigate(`/chat/${friendId}`);
         onClose();
       } else {
@@ -182,10 +206,8 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
     }
   };
 
-  const truncateMessage = (text, maxLength = 30) => {
-    if (!text) return "";
-    return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
-  };
+  const truncateMessage = (text, maxLength = 30) =>
+    text && text.length > maxLength ? text.substring(0, maxLength) + "..." : text || "";
 
   const formatTime = (timestamp) => {
     if (!timestamp) return "";
@@ -205,44 +227,40 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
   };
 
   const UserAvatar = ({ profilePic, username, online }) => {
-  const firstLetter = username?.charAt(0).toUpperCase() || "U";
+    const firstLetter = username?.charAt(0).toUpperCase() || "U";
 
-  return (
-    <div className="relative w-12 h-12">
-      {/* Avatar Circle */}
-      <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-        {profilePic ? (
-          <img
-            src={profilePic}
-            alt={username}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.style.display = "none";
-              e.target.nextSibling.style.display = "flex";
-            }}
-          />
-        ) : (
-          <span className="flex items-center justify-center w-full h-full text-white font-semibold text-lg">
-            {firstLetter}
-          </span>
+    return (
+      <div className="relative w-12 h-12">
+        <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+          {profilePic ? (
+            <img
+              src={profilePic}
+              alt={username}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.style.display = "none";
+                e.target.nextSibling.style.display = "flex";
+              }}
+            />
+          ) : (
+            <span className="flex items-center justify-center w-full h-full text-white font-semibold text-lg">
+              {firstLetter}
+            </span>
+          )}
+        </div>
+
+        {online && (
+          <>
+            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
+            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white"></span>
+          </>
         )}
       </div>
-
-      {/* ✅ Always-visible Online Indicator */}
-      {online && (
-        <>
-          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
-          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white"></span>
-        </>
-      )}
-    </div>
-  );
-};
-
+    );
+  };
 
   return (
     <>
-      {/* Overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 backdrop-blur-lg bg-opacity-50 z-40 transition-opacity cursor-pointer"
@@ -250,7 +268,6 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
         />
       )}
 
-      {/* Sidebar */}
       <div
         className={`fixed top-0 right-0 h-full w-80 md:w-96 ${
           darkMode ? "bg-gray-800" : "bg-white"
@@ -298,9 +315,7 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
             }`}
           >
             <FiSearch
-              className={`w-5 h-5 ${
-                darkMode ? "text-gray-400" : "text-gray-500"
-              }`}
+              className={`w-5 h-5 ${darkMode ? "text-gray-400" : "text-gray-500"}`}
             />
             <input
               type="text"
@@ -317,8 +332,11 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
         </div>
 
         {/* Friends List */}
-        <div className="overflow-y-auto h-[calc(100%-140px)] px-4">
-          {loading ? (
+        <div
+          ref={listRef}
+          className="overflow-y-auto h-[calc(100%-140px)] px-4"
+        >
+          {loading && friends.length === 0 ? (
             <div className="flex justify-center items-center h-32">
               <div
                 className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
@@ -355,11 +373,8 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
                         ? "hover:bg-gray-700"
                         : "hover:bg-gray-50"
                     }`}
-                    onClick={() =>
-                      handleChat(friend._id, friend.username)
-                    }
+                    onClick={() => handleChat(friend._id)}
                   >
-                    {/* Avatar + Online Indicator */}
                     <div className="relative flex-shrink-0">
                       <UserAvatar
                         profilePic={friend.profilePic}
@@ -373,7 +388,6 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
                       )}
                     </div>
 
-                    {/* Friend Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3
@@ -410,6 +424,15 @@ const FriendsSidebar = ({ isOpen, onClose, darkMode, token, onUnreadCountUpdate 
                   </div>
                 );
               })}
+              {fetchingMore && (
+                <div className="flex justify-center py-4">
+                  <div
+                    className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
+                      darkMode ? "border-cyan-400" : "border-blue-600"
+                    }`}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
