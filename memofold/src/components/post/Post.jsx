@@ -1128,6 +1128,14 @@ const Post = () => {
                                                                         ? "text-gray-300"
                                                                         : "text-gray-700"
                                                                 }`}
+                                                                onClick={(
+                                                                    e
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    navigateToUserProfile(
+                                                                        user.id
+                                                                    ); // ✅ YAHAN CHANGE
+                                                                }}
                                                             >
                                                                 {user.username}
                                                                 {index <
