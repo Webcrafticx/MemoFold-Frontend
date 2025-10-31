@@ -111,19 +111,22 @@ const ProfilePage = () => {
         isDeletingPost: false,
     });
 
-     const [paginationState, setPaginationState] = useState({
-    nextCursor: null,
-    hasMore: true,
-    isLoadingMore: false
-});
+    const [paginationState, setPaginationState] = useState({
+        nextCursor: null,
+        hasMore: true,
+        isLoadingMore: false,
+    });
 
-
-    // Confirmation modal state
+    // ✅ ADDED: Confirmation modal states
     const [confirmationModal, setConfirmationModal] = useState({
         isOpen: false,
+        type: "", // 'post', 'comment', 'reply'
+        id: null,
         postId: null,
+        commentId: null,
         isLoading: false,
-        postContent: "",
+        message: "",
+        title: "",
     });
 
     // Likes modal state
@@ -152,36 +155,39 @@ const ProfilePage = () => {
     }, []);
 
     const initializeApp = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        navigate("/login");
-        return;
-    }
+        const token = localStorage.getItem("token");
+        if (!token) {
+            navigate("/login");
+            return;
+        }
 
-    try {
-        setUiState((prev) => ({ ...prev, loading: true }));
-        setPaginationState(prev => ({ ...prev, isInitialLoading: true }));
-        
-        await Promise.all([
-            fetchUserData(token),
-            fetchUserPosts(token), // cursor nahi pass karo - initial load
-            fetchCurrentUserData(token),
-        ]);
-    } catch (error) {
-        console.error("Initialization error:", error);
-        const errorMessage = handleApiError(
-            error,
-            "Failed to load profile data"
-        );
-        setUiState((prev) => ({
-            ...prev,
-            error: errorMessage,
-        }));
-    } finally {
-        setUiState((prev) => ({ ...prev, loading: false }));
-        setPaginationState(prev => ({ ...prev, isInitialLoading: false }));
-    }
-};
+        try {
+            setUiState((prev) => ({ ...prev, loading: true }));
+            setPaginationState((prev) => ({ ...prev, isInitialLoading: true }));
+
+            await Promise.all([
+                fetchUserData(token),
+                fetchUserPosts(token), // cursor nahi pass karo - initial load
+                fetchCurrentUserData(token),
+            ]);
+        } catch (error) {
+            console.error("Initialization error:", error);
+            const errorMessage = handleApiError(
+                error,
+                "Failed to load profile data"
+            );
+            setUiState((prev) => ({
+                ...prev,
+                error: errorMessage,
+            }));
+        } finally {
+            setUiState((prev) => ({ ...prev, loading: false }));
+            setPaginationState((prev) => ({
+                ...prev,
+                isInitialLoading: false,
+            }));
+        }
+    };
 
     // API functions
     const fetchCurrentUserData = async (token) => {
@@ -264,9 +270,12 @@ const ProfilePage = () => {
 
     const fetchUserPosts = async (token, cursor = null, isLoadMore = false) => {
         try {
-                if (isLoadMore) {
-            setPaginationState(prev => ({ ...prev, isLoadingMore: true }));
-        }
+            if (isLoadMore) {
+                setPaginationState((prev) => ({
+                    ...prev,
+                    isLoadingMore: true,
+                }));
+            }
             const username = localStorage.getItem("username");
             const responseData = await apiService.fetchUserPosts(
                 token,
@@ -316,65 +325,72 @@ const ProfilePage = () => {
                 };
             });
             if (isLoadMore) {
-            setProfileData(prev => {
-                const existingIds = new Set(prev.posts.map(p => p._id));
-                const newPosts = postsWithComments.filter(post => !existingIds.has(post._id));
-                
-                return { 
-                    ...prev, 
-                    posts: [...prev.posts, ...newPosts] 
-                };
-            });
-        } else {
-            setProfileData(prev => ({ ...prev, posts: postsWithComments }));
-        }
-setPaginationState(prev => ({
-            ...prev,
-            nextCursor: responseData.nextCursor || null,
-            hasMore: !!responseData.nextCursor,
-            isLoadingMore: false
-        }));
+                setProfileData((prev) => {
+                    const existingIds = new Set(prev.posts.map((p) => p._id));
+                    const newPosts = postsWithComments.filter(
+                        (post) => !existingIds.has(post._id)
+                    );
 
-    } catch (error) {
-        console.error("Error fetching posts:", error);
-        const errorMessage = handleApiError(error, "Failed to load posts");
-        
-        if (isLoadMore) {
-            setPaginationState(prev => ({ ...prev, isLoadingMore: false }));
+                    return {
+                        ...prev,
+                        posts: [...prev.posts, ...newPosts],
+                    };
+                });
+            } else {
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: postsWithComments,
+                }));
+            }
+            setPaginationState((prev) => ({
+                ...prev,
+                nextCursor: responseData.nextCursor || null,
+                hasMore: !!responseData.nextCursor,
+                isLoadingMore: false,
+            }));
+        } catch (error) {
+            console.error("Error fetching posts:", error);
+            const errorMessage = handleApiError(error, "Failed to load posts");
+
+            if (isLoadMore) {
+                setPaginationState((prev) => ({
+                    ...prev,
+                    isLoadingMore: false,
+                }));
+            }
+            throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
-    }
     };
 
     const loadMorePosts = useCallback(async () => {
-    const { nextCursor, hasMore, isLoadingMore } = paginationState;
-    
-    if (!hasMore || isLoadingMore || !nextCursor) return;
+        const { nextCursor, hasMore, isLoadingMore } = paginationState;
 
-    try {
-        const token = localStorage.getItem("token");
-        await fetchUserPosts(token, nextCursor, true);
-    } catch (error) {
-        console.error("Error loading more posts:", error);
-        toast.error("Unable to load more posts.");
-    }
-}, [paginationState]);
+        if (!hasMore || isLoadingMore || !nextCursor) return;
 
-// Scroll handler
-useEffect(() => {
-    const handleScroll = () => {
-        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-        
-        // Check if user has scrolled to bottom (with 100px threshold)
-        if (scrollTop + clientHeight >= scrollHeight - 100) {
-            loadMorePosts();
+        try {
+            const token = localStorage.getItem("token");
+            await fetchUserPosts(token, nextCursor, true);
+        } catch (error) {
+            console.error("Error loading more posts:", error);
+            toast.error("Unable to load more posts.");
         }
-    };
+    }, [paginationState]);
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-}, [loadMorePosts]);
+    // Scroll handler
+    useEffect(() => {
+        const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } =
+                document.documentElement;
 
+            // Check if user has scrolled to bottom (with 100px threshold)
+            if (scrollTop + clientHeight >= scrollHeight - 100) {
+                loadMorePosts();
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, [loadMorePosts]);
 
     // File upload handlers for edit mode
     const handleEditFileSelect = (e) => {
@@ -393,63 +409,62 @@ useEffect(() => {
     };
 
     // Comment handlers
-  const handleToggleCommentDropdown = async (postId) => {
-    if (commentState.activeCommentPostId === postId) {
-        setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
-        return;
-    }
-
-    setCommentState((prev) => ({
-        ...prev,
-        activeCommentPostId: postId,
-        isFetchingComments: true,
-    }));
-
-    try {
-        const token = localStorage.getItem("token");
-        const responseData = await apiService.fetchComments(postId, token);
-
-        if (!responseData || responseData.success === false) {
-            throw new Error(
-                responseData?.message || "Failed to load comments"
-            );
+    const handleToggleCommentDropdown = async (postId) => {
+        if (commentState.activeCommentPostId === postId) {
+            setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
+            return;
         }
 
-        const comments = responseData.comments || [];
-        // ✅ USE THE COUNT FROM API RESPONSE, NOT comments.length
-        const commentCount = responseData.count || comments.length;
-
-  
-        const commentsWithReplies = comments.map((comment) => ({
-            ...comment,
-            replies: comment.replies || [],
-            showReplies: false,
-            replyCount: comment.replyCount || comment.replies?.length || 0,
-        }));
-
-        setProfileData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) =>
-                post._id === postId
-                    ? {
-                          ...post,
-                          comments: commentsWithReplies,
-                          // ✅ FIXED: Use the count from API response
-                          commentCount: commentCount,
-                      }
-                    : post
-            ),
-        }));
-    } catch (error) {
-        console.error("Error fetching comments:", error);
-        toast.error("Unable to load comments.");
-    } finally {
         setCommentState((prev) => ({
             ...prev,
-            isFetchingComments: false,
+            activeCommentPostId: postId,
+            isFetchingComments: true,
         }));
-    }
-};
+
+        try {
+            const token = localStorage.getItem("token");
+            const responseData = await apiService.fetchComments(postId, token);
+
+            if (!responseData || responseData.success === false) {
+                throw new Error(
+                    responseData?.message || "Failed to load comments"
+                );
+            }
+
+            const comments = responseData.comments || [];
+            // ✅ USE THE COUNT FROM API RESPONSE, NOT comments.length
+            const commentCount = responseData.count || comments.length;
+
+            const commentsWithReplies = comments.map((comment) => ({
+                ...comment,
+                replies: comment.replies || [],
+                showReplies: false,
+                replyCount: comment.replyCount || comment.replies?.length || 0,
+            }));
+
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              comments: commentsWithReplies,
+                              // ✅ FIXED: Use the count from API response
+                              commentCount: commentCount,
+                          }
+                        : post
+                ),
+            }));
+        } catch (error) {
+            console.error("Error fetching comments:", error);
+            toast.error("Unable to load comments.");
+        } finally {
+            setCommentState((prev) => ({
+                ...prev,
+                isFetchingComments: false,
+            }));
+        }
+    };
 
     const handleCommentSubmit = async (postId) => {
         if (!commentState.commentContent[postId]?.trim()) {
@@ -514,16 +529,24 @@ useEffect(() => {
         setCommentState((prev) => ({ ...prev, commentContent: content }));
     };
 
+    // ✅ UPDATED: Comment deletion with modal
     const handleDeleteComment = async (commentId, postId) => {
-        if (!window.confirm("Are you sure you want to delete this comment?")) {
-            return;
-        }
+        setConfirmationModal({
+            isOpen: true,
+            type: "comment",
+            id: commentId,
+            postId: postId,
+            isLoading: false,
+            title: "Delete Comment",
+            message: "Are you sure you want to delete this comment?",
+        });
+    };
+
+    const handleConfirmDeleteComment = async () => {
+        const { id: commentId, postId } = confirmationModal;
 
         try {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingComment: true,
-            }));
+            setConfirmationModal((prev) => ({ ...prev, isLoading: true }));
 
             const token = localStorage.getItem("token");
             const response = await apiService.deleteComment(
@@ -559,14 +582,13 @@ useEffect(() => {
             if (commentState.activeCommentPostId === postId) {
                 await handleToggleCommentDropdown(postId);
             }
+
+            // toast.success("Comment deleted successfully!");
+            handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting comment:", error);
-            toast.error("Unable to delete comment.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingComment: false,
-            }));
+            // toast.error("Unable to delete comment.");
+            setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
@@ -585,177 +607,209 @@ useEffect(() => {
         }));
     };
 
-const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
-    // FIXED: Use replyInputKey to get the specific content
-    const content = commentState.replyContent[replyInputKey];
+    const handleReplySubmit = async (
+        postId,
+        commentId,
+        replyInputKey = null
+    ) => {
+        // FIXED: Use replyInputKey to get the specific content
+        const content = commentState.replyContent[replyInputKey];
 
-    if (!content?.trim()) {
-        toast.error("Reply cannot be empty");
-        return;
-    }
-
-    try {
-        setCommentState((prev) => ({
-            ...prev,
-            isReplying: { ...prev.isReplying, [replyInputKey]: true },
-        }));
-
-        const token = localStorage.getItem("token");
-        const currentUsername = localStorage.getItem("username");
-        const currentRealName = localStorage.getItem("realname");
-        const currentProfilePic = localStorage.getItem("profilePic");
-        const currentUserId = localStorage.getItem("userId");
-
-        // For ALL replies, we use the main commentId for API call
-        // Reply-to-reply bhi same comment ke replies array mein jayega
-        const targetCommentId = commentId;
-
-        // Optimistically add the reply with UTC time
-        const optimisticReply = {
-            _id: `temp-${Date.now()}`,
-            content: content,
-            likes: [],
-            hasUserLiked: false,
-            createdAt: getCurrentUTCTime(),
-            userId: {
-                _id: currentUserId,
-                username: currentUsername,
-                realname: currentRealName,
-                profilePic: currentProfilePic,
-            },
-            username: currentUsername,
-            profilePic: currentProfilePic,
-        };
-
-        // Update the UI optimistically
-        // ALL REPLIES (including reply-to-reply) GO TO THE MAIN COMMENT'S REPLIES ARRAY
-        setProfileData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) =>
-                post._id === postId
-                    ? {
-                          ...post,
-                          commentCount: (post.commentCount || 0) + 1,
-                          comments: post.comments.map((comment) =>
-                              comment._id === commentId
-                                  ? {
-                                        ...comment,
-                                        replies: [
-                                            ...(comment.replies || []),
-                                            optimisticReply,
-                                        ],
-                                        replyCount: (comment.replyCount || 0) + 1,
-                                        showReplies: true,
-                                    }
-                                  : comment
-                          ),
-                      }
-                    : post
-            ),
-        }));
-
-        // API call - for ALL replies, we use the main commentId
-        const response = await apiService.addCommentReply(
-            targetCommentId, // Always use the main commentId
-            content,
-            postId,
-            token
-        );
-
-        if (!response || response.success === false) {
-            throw new Error(response?.message || "Failed to add reply");
+        if (!content?.trim()) {
+            toast.error("Reply cannot be empty");
+            return;
         }
 
-        // Update with real data from API if available
-        if (response.comment) {
+        try {
+            setCommentState((prev) => ({
+                ...prev,
+                isReplying: { ...prev.isReplying, [replyInputKey]: true },
+            }));
+
+            const token = localStorage.getItem("token");
+            const currentUsername = localStorage.getItem("username");
+            const currentRealName = localStorage.getItem("realname");
+            const currentProfilePic = localStorage.getItem("profilePic");
+            const currentUserId = localStorage.getItem("userId");
+
+            // For ALL replies, we use the main commentId for API call
+            // Reply-to-reply bhi same comment ke replies array mein jayega
+            const targetCommentId = commentId;
+
+            // Optimistically add the reply with UTC time
+            const optimisticReply = {
+                _id: `temp-${Date.now()}`,
+                content: content,
+                likes: [],
+                hasUserLiked: false,
+                createdAt: getCurrentUTCTime(),
+                userId: {
+                    _id: currentUserId,
+                    username: currentUsername,
+                    realname: currentRealName,
+                    profilePic: currentProfilePic,
+                },
+                username: currentUsername,
+                profilePic: currentProfilePic,
+            };
+
+            // Update the UI optimistically
+            // ALL REPLIES (including reply-to-reply) GO TO THE MAIN COMMENT'S REPLIES ARRAY
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
                               ...post,
-                              comments: post.comments.map((comment) => {
-                                  if (comment._id === commentId) {
-                                      const updatedReplies = (comment.replies || []).map((reply) =>
-                                          reply._id === optimisticReply._id
-                                              ? {
-                                                    ...response.comment,
-                                                    userId: response.comment.userId || {
-                                                        _id: currentUserId,
-                                                        username: currentUsername,
-                                                        realname: currentRealName,
-                                                        profilePic: currentProfilePic,
-                                                    },
-                                                    username: response.comment.username || currentUsername,
-                                                    profilePic: response.comment.profilePic || currentProfilePic,
-                                                    hasUserLiked: false,
-                                                    likes: response.comment.likes || [],
-                                                }
-                                              : reply
-                                      );
-                                      return {
-                                          ...comment,
-                                          replies: updatedReplies,
-                                      };
-                                  }
-                                  return comment;
-                              }),
+                              commentCount: (post.commentCount || 0) + 1,
+                              comments: post.comments.map((comment) =>
+                                  comment._id === commentId
+                                      ? {
+                                            ...comment,
+                                            replies: [
+                                                ...(comment.replies || []),
+                                                optimisticReply,
+                                            ],
+                                            replyCount:
+                                                (comment.replyCount || 0) + 1,
+                                            showReplies: true,
+                                        }
+                                      : comment
+                              ),
                           }
                         : post
                 ),
             }));
+
+            // API call - for ALL replies, we use the main commentId
+            const response = await apiService.addCommentReply(
+                targetCommentId, // Always use the main commentId
+                content,
+                postId,
+                token
+            );
+
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to add reply");
+            }
+
+            // Update with real data from API if available
+            if (response.comment) {
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: prev.posts.map((post) =>
+                        post._id === postId
+                            ? {
+                                  ...post,
+                                  comments: post.comments.map((comment) => {
+                                      if (comment._id === commentId) {
+                                          const updatedReplies = (
+                                              comment.replies || []
+                                          ).map((reply) =>
+                                              reply._id === optimisticReply._id
+                                                  ? {
+                                                        ...response.comment,
+                                                        userId: response.comment
+                                                            .userId || {
+                                                            _id: currentUserId,
+                                                            username:
+                                                                currentUsername,
+                                                            realname:
+                                                                currentRealName,
+                                                            profilePic:
+                                                                currentProfilePic,
+                                                        },
+                                                        username:
+                                                            response.comment
+                                                                .username ||
+                                                            currentUsername,
+                                                        profilePic:
+                                                            response.comment
+                                                                .profilePic ||
+                                                            currentProfilePic,
+                                                        hasUserLiked: false,
+                                                        likes:
+                                                            response.comment
+                                                                .likes || [],
+                                                    }
+                                                  : reply
+                                          );
+                                          return {
+                                              ...comment,
+                                              replies: updatedReplies,
+                                          };
+                                      }
+                                      return comment;
+                                  }),
+                              }
+                            : post
+                    ),
+                }));
+            }
+
+            // Clear the input and close it
+            setCommentState((prev) => ({
+                ...prev,
+                replyContent: { ...prev.replyContent, [replyInputKey]: "" },
+                activeReplyInputs: {
+                    ...prev.activeReplyInputs,
+                    [replyInputKey]: false,
+                },
+            }));
+        } catch (error) {
+            console.error("❌ Error adding reply:", error);
+
+            // Revert optimistic update on error
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === postId
+                        ? {
+                              ...post,
+                              commentCount: Math.max(
+                                  0,
+                                  (post.commentCount || 0) - 1
+                              ),
+                              comments: post.comments.map((comment) =>
+                                  comment._id === commentId
+                                      ? {
+                                            ...comment,
+                                            replies: (
+                                                comment.replies || []
+                                            ).filter(
+                                                (reply) =>
+                                                    !reply._id.startsWith(
+                                                        "temp-"
+                                                    )
+                                            ),
+                                            replyCount: Math.max(
+                                                0,
+                                                (comment.replyCount || 0) - 1
+                                            ),
+                                        }
+                                      : comment
+                              ),
+                          }
+                        : post
+                ),
+            }));
+
+            toast.error("Unable to add reply.");
+        } finally {
+            setCommentState((prev) => ({
+                ...prev,
+                isReplying: { ...prev.isReplying, [replyInputKey]: false },
+            }));
         }
-
-        // Clear the input and close it
-        setCommentState((prev) => ({
-            ...prev,
-            replyContent: { ...prev.replyContent, [replyInputKey]: "" },
-            activeReplyInputs: { ...prev.activeReplyInputs, [replyInputKey]: false },
-        }));
-
-    } catch (error) {
-        console.error("❌ Error adding reply:", error);
-
-        // Revert optimistic update on error
-        setProfileData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) =>
-                post._id === postId
-                    ? {
-                          ...post,
-                          commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                          comments: post.comments.map((comment) =>
-                              comment._id === commentId
-                                  ? {
-                                        ...comment,
-                                        replies: (comment.replies || []).filter(
-                                            (reply) => !reply._id.startsWith("temp-")
-                                        ),
-                                        replyCount: Math.max(0, (comment.replyCount || 0) - 1),
-                                    }
-                                  : comment
-                          ),
-                      }
-                    : post
-            ),
-        }));
-
-        toast.error("Unable to add reply.");
-    } finally {
-        setCommentState((prev) => ({
-            ...prev,
-            isReplying: { ...prev.isReplying, [replyInputKey]: false },
-        }));
-    }
-};
+    };
 
     // UPDATED: handleSetReplyContent function
     const handleSetReplyContent = (key, content) => {
         setCommentState((prev) => ({
             ...prev,
-            replyContent: { 
-                ...prev.replyContent, 
-                [key]: content 
+            replyContent: {
+                ...prev.replyContent,
+                [key]: content,
             },
         }));
     };
@@ -958,16 +1012,24 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
         }
     };
 
+    // ✅ UPDATED: Reply deletion with modal
     const handleDeleteReply = async (replyId, commentId) => {
-        if (!window.confirm("Are you sure you want to delete this reply?")) {
-            return;
-        }
+        setConfirmationModal({
+            isOpen: true,
+            type: "reply",
+            id: replyId,
+            commentId: commentId,
+            isLoading: false,
+            title: "Delete Reply",
+            message: "Are you sure you want to delete this reply?",
+        });
+    };
+
+    const handleConfirmDeleteReply = async () => {
+        const { id: replyId, commentId } = confirmationModal;
 
         try {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingReply: { ...prev.isDeletingReply, [replyId]: true },
-            }));
+            setConfirmationModal((prev) => ({ ...prev, isLoading: true }));
 
             const token = localStorage.getItem("token");
             const response = await apiService.deleteReply(replyId, token);
@@ -995,14 +1057,13 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
                     ),
                 })),
             }));
+
+            // toast.success("Reply deleted successfully!");
+            handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting reply:", error);
-            toast.error("Unable to delete reply.");
-        } finally {
-            setCommentState((prev) => ({
-                ...prev,
-                isDeletingReply: { ...prev.isDeletingReply, [replyId]: false },
-            }));
+            // toast.error("Unable to delete reply.");
+            setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
@@ -1045,7 +1106,6 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
             if (responseData.profilePicUrl) {
                 const imageUrl = responseData.profilePicUrl;
                 setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
-               
             }
         } catch (error) {
             console.error("Upload error:", error);
@@ -1104,7 +1164,6 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
                 date: selectedDate, // This is already UTC from getSelectedDateUTC
                 image: imageData,
             };
-
 
             const response = await apiService.createPost(token, postData);
 
@@ -1339,24 +1398,21 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
         }));
     };
 
-    // Delete post with confirmation modal
+    // ✅ UPDATED: Delete post with confirmation modal
     const handleDeletePostClick = (postId) => {
-        const postToDelete = profileData.posts.find(
-            (post) => post._id === postId
-        );
-        const postContentPreview =
-            "Are you sure you want to delete this post? This action cannot be undone.";
-
         setConfirmationModal({
             isOpen: true,
-            postId: postId,
+            type: "post",
+            id: postId,
             isLoading: false,
-            postContent: `Are you sure you want to delete this post? This action cannot be undone.`,
+            title: "Delete Post",
+            message:
+                "Are you sure you want to delete this post? This action cannot be undone.",
         });
     };
 
-    const handleConfirmDelete = async () => {
-        const { postId } = confirmationModal;
+    const handleConfirmDeletePost = async () => {
+        const { id: postId } = confirmationModal;
 
         try {
             setConfirmationModal((prev) => ({ ...prev, isLoading: true }));
@@ -1377,14 +1433,34 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
             delete storedLikes[postId];
             localStorage.setItem("postLikes", JSON.stringify(storedLikes));
 
-            toast.success("Post deleted successfully!");
+            // toast.success("Post deleted successfully!");
             handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting post:", error);
-            toast.error("Unable to delete post.");
+            // toast.error("Unable to delete post.");
             setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
+
+    // ✅ ADDED: Unified confirmation handler
+    const handleConfirmDelete = async () => {
+        const { type, id, postId, commentId } = confirmationModal;
+
+        switch (type) {
+            case "post":
+                await handleConfirmDeletePost();
+                break;
+            case "comment":
+                await handleConfirmDeleteComment();
+                break;
+            case "reply":
+                await handleConfirmDeleteReply();
+                break;
+            default:
+                console.error("Unknown deletion type:", type);
+        }
+    };
+
     const refreshUserData = async () => {
         try {
             const token = localStorage.getItem("token");
@@ -1398,12 +1474,18 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
     const handleFriendsClick = () => {
         setShowFriendsSidebar(!showFriendsSidebar);
     };
+
+    // ✅ UPDATED: Unified confirmation modal close
     const handleCloseConfirmationModal = () => {
         setConfirmationModal({
             isOpen: false,
+            type: "",
+            id: null,
             postId: null,
+            commentId: null,
             isLoading: false,
-            postContent: "",
+            message: "",
+            title: "",
         });
     };
 
@@ -1486,15 +1568,15 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
                     isDarkMode={uiState.darkMode}
                 />
 
-                {/* Confirmation Modal for Post Deletion */}
+                {/* ✅ UPDATED: Unified Confirmation Modal */}
                 <ConfirmationModal
                     isOpen={confirmationModal.isOpen}
                     onClose={handleCloseConfirmationModal}
                     onConfirm={handleConfirmDelete}
-                    title="Delete Post"
-                    message="Are you sure you want to delete this post? This action cannot be undone."
-                    confirmText="Delete Post"
-                    cancelText="Keep Post"
+                    title={confirmationModal.title}
+                    message={confirmationModal.message}
+                    confirmText="Delete"
+                    cancelText="Cancel"
                     isDarkMode={uiState.darkMode}
                     isLoading={confirmationModal.isLoading}
                     type="delete"
@@ -1569,7 +1651,7 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
 
                     {/* Posts Section with ProfilePostCard */}
                     <section className="max-w-2xl mx-auto px-3 sm:px-4">
-                        {profileData.posts.length === 0 && !uiState.loading  ? (
+                        {profileData.posts.length === 0 && !uiState.loading ? (
                             <div
                                 className={`text-center py-8 ${
                                     uiState.darkMode
@@ -1685,24 +1767,39 @@ const handleReplySubmit = async (postId, commentId, replyInputKey = null) => {
                             </div>
                         )}
                         {paginationState.isLoadingMore && (
-        <div className="flex justify-center items-center py-6">
-            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
-                uiState.darkMode ? 'border-white' : 'border-blue-500'
-            }`}></div>
-            <span className={`ml-3 ${
-                uiState.darkMode ? 'text-gray-300' : 'text-gray-600'
-            }`}>Loading more posts...</span>
-        </div>
-    )}
-    
-    {/* End of Posts Message */}
-    {!paginationState.hasMore && profileData.posts.length > 0 && (
-        <div className={`text-center py-6 ${
-            uiState.darkMode ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-            <p>You've reached the end of your posts</p>
-        </div>
-    )}
+                            <div className="flex justify-center items-center py-6">
+                                <div
+                                    className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
+                                        uiState.darkMode
+                                            ? "border-white"
+                                            : "border-blue-500"
+                                    }`}
+                                ></div>
+                                <span
+                                    className={`ml-3 ${
+                                        uiState.darkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-600"
+                                    }`}
+                                >
+                                    Loading more posts...
+                                </span>
+                            </div>
+                        )}
+
+                        {/* End of Posts Message */}
+                        {!paginationState.hasMore &&
+                            profileData.posts.length > 0 && (
+                                <div
+                                    className={`text-center py-6 ${
+                                        uiState.darkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                >
+                                    <p>You've reached the end of your posts</p>
+                                </div>
+                            )}
                     </section>
                 </div>
             </div>

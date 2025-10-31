@@ -11,6 +11,7 @@ import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 
 import LikesModal from "./LikesModal";
+import ConfirmationModal from "../../common/ConfirmationModal";
 
 const MainFeed = () => {
     const { token, logout, user, username, realname } = useAuth();
@@ -46,6 +47,21 @@ const MainFeed = () => {
     const [showLikesModal, setShowLikesModal] = useState(false);
     const [selectedPostIdForLikes, setSelectedPostIdForLikes] = useState(null);
 
+    // ✅ ADDED: Confirmation modal states
+    const [deleteCommentModal, setDeleteCommentModal] = useState({
+        isOpen: false,
+        commentId: null,
+        postId: null,
+        event: null,
+    });
+
+    const [deleteReplyModal, setDeleteReplyModal] = useState({
+        isOpen: false,
+        replyId: null,
+        commentId: null,
+        event: null,
+    });
+
     // Reply functionality states
     const [activeReplies, setActiveReplies] = useState(() => {
         return localStorageService.getActiveReplies() || {};
@@ -75,6 +91,230 @@ const MainFeed = () => {
     const handleShowLikesModal = (postId) => {
         setSelectedPostIdForLikes(postId);
         setShowLikesModal(true);
+    };
+
+    // ✅ ADDED: Comment deletion modal handlers
+    const handleOpenDeleteCommentModal = (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const post = posts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+
+        if (!post || !comment) {
+            setError("Comment not found");
+            return;
+        }
+
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
+        setDeleteCommentModal({
+            isOpen: true,
+            commentId,
+            postId,
+            event: e,
+        });
+    };
+
+    const handleConfirmDeleteComment = async () => {
+        const { commentId, postId } = deleteCommentModal;
+
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        const originalPosts = [...posts];
+
+        try {
+            const replyIds = comment.replies?.map((reply) => reply._id) || [];
+
+            setPosts(
+                posts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments =
+                            post.comments?.filter(
+                                (comment) => comment._id !== commentId
+                            ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                            // ✅ FIXED: Decrement comment count properly
+                            commentCount: Math.max(
+                                0,
+                                (post.commentCount || 1) - 1
+                            ),
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const storedCommentLikes =
+                localStorageService.getStoredCommentLikes();
+            delete storedCommentLikes[commentId];
+
+            replyIds.forEach((replyId) => {
+                delete storedCommentLikes[replyId];
+            });
+
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(storedCommentLikes)
+            );
+
+            await apiService.deleteComment(commentId, postId, token);
+
+            setTimeout(() => setSuccessMessage(null), 3000);
+        } catch (err) {
+            setError(err.message);
+            setPosts(originalPosts);
+        } finally {
+            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+            setDeleteCommentModal({
+                isOpen: false,
+                commentId: null,
+                postId: null,
+                event: null,
+            });
+        }
+    };
+
+    const handleCloseDeleteCommentModal = () => {
+        setDeleteCommentModal({
+            isOpen: false,
+            commentId: null,
+            postId: null,
+            event: null,
+        });
+    };
+
+    // ✅ ADDED: Reply deletion modal handlers
+    const handleOpenDeleteReplyModal = (replyId, commentId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        let replyOwner = "";
+        let foundPostId = "";
+
+        for (const post of posts) {
+            for (const comment of post.comments || []) {
+                const reply = comment.replies?.find((r) => r._id === replyId);
+                if (reply && comment._id === commentId) {
+                    replyOwner = reply.userId?.username;
+                    foundPostId = post._id;
+                    break;
+                }
+            }
+            if (foundPostId) break;
+        }
+
+        if (!replyOwner) {
+            setError("Reply not found");
+            return;
+        }
+
+        const isReplyOwner = replyOwner === username;
+
+        if (!isReplyOwner) {
+            setError("You don't have permission to delete this reply");
+            return;
+        }
+
+        setDeleteReplyModal({
+            isOpen: true,
+            replyId,
+            commentId,
+            event: e,
+        });
+    };
+
+    const handleConfirmDeleteReply = async () => {
+        const { replyId, commentId } = deleteReplyModal;
+
+        let foundPostId = "";
+
+        for (const post of posts) {
+            for (const comment of post.comments || []) {
+                const reply = comment.replies?.find((r) => r._id === replyId);
+                if (reply && comment._id === commentId) {
+                    foundPostId = post._id;
+                    break;
+                }
+            }
+            if (foundPostId) break;
+        }
+
+        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        const originalPosts = [...posts];
+
+        try {
+            setPosts(
+                posts.map((post) =>
+                    post._id === foundPostId
+                        ? {
+                              ...post,
+                              comments:
+                                  post.comments?.map((comment) =>
+                                      comment._id === commentId
+                                          ? {
+                                                ...comment,
+                                                replies:
+                                                    comment.replies?.filter(
+                                                        (reply) =>
+                                                            reply._id !==
+                                                            replyId
+                                                    ) || [],
+                                                replyCount: Math.max(
+                                                    0,
+                                                    (comment.replyCount || 1) -
+                                                        1
+                                                ),
+                                            }
+                                          : comment
+                                  ) || [],
+                          }
+                        : post
+                )
+            );
+
+            const result = await apiService.deleteReply(replyId, token);
+
+            if (result.success) {
+                setTimeout(() => setSuccessMessage(null), 3000);
+            } else {
+                throw new Error(result.message || "Failed to delete reply");
+            }
+        } catch (err) {
+            console.error("❌ Delete reply error:", err);
+            setError(err.message || "Failed to delete reply");
+            setPosts(originalPosts);
+        } finally {
+            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
+            setDeleteReplyModal({
+                isOpen: false,
+                replyId: null,
+                commentId: null,
+                event: null,
+            });
+        }
+    };
+
+    const handleCloseDeleteReplyModal = () => {
+        setDeleteReplyModal({
+            isOpen: false,
+            replyId: null,
+            commentId: null,
+            event: null,
+        });
     };
 
     const loadMorePosts = useCallback(async () => {
@@ -420,96 +660,16 @@ const MainFeed = () => {
             );
 
             await apiService.likeComment(commentId, user._id, token);
-            await fetchComments(postId);
+            // await fetchComments(postId);
         } catch (err) {
             setError(err.message);
-            await fetchComments(postId);
+            // await fetchComments(postId);
         } finally {
             setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
         }
     };
 
-    const handleDeleteComment = async (commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        const post = posts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
-
-        if (!post || !comment) {
-            setError("Comment not found");
-            return;
-        }
-
-        const isCommentOwner = comment.userId?.username === username;
-        const isPostOwner = post.userId?.username === username;
-
-        if (!isCommentOwner && !isPostOwner) {
-            setError("You don't have permission to delete this comment");
-            return;
-        }
-
-        if (
-            !window.confirm(
-                "Are you sure you want to delete this comment and all its replies?"
-            )
-        ) {
-            return;
-        }
-
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
-
-        const originalPosts = [...posts];
-
-        try {
-            const replyIds = comment.replies?.map((reply) => reply._id) || [];
-
-            setPosts(
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments =
-                            post.comments?.filter(
-                                (comment) => comment._id !== commentId
-                            ) || [];
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                            // ✅ FIXED: Decrement comment count properly
-                            commentCount: Math.max(
-                                0,
-                                (post.commentCount || 1) - 1
-                            ),
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            const storedCommentLikes =
-                localStorageService.getStoredCommentLikes();
-            delete storedCommentLikes[commentId];
-
-            replyIds.forEach((replyId) => {
-                delete storedCommentLikes[replyId];
-            });
-
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(storedCommentLikes)
-            );
-
-            await apiService.deleteComment(commentId, postId, token);
-
-            setTimeout(() => setSuccessMessage(null), 3000);
-        } catch (err) {
-            setError(err.message);
-            setPosts(originalPosts);
-        } finally {
-            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-        }
-    };
+    // ✅ UPDATED: Remove the old handleDeleteComment function and use the modal version instead
 
     const handleLike = async (postId, e, customRect = null) => {
         if (e) {
@@ -1026,92 +1186,7 @@ const MainFeed = () => {
         }
     };
 
-    const handleDeleteReply = async (replyId, commentId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        let replyOwner = "";
-        let foundPostId = "";
-
-        for (const post of posts) {
-            for (const comment of post.comments || []) {
-                const reply = comment.replies?.find((r) => r._id === replyId);
-                if (reply && comment._id === commentId) {
-                    replyOwner = reply.userId?.username;
-                    foundPostId = post._id;
-                    break;
-                }
-            }
-            if (foundPostId) break;
-        }
-
-        if (!replyOwner) {
-            setError("Reply not found");
-            return;
-        }
-
-        const isReplyOwner = replyOwner === username;
-
-        if (!isReplyOwner) {
-            setError("You don't have permission to delete this reply");
-            return;
-        }
-
-        if (!window.confirm("Are you sure you want to delete this reply?")) {
-            return;
-        }
-
-        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
-
-        const originalPosts = [...posts];
-
-        try {
-            setPosts(
-                posts.map((post) =>
-                    post._id === foundPostId
-                        ? {
-                              ...post,
-                              comments:
-                                  post.comments?.map((comment) =>
-                                      comment._id === commentId
-                                          ? {
-                                                ...comment,
-                                                replies:
-                                                    comment.replies?.filter(
-                                                        (reply) =>
-                                                            reply._id !==
-                                                            replyId
-                                                    ) || [],
-                                                replyCount: Math.max(
-                                                    0,
-                                                    (comment.replyCount || 1) -
-                                                        1
-                                                ),
-                                            }
-                                          : comment
-                                  ) || [],
-                          }
-                        : post
-                )
-            );
-
-            const result = await apiService.deleteReply(replyId, token);
-
-            if (result.success) {
-                setTimeout(() => setSuccessMessage(null), 3000);
-            } else {
-                throw new Error(result.message || "Failed to delete reply");
-            }
-        } catch (err) {
-            console.error("❌ Delete reply error:", err);
-            setError(err.message || "Failed to delete reply");
-            setPosts(originalPosts);
-        } finally {
-            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
-        }
-    };
+    // ✅ UPDATED: Remove the old handleDeleteReply function and use the modal version instead
 
     const navigateToUserProfile = (userId, e) => {
         if (e) {
@@ -1183,7 +1258,7 @@ const MainFeed = () => {
                 />
             )}
 
-            {/* */}
+            {/* Likes Modal */}
             <LikesModal
                 postId={selectedPostIdForLikes}
                 isOpen={showLikesModal}
@@ -1193,6 +1268,34 @@ const MainFeed = () => {
                 currentUserProfile={currentUserProfile}
                 user={user}
                 username={username}
+            />
+
+            {/* ✅ ADDED: Comment Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteCommentModal.isOpen}
+                onClose={handleCloseDeleteCommentModal}
+                onConfirm={handleConfirmDeleteComment}
+                title="Delete Comment"
+                message="Are you sure you want to delete this comment and all its replies?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingComment[deleteCommentModal.commentId]}
+                isDarkMode={darkMode}
+            />
+
+            {/* ✅ ADDED: Reply Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteReplyModal.isOpen}
+                onClose={handleCloseDeleteReplyModal}
+                onConfirm={handleConfirmDeleteReply}
+                title="Delete Reply"
+                message="Are you sure you want to delete this reply?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingReply[deleteReplyModal.replyId]}
+                isDarkMode={darkMode}
             />
 
             <Navbar onDarkModeChange={handleDarkModeChange} />
@@ -1252,12 +1355,12 @@ const MainFeed = () => {
                             onCommentSubmit={handleCommentSubmit}
                             onSetCommentContent={setCommentContent}
                             onLikeComment={handleLikeComment}
-                            onDeleteComment={handleDeleteComment}
+                            onDeleteComment={handleOpenDeleteCommentModal} // ✅ UPDATED: Use modal handler
                             onToggleReplies={toggleReplies}
                             onToggleReplyInput={handleToggleReplyInput} // ✅ PROFILE-MATCHING: Updated function
                             onAddReply={handleAddReply} // ✅ PROFILE-MATCHING: Updated function
                             onLikeReply={handleLikeReply}
-                            onDeleteReply={handleDeleteReply}
+                            onDeleteReply={handleOpenDeleteReplyModal} // ✅ UPDATED: Use modal handler
                             onSetReplyContent={handleSetReplyContent} // ✅ PROFILE-MATCHING: Updated function
                             navigateToUserProfile={navigateToUserProfile}
                             onImagePreview={handleImagePreview}
