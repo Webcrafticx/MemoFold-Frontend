@@ -19,51 +19,69 @@ const ReplyItem = ({
     onSetReplyContent,
     onAddReply,
     postId,
-    activeReplyInputs
+    activeReplyInputs,
 }) => {
+    // ✅ ADDED: State for profile pic errors
+    const [profilePicError, setProfilePicError] = React.useState(false);
+
     const handleProfilePicError = (e) => {
+        setProfilePicError(true);
         e.target.style.display = "none";
-        if (e.target.nextSibling) {
-            e.target.nextSibling.style.display = "flex";
-        }
     };
 
     // Safe access to all props with fallbacks
-    const replyKey = reply?._id || 'unknown';
-    
+    const replyKey = reply?._id || "unknown";
+
     // FIXED: Unique key for each reply's input box
     const replyInputKey = `${commentId}-${replyKey}`;
-    
+
     // FIXED: Properly handle replyContent for this specific reply
-    const currentReplyContent = replyContent ? 
-        (typeof replyContent === 'object' ? replyContent[replyInputKey] || "" : "") : "";
-    
+    const currentReplyContent = replyContent
+        ? typeof replyContent === "object"
+            ? replyContent[replyInputKey] || ""
+            : ""
+        : "";
+
     // FIXED: Check if THIS specific reply's input is active
-    const isReplyInputActive = activeReplyInputs ? 
-        (typeof activeReplyInputs === 'object' ? activeReplyInputs[replyInputKey] || false : false) : false;
-    
+    const isReplyInputActive = activeReplyInputs
+        ? typeof activeReplyInputs === "object"
+            ? activeReplyInputs[replyInputKey] || false
+            : false
+        : false;
+
     // FIXED: Properly handle loading states for this reply
-    const isCurrentlyReplying = isReplying ? 
-        (typeof isReplying === 'object' ? isReplying[replyInputKey] || false : false) : false;
-    
-    const isCurrentlyLiking = isLikingReply ? 
-        (typeof isLikingReply === 'object' ? isLikingReply[replyKey] || false : false) : false;
-    
-    const isCurrentlyDeleting = isDeletingReply ? 
-        (typeof isDeletingReply === 'object' ? isDeletingReply[replyKey] || false : false) : false;
+    const isCurrentlyReplying = isReplying
+        ? typeof isReplying === "object"
+            ? isReplying[replyInputKey] || false
+            : false
+        : false;
+
+    const isCurrentlyLiking = isLikingReply
+        ? typeof isLikingReply === "object"
+            ? isLikingReply[replyKey] || false
+            : false
+        : false;
+
+    const isCurrentlyDeleting = isDeletingReply
+        ? typeof isDeletingReply === "object"
+            ? isDeletingReply[replyKey] || false
+            : false
+        : false;
 
     // Safe user data access
     const replyUser = reply?.userId || reply?.user || {};
     const replyUsername = replyUser?.username || reply?.username || "Unknown";
-    const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic || 
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(replyUsername)}&background=random`;
-    const replyUserId = replyUser?._id || replyUser?.id || 'unknown';
+
+    // ✅ FIXED: Only use profilePic if it exists, don't set fallback URL
+    const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic;
+
+    const replyUserId = replyUser?._id || replyUser?.id || "unknown";
 
     // Check if current user can delete reply
     const canDeleteReply = () => {
         const currentUserId = localStorage.getItem("userId");
         const currentUsername = localStorage.getItem("username");
-        
+
         return (
             replyUser?._id === currentUserId ||
             replyUsername === currentUsername ||
@@ -86,7 +104,7 @@ const ReplyItem = ({
                 onAddReply: !!onAddReply,
                 postId,
                 commentId,
-                replyInputKey
+                replyInputKey,
             });
         }
     };
@@ -99,7 +117,7 @@ const ReplyItem = ({
 
     const handleInputChange = (e) => {
         if (onSetReplyContent) {
-            if (typeof onSetReplyContent === 'function') {
+            if (typeof onSetReplyContent === "function") {
                 // FIXED: Use replyInputKey for reply-to-reply
                 onSetReplyContent(replyInputKey, e.target.value);
             }
@@ -142,21 +160,19 @@ const ReplyItem = ({
                     className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0"
                     onClick={handleNavigateToProfile}
                 >
-                    {replyUserProfilePic ? (
+                    {/* ✅ FIXED: Only show image if profilePic exists AND no error */}
+                    {replyUserProfilePic && !profilePicError ? (
                         <img
                             src={replyUserProfilePic}
                             alt={replyUsername}
                             className="w-full h-full object-cover"
                             onError={handleProfilePicError}
                         />
-                    ) : null}
-                    <div
-                        className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                            replyUserProfilePic ? "hidden" : "flex"
-                        }`}
-                    >
-                        {replyUsername?.charAt(0).toUpperCase() || "U"}
-                    </div>
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs">
+                            {replyUsername?.charAt(0).toUpperCase() || "U"}
+                        </div>
+                    )}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-col xs:flex-row xs:items-center xs:space-x-2 gap-1">
@@ -171,7 +187,9 @@ const ReplyItem = ({
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
                             } whitespace-nowrap`}
                         >
-                            {reply?.createdAt ? formatDate(reply.createdAt) : 'Recently'}
+                            {reply?.createdAt
+                                ? formatDate(reply.createdAt)
+                                : "Recently"}
                         </span>
                     </div>
                     <p
@@ -246,14 +264,20 @@ const ReplyItem = ({
                                 <div className="flex space-x-2 self-end sm:self-auto">
                                     <button
                                         className={`px-2 py-1 rounded-full text-xs ${
-                                            !currentReplyContent?.trim() || isCurrentlyReplying
+                                            !currentReplyContent?.trim() ||
+                                            isCurrentlyReplying
                                                 ? "bg-blue-300 cursor-not-allowed"
                                                 : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
                                         } text-white transition-colors whitespace-nowrap`}
                                         onClick={handleReplySubmit}
-                                        disabled={!currentReplyContent?.trim() || isCurrentlyReplying}
+                                        disabled={
+                                            !currentReplyContent?.trim() ||
+                                            isCurrentlyReplying
+                                        }
                                     >
-                                        {isCurrentlyReplying ? "Posting..." : "Post"}
+                                        {isCurrentlyReplying
+                                            ? "Posting..."
+                                            : "Post"}
                                     </button>
                                     <button
                                         onClick={handleToggleReply}

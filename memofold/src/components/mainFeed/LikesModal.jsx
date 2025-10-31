@@ -158,7 +158,7 @@ const LikesModal = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="fixed inset-0 bg-black/40 backdrop-blur-sm md:backdrop-blur-md flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm md:backdrop-blur-md flex items-center justify-center z-50 p-2 sm:p-3 md:p-4"
                     onClick={onClose}
                 >
                     <motion.div
@@ -166,7 +166,7 @@ const LikesModal = ({
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className={`w-full max-w-md max-h-[80vh] rounded-2xl shadow-2xl ${
+                        className={`w-full max-w-md max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] rounded-xl sm:rounded-2xl shadow-2xl ${
                             isDarkMode
                                 ? "bg-gray-800 text-gray-100 border border-gray-700"
                                 : "bg-white text-gray-900 border border-gray-200"
@@ -175,23 +175,25 @@ const LikesModal = ({
                     >
                         {/* Header */}
                         <div
-                            className={`flex justify-between items-center p-6 border-b ${
+                            className={`flex justify-between items-center p-4 sm:p-5 md:p-6 border-b ${
                                 isDarkMode
                                     ? "border-gray-700"
                                     : "border-gray-200"
                             }`}
                         >
-                            <h3 className="text-xl font-bold">Likes</h3>
+                            <h3 className="text-lg sm:text-xl font-bold">
+                                Likes
+                            </h3>
                             <button
                                 onClick={onClose}
-                                className={`p-2 rounded-full cursor-pointer transition-all duration-200 ${
+                                className={`p-1 sm:p-2 rounded-full cursor-pointer transition-all duration-200 ${
                                     isDarkMode
                                         ? "hover:bg-gray-700 text-gray-300 hover:text-white"
                                         : "hover:bg-gray-100 text-gray-500 hover:text-black"
                                 }`}
                             >
                                 <svg
-                                    className="w-6 h-6"
+                                    className="w-5 h-5 sm:w-6 sm:h-6"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -208,11 +210,11 @@ const LikesModal = ({
 
                         {/* Content */}
                         <div
-                            className="max-h-[calc(80vh-120px)] overflow-y-auto"
+                            className="max-h-[calc(90vh-120px)] sm:max-h-[calc(85vh-120px)] md:max-h-[calc(80vh-120px)] overflow-y-auto"
                             onScroll={handleScroll} // ✅ ADDED SCROLL HANDLER
                         >
                             {isLoading ? (
-                                <div className="flex flex-col items-center justify-center py-12">
+                                <div className="flex flex-col items-center justify-center py-8 sm:py-10 md:py-12">
                                     <motion.div
                                         animate={{ rotate: 360 }}
                                         transition={{
@@ -220,20 +222,20 @@ const LikesModal = ({
                                             repeat: Infinity,
                                             ease: "linear",
                                         }}
-                                        className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-4"
+                                        className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-blue-500 border-t-transparent rounded-full mb-3 sm:mb-4"
                                     />
-                                    <p className="text-lg font-medium">
+                                    <p className="text-base sm:text-lg font-medium">
                                         Loading likes...
                                     </p>
-                                    <p className="text-sm text-gray-500 mt-1">
+                                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
                                         Please wait
                                     </p>
                                 </div>
                             ) : error ? (
-                                <div className="text-center py-12 px-4">
-                                    <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                                <div className="text-center py-8 sm:py-10 md:py-12 px-3 sm:px-4">
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-red-100 rounded-full flex items-center justify-center">
                                         <svg
-                                            className="w-8 h-8 text-red-500"
+                                            className="w-6 h-6 sm:w-8 sm:h-8 text-red-500"
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
@@ -246,24 +248,24 @@ const LikesModal = ({
                                             />
                                         </svg>
                                     </div>
-                                    <p className="text-lg font-medium text-red-600 mb-2">
+                                    <p className="text-base sm:text-lg font-medium text-red-600 mb-2">
                                         Error loading likes
                                     </p>
-                                    <p className="text-gray-500 mb-4">
+                                    <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4 break-words px-2">
                                         {error}
                                     </p>
                                     <button
                                         onClick={fetchAllLikes}
-                                        className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium"
+                                        className="px-4 sm:px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium text-sm sm:text-base"
                                     >
                                         Try Again
                                     </button>
                                 </div>
                             ) : likes.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                                <div className="text-center py-8 sm:py-10 md:py-12">
+                                    <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                                         <svg
-                                            className="w-8 h-8 text-gray-400"
+                                            className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400"
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
@@ -276,22 +278,22 @@ const LikesModal = ({
                                             />
                                         </svg>
                                     </div>
-                                    <p className="text-lg font-medium text-gray-500">
+                                    <p className="text-base sm:text-lg font-medium text-gray-500">
                                         No likes yet
                                     </p>
-                                    <p className="text-sm text-gray-400 mt-1">
+                                    <p className="text-xs sm:text-sm text-gray-400 mt-1">
                                         Be the first to like this post
                                     </p>
                                 </div>
                             ) : (
-                                <div className="p-4">
+                                <div className="p-2 sm:p-3 md:p-4">
                                     {likes.map((user, index) => (
                                         <motion.div
                                             key={user._id || index}
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: index * 0.05 }}
-                                            className="flex items-center py-4 px-3 rounded-lg transition-colors hover:bg-opacity-50 cursor-pointer"
+                                            className="flex items-center py-3 sm:py-4 px-2 sm:px-3 rounded-lg transition-colors hover:bg-opacity-50 cursor-pointer"
                                             onClick={(e) =>
                                                 navigateToUserProfile(
                                                     user._id || user.username,
@@ -299,16 +301,16 @@ const LikesModal = ({
                                                 )
                                             } // ✅ ADDED CLICK HANDLER
                                         >
-                                            <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500 mr-4">
+                                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500 mr-3 sm:mr-4 flex-shrink-0">
                                                 {user.profilePic ? (
                                                     <img
                                                         src={user.profilePic}
                                                         alt={user.username}
-                                                        className="w-10 h-10 object-cover rounded-full"
+                                                        className="w-full h-full object-cover rounded-full"
                                                         onError={(e) => {
                                                             e.target.style.display =
                                                                 "none";
-                                                            e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">${
+                                                            e.target.parentElement.innerHTML = `<span class="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm sm:text-base">${
                                                                 user.username
                                                                     ?.charAt(0)
                                                                     .toUpperCase() ||
@@ -317,7 +319,7 @@ const LikesModal = ({
                                                         }}
                                                     />
                                                 ) : (
-                                                    <span className="flex items-center justify-center w-full h-full rounded-full text-white font-semibold text-lg">
+                                                    <span className="flex items-center justify-center w-full h-full rounded-full text-white font-semibold text-sm sm:text-base">
                                                         {user.username
                                                             ?.charAt(0)
                                                             .toUpperCase() ||
@@ -326,13 +328,13 @@ const LikesModal = ({
                                                 )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-semibold text-base truncate hover:text-blue-500 transition-colors">
+                                                <p className="font-semibold text-sm sm:text-base truncate hover:text-blue-500 transition-colors">
                                                     {" "}
                                                     {/* ✅ ADDED HOVER EFFECT */}
                                                     {user.username}
                                                 </p>
                                                 {user.realname && (
-                                                    <p className="text-sm text-gray-500 truncate">
+                                                    <p className="text-xs sm:text-sm text-gray-500 truncate">
                                                         {user.realname}
                                                     </p>
                                                 )}
@@ -341,7 +343,7 @@ const LikesModal = ({
                                     ))}
 
                                     {isLoadingMore && (
-                                        <div className="flex justify-center items-center py-4">
+                                        <div className="flex justify-center items-center py-3 sm:py-4">
                                             <motion.div
                                                 animate={{ rotate: 360 }}
                                                 transition={{
@@ -349,9 +351,9 @@ const LikesModal = ({
                                                     repeat: Infinity,
                                                     ease: "linear",
                                                 }}
-                                                className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"
+                                                className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-blue-500 border-t-transparent rounded-full"
                                             />
-                                            <span className="ml-2 text-sm text-gray-500">
+                                            <span className="ml-2 text-xs sm:text-sm text-gray-500">
                                                 Loading more...
                                             </span>
                                         </div>
@@ -360,19 +362,27 @@ const LikesModal = ({
                             )}
                         </div>
 
-                        {/* Footer */}
+                        {/* ✅ UPDATED: Footer with better responsive design */}
                         <div
-                            className={`p-4 border-t ${
+                            className={`p-3 sm:p-4 border-t ${
                                 isDarkMode
                                     ? "border-gray-700"
                                     : "border-gray-200"
                             }`}
                         >
-                            <p className="text-center text-sm text-gray-500">
-                                {likes.length}{" "}
-                                {likes.length === 1 ? "like" : "likes"}
-                                {hasMore && " • Scroll to load more"}
-                            </p>
+                            <div className="text-center">
+                                <p className="text-xs sm:text-sm text-gray-500 break-words px-2">
+                                    <span className="font-medium">
+                                        {likes.length}{" "}
+                                        {likes.length === 1 ? "like" : "likes"}
+                                    </span>
+                                    {hasMore && (
+                                        <span className="block sm:inline mt-1 sm:mt-0 sm:ml-1">
+                                            • Scroll to load more
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
                         </div>
                     </motion.div>
                 </motion.div>

@@ -146,14 +146,14 @@ const CommentSection = ({
                                     isCommenting[post._id]
                                         ? "bg-blue-300 cursor-not-allowed"
                                         : "bg-blue-500 hover:bg-blue-600"
-                                } text-white transition-colors`}
+                                } text-white transition-colors cursor-pointer`}
                                 disabled={
                                     !commentContent[post._id]?.trim() ||
                                     isCommenting[post._id]
                                 }
                             >
                                 {isCommenting[post._id] ? (
-                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin cursor-pointer"></span>
                                 ) : (
                                     "Post"
                                 )}
