@@ -188,14 +188,10 @@ const ProfileCommentSection = ({
                         </button>
                       )}
 
-                      {/* Delete button */}
+                      {/* Delete button - FIXED: Use modal instead of confirm */}
                       {canDeleteComment(comment, post) && (
                         <button
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this comment?")) {
-                              onDeleteComment(comment._id, post._id);
-                            }
-                          }}
+                          onClick={() => onDeleteComment(comment._id, post._id)}
                           className="text-red-500 hover:text-red-700 text-xs flex items-center cursor-pointer"
                           title="Delete comment"
                         >
