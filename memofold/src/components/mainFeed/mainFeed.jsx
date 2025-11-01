@@ -132,7 +132,10 @@ const MainFeed = () => {
         const originalPosts = [...posts];
 
         try {
-            const replyIds = comment.replies?.map((reply) => reply._id) || [];
+            // ✅ Find the actual comment object
+            const post = posts.find((p) => p._id === postId);
+            const comment = post?.comments?.find((c) => c._id === commentId);
+            const replyIds = comment?.replies?.map((reply) => reply._id) || [];
 
             setPosts(
                 posts.map((post) => {
@@ -144,7 +147,6 @@ const MainFeed = () => {
                         return {
                             ...post,
                             comments: updatedComments,
-                            // ✅ FIXED: Decrement comment count properly
                             commentCount: Math.max(
                                 0,
                                 (post.commentCount || 1) - 1
@@ -158,16 +160,13 @@ const MainFeed = () => {
             const storedCommentLikes =
                 localStorageService.getStoredCommentLikes();
             delete storedCommentLikes[commentId];
-
-            replyIds.forEach((replyId) => {
-                delete storedCommentLikes[replyId];
-            });
-
+            replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
             localStorage.setItem(
                 "commentLikes",
                 JSON.stringify(storedCommentLikes)
             );
 
+            // ✅ Now call the API
             await apiService.deleteComment(commentId, postId, token);
 
             setTimeout(() => setSuccessMessage(null), 3000);
