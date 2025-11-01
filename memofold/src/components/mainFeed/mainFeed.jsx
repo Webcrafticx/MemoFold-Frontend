@@ -1000,12 +1000,22 @@ const MainFeed = () => {
         setActiveReplies(newActiveRepliesState);
     };
 
-    // ✅ PROFILE-MATCHING: Updated toggleReplyInput function
-    const handleToggleReplyInput = (inputKey) => {
-        setActiveReplyInputs((prev) => ({
-            ...prev,
-            [inputKey]: !prev[inputKey],
-        }));
+    // ✅ FIXED: Updated toggleReplyInput function to close other inputs
+    const handleToggleReplyInput = (inputKey, closeOthers = true) => {
+        setActiveReplyInputs((prev) => {
+            if (closeOthers) {
+                // Close all other inputs and open only this one
+                return {
+                    [inputKey]: !prev[inputKey]
+                };
+            } else {
+                // Toggle only this specific input (for cancel button)
+                return {
+                    ...prev,
+                    [inputKey]: !prev[inputKey]
+                };
+            }
+        });
 
         // Initialize reply content if it doesn't exist
         if (!replyContent[inputKey]) {

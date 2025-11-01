@@ -47,7 +47,6 @@ const UserProfile = () => {
     const [isLikingComment, setIsLikingComment] = useState({});
     const [isDeletingComment, setIsDeletingComment] = useState({});
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
-    const [successMessage, setSuccessMessage] = useState(null);
     const [userStats, setUserStats] = useState({
         postCount: 0,
         friendsCount: 0,
@@ -107,6 +106,9 @@ const UserProfile = () => {
         hasMore: true,
         isLoadingMore: false,
     });
+
+    // Track which comment has reply input open
+    const [activeReplyInput, setActiveReplyInput] = useState(null);
 
     // Save activeReplies to localStorage whenever it changes
     useEffect(() => {
@@ -436,7 +438,6 @@ const UserProfile = () => {
                     userId: finalUserData,
                     replies: [],
                     replyCount: comment.replyCount || 0,
-                    showReplyInput: false,
                 };
             });
 
@@ -511,7 +512,6 @@ const UserProfile = () => {
                     likes: replyLikes,
                     hasUserLiked: hasUserLikedReply,
                     userId: finalReplyUserData,
-                    showReplyInput: false,
                 };
             });
 
@@ -624,9 +624,6 @@ const UserProfile = () => {
             );
 
             await apiService.deleteComment(commentId, postId, token);
-
-            setSuccessMessage("Comment deleted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             console.error("Error deleting comment:", err);
             setError(err.message);
@@ -706,8 +703,6 @@ const UserProfile = () => {
 
             await apiService.deleteReply(replyId, token);
 
-            setSuccessMessage("Reply deleted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             console.error("Error deleting reply:", err);
             setError(err.message);
@@ -843,6 +838,7 @@ const UserProfile = () => {
         setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
 
         try {
+            // Optimistically update the UI
             setUserPosts(
                 userPosts.map((post) => {
                     if (post._id === postId) {
@@ -886,10 +882,10 @@ const UserProfile = () => {
             );
 
             await apiService.likeComment(commentId, user._id, token);
-            await fetchComments(postId);
         } catch (err) {
             console.error("Error liking comment:", err);
             setError(err.message);
+            // Revert optimistic update on error
             await fetchComments(postId);
         } finally {
             setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
@@ -968,7 +964,6 @@ const UserProfile = () => {
             );
 
             await apiService.likeReply(replyId, user._id, token);
-            await fetchComments(postId);
         } catch (err) {
             console.error("Error liking reply:", err);
             setError(err.message);
@@ -1023,27 +1018,20 @@ const UserProfile = () => {
             [commentId]: !prev[commentId],
         }));
     };
-    const toggleReplyInput = (commentId, e) => {
+
+    const toggleReplyInput = (commentId, postId, e) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
-        setUserPosts((prevPosts) =>
-            prevPosts.map((post) => ({
-                ...post,
-                comments:
-                    post.comments?.map((comment) =>
-                        comment._id === commentId
-                            ? {
-                                  ...comment,
-                                  showReplyInput: !comment.showReplyInput,
-                              }
-                            : comment
-                    ) || [],
-            }))
-        );
+        // Close any previously open reply input
+        if (activeReplyInput && activeReplyInput !== commentId) {
+            setActiveReplyInput(null);
+        }
 
+        // Toggle current reply input
+        setActiveReplyInput(activeReplyInput === commentId ? null : commentId);
         setReplyContent((prev) => ({
             ...prev,
             [commentId]: prev[commentId] || "",
@@ -1059,37 +1047,13 @@ const UserProfile = () => {
 
         const contentKey = `${replyId}-${commentId}`;
 
-        setUserPosts((prevPosts) =>
-            prevPosts.map((post) => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.map((comment) => {
-                        if (comment._id === commentId) {
-                            const updatedReplies = comment.replies?.map(
-                                (reply) =>
-                                    reply._id === replyId
-                                        ? {
-                                              ...reply,
-                                              showReplyInput:
-                                                  !reply.showReplyInput,
-                                          }
-                                        : reply
-                            );
-                            return {
-                                ...comment,
-                                replies: updatedReplies,
-                            };
-                        }
-                        return comment;
-                    });
-                    return {
-                        ...post,
-                        comments: updatedComments,
-                    };
-                }
-                return post;
-            })
-        );
+        // Close any previously open reply input
+        if (activeReplyInput && activeReplyInput !== contentKey) {
+            setActiveReplyInput(null);
+        }
 
+        // Toggle current reply input
+        setActiveReplyInput(activeReplyInput === contentKey ? null : contentKey);
         setReplyContent((prev) => {
             if (prev[contentKey] === undefined) {
                 return {
@@ -1154,7 +1118,6 @@ const UserProfile = () => {
                                       },
                                       replies: [],
                                       replyCount: 0,
-                                      showReplyInput: false,
                                   },
                               ],
                               commentCount: (post.commentCount || 0) + 1,
@@ -1239,7 +1202,6 @@ const UserProfile = () => {
                                         ...comment,
                                         replies: updatedReplies,
                                         replyCount: updatedReplies.length,
-                                        showReplyInput: false,
                                     };
                                 }
                                 return comment;
@@ -1256,8 +1218,7 @@ const UserProfile = () => {
             );
 
             setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
-            setSuccessMessage("Reply posted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
+            setActiveReplyInput(null); // Close the reply input after posting
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
@@ -1365,41 +1326,7 @@ const UserProfile = () => {
                 [contentKey]: "",
             }));
 
-            // Hide the reply input after successful submission
-            setUserPosts((prevPosts) =>
-                prevPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments = post.comments?.map(
-                            (comment) => {
-                                if (comment._id === commentId) {
-                                    const updatedReplies = comment.replies?.map(
-                                        (reply) =>
-                                            reply._id === replyId
-                                                ? {
-                                                      ...reply,
-                                                      showReplyInput: false,
-                                                  }
-                                                : reply
-                                    );
-                                    return {
-                                        ...comment,
-                                        replies: updatedReplies,
-                                    };
-                                }
-                                return comment;
-                            }
-                        );
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            setSuccessMessage("Reply posted successfully!");
-            setTimeout(() => setSuccessMessage(null), 3000);
+            setActiveReplyInput(null); // Close the reply input after posting
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
@@ -1554,15 +1481,16 @@ const UserProfile = () => {
 
             // Initialize with parent state when input becomes visible
             useEffect(() => {
-                if (reply.showReplyInput) {
+                if (activeReplyInput === contentKey) {
                     setLocalInputValue(replyContent[contentKey] || "");
                 }
-            }, [reply.showReplyInput, contentKey]);
+            }, [activeReplyInput, contentKey]);
 
             const handleInputChange = (e) => {
                 const value = e.target.value;
                 setLocalInputValue(value);
             };
+            
             const handleSubmit = (e) => {
                 e.preventDefault();
 
@@ -1581,6 +1509,11 @@ const UserProfile = () => {
                 );
 
                 // Clear local input immediately
+                setLocalInputValue("");
+            };
+
+            const handleCancel = () => {
+                toggleReplyToReplyInput(reply._id, commentId, postId);
                 setLocalInputValue("");
             };
 
@@ -1741,13 +1674,10 @@ const UserProfile = () => {
                                 </div>
                             </div>
 
-                            {/* Reply Input for Reply */}
-                            {reply.showReplyInput && (
+                            {/* Reply Input for Reply with Post and Cancel buttons */}
+                            {activeReplyInput === `${reply._id}-${commentId}` && (
                                 <div className="mt-2">
-                                    <form
-                                        onSubmit={handleSubmit}
-                                        className="flex items-center space-x-2"
-                                    >
+                                    <div className="flex items-center space-x-2">
                                         <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
                                             {currentUserProfile?.profilePic ||
                                             user?.profilePic ? (
@@ -1777,10 +1707,10 @@ const UserProfile = () => {
                                                     .toUpperCase() || "U"}
                                             </div>
                                         </div>
-                                        <div className="flex-1 flex space-x-2">
+                                        <div className="flex-1">
                                             <input
                                                 type="text"
-                                                className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                                className={`w-full px-3 py-1 rounded-full text-xs border ${
                                                     isDarkMode
                                                         ? "bg-gray-700 border-gray-600 text-white"
                                                         : "bg-white border-gray-300"
@@ -1795,27 +1725,39 @@ const UserProfile = () => {
                                                     }
                                                 }}
                                             />
-                                            <button
-                                                type="submit"
-                                                className={`px-2 py-1 rounded-full text-xs ${
-                                                    !localInputValue.trim() ||
-                                                    isReplying[contentKey]
-                                                        ? "bg-blue-300 cursor-not-allowed"
-                                                        : "bg-blue-500 hover:bg-blue-600"
-                                                } text-white transition-colors`}
-                                                disabled={
-                                                    !localInputValue.trim() ||
-                                                    isReplying[contentKey]
-                                                }
-                                            >
-                                                {isReplying[contentKey] ? (
-                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                ) : (
-                                                    "Reply"
-                                                )}
-                                            </button>
+                                            <div className="flex space-x-2 mt-2 justify-end">
+                                                <button
+                                                    onClick={handleCancel}
+                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                        isDarkMode
+                                                            ? "bg-gray-600 hover:bg-gray-500 text-white"
+                                                            : "bg-gray-300 hover:bg-gray-400 text-gray-700"
+                                                    } transition-colors cursor-pointer`}
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={handleSubmit}
+                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                        !localInputValue.trim() ||
+                                                        isReplying[contentKey]
+                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                                                    } transition-colors`}
+                                                    disabled={
+                                                        !localInputValue.trim() ||
+                                                        isReplying[contentKey]
+                                                    }
+                                                >
+                                                    {isReplying[contentKey] ? (
+                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        "Post"
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </form>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1946,18 +1888,6 @@ const UserProfile = () => {
                 </div>
             )}
 
-            {/* Success Message */}
-            {successMessage && (
-                <div className="fixed top-4 right-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm shadow-lg z-50 cursor-pointer">
-                    {successMessage}
-                    <button
-                        onClick={() => setSuccessMessage(null)}
-                        className="ml-2 text-green-700 font-bold cursor-pointer"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
 
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 <div
@@ -2648,6 +2578,7 @@ const UserProfile = () => {
                                                                                             ) =>
                                                                                                 toggleReplyInput(
                                                                                                     comment._id,
+                                                                                                    post._id,
                                                                                                     e
                                                                                                 )
                                                                                             }
@@ -2700,14 +2631,14 @@ const UserProfile = () => {
                                                                                             <button
                                                                                                 className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
                                                                                                 onClick={(
+                                                                                                e
+                                                                                            ) =>
+                                                                                                toggleReplies(
+                                                                                                    comment._id,
+                                                                                                    post._id,
                                                                                                     e
-                                                                                                ) =>
-                                                                                                    toggleReplies(
-                                                                                                        comment._id,
-                                                                                                        post._id,
-                                                                                                        e
-                                                                                                    )
-                                                                                                }
+                                                                                                )
+                                                                                            }
                                                                                                 title={
                                                                                                     activeReplies[
                                                                                                         comment
@@ -2735,22 +2666,11 @@ const UserProfile = () => {
                                                                                     </div>
                                                                                 </div>
 
-                                                                                {/* Reply Input for Comment */}
-                                                                                {comment.showReplyInput && (
+                                                                                {/* Reply Input for Comment with Post and Cancel buttons - FIXED LAYOUT */}
+                                                                                {activeReplyInput === comment._id && (
                                                                                     <div className="mt-2">
-                                                                                        <form
-                                                                                            onSubmit={(
-                                                                                                e
-                                                                                            ) =>
-                                                                                                handleAddReply(
-                                                                                                    comment._id,
-                                                                                                    post._id,
-                                                                                                    e
-                                                                                                )
-                                                                                            }
-                                                                                            className="flex items-center space-x-2"
-                                                                                        >
-                                                                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                                                        <div className="flex items-start space-x-2">
+                                                                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 flex-shrink-0">
                                                                                                 {currentUserProfile?.profilePic ||
                                                                                                 user?.profilePic ? (
                                                                                                     <img
@@ -2786,10 +2706,10 @@ const UserProfile = () => {
                                                                                                         "U"}
                                                                                                 </div>
                                                                                             </div>
-                                                                                            <div className="flex-1 flex space-x-2">
+                                                                                            <div className="flex-1">
                                                                                                 <input
                                                                                                     type="text"
-                                                                                                    className={`flex-1 px-3 py-1 rounded-full text-xs border ${
+                                                                                                    className={`w-full px-3 py-1 rounded-full text-xs border ${
                                                                                                         isDarkMode
                                                                                                             ? "bg-gray-700 border-gray-600 text-white"
                                                                                                             : "bg-white border-gray-300"
@@ -2815,43 +2735,86 @@ const UserProfile = () => {
                                                                                                             }
                                                                                                         )
                                                                                                     }
+                                                                                                    onKeyDown={(
+                                                                                                        e
+                                                                                                    ) => {
+                                                                                                        if (
+                                                                                                            e.key ===
+                                                                                                            "Enter"
+                                                                                                        ) {
+                                                                                                            e.preventDefault();
+                                                                                                            handleAddReply(
+                                                                                                                comment._id,
+                                                                                                                post._id,
+                                                                                                                e
+                                                                                                            );
+                                                                                                        }
+                                                                                                    }}
                                                                                                 />
-                                                                                                <button
-                                                                                                    type="submit"
-                                                                                                    className={`px-2 py-1 rounded-full text-xs ${
-                                                                                                        !replyContent[
+                                                                                                <div className="flex space-x-2 mt-2 justify-end">
+                                                                                                    <button
+                                                                                                        onClick={(
+                                                                                                            e
+                                                                                                        ) =>
+                                                                                                            toggleReplyInput(
+                                                                                                                comment._id,
+                                                                                                                post._id,
+                                                                                                                e
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                            isDarkMode
+                                                                                                                ? "bg-gray-600 hover:bg-gray-500 text-white"
+                                                                                                                : "bg-gray-300 hover:bg-gray-400 text-gray-700"
+                                                                                                        } transition-colors cursor-pointer`}
+                                                                                                    >
+                                                                                                        Cancel
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        onClick={(
+                                                                                                            e
+                                                                                                        ) =>
+                                                                                                            handleAddReply(
+                                                                                                                comment._id,
+                                                                                                                post._id,
+                                                                                                                e
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                            !replyContent[
+                                                                                                                comment
+                                                                                                                    ._id
+                                                                                                            ]?.trim() ||
+                                                                                                            isReplying[
+                                                                                                                comment
+                                                                                                                    ._id
+                                                                                                            ]
+                                                                                                                ? "bg-blue-300 cursor-not-allowed"
+                                                                                                                : "bg-blue-500 hover:bg-blue-600 text-white"
+                                                                                                        } transition-colors cursor-pointer`}
+                                                                                                        disabled={
+                                                                                                            !replyContent[
+                                                                                                                comment
+                                                                                                                    ._id
+                                                                                                            ]?.trim() ||
+                                                                                                            isReplying[
+                                                                                                                comment
+                                                                                                                    ._id
+                                                                                                            ]
+                                                                                                        }
+                                                                                                    >
+                                                                                                        {isReplying[
                                                                                                             comment
                                                                                                                 ._id
-                                                                                                        ]?.trim() ||
-                                                                                                        isReplying[
-                                                                                                            comment
-                                                                                                                ._id
-                                                                                                        ]
-                                                                                                            ? "bg-blue-300 cursor-not-allowed"
-                                                                                                            : "bg-blue-500 hover:bg-blue-600"
-                                                                                                    } text-white transition-colors`}
-                                                                                                    disabled={
-                                                                                                        !replyContent[
-                                                                                                            comment
-                                                                                                                ._id
-                                                                                                        ]?.trim() ||
-                                                                                                        isReplying[
-                                                                                                            comment
-                                                                                                                ._id
-                                                                                                        ]
-                                                                                                    }
-                                                                                                >
-                                                                                                    {isReplying[
-                                                                                                        comment
-                                                                                                            ._id
-                                                                                                    ] ? (
-                                                                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                                                                    ) : (
-                                                                                                        "Reply"
-                                                                                                    )}
-                                                                                                </button>
+                                                                                                        ] ? (
+                                                                                                            <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin "></span>
+                                                                                                        ) : (
+                                                                                                            "Post"
+                                                                                                        )}
+                                                                                                    </button>
+                                                                                                </div>
                                                                                             </div>
-                                                                                        </form>
+                                                                                        </div>
                                                                                     </div>
                                                                                 )}
 

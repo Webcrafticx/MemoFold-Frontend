@@ -593,19 +593,19 @@ const ProfilePage = () => {
     };
 
     // Reply handlers - UPDATED
-    const handleToggleReplyInput = (inputKey) => {
-        setCommentState((prev) => ({
-            ...prev,
-            activeReplyInputs: {
-                ...prev.activeReplyInputs,
-                [inputKey]: !prev.activeReplyInputs[inputKey],
-            },
-            replyContent: {
-                ...prev.replyContent,
-                [inputKey]: prev.replyContent[inputKey] || "",
-            },
-        }));
-    };
+   // ✅ FIXED: Updated toggleReplyInput function to close other inputs
+const handleToggleReplyInput = (inputKey, closeOthers = true) => {
+    setCommentState((prev) => ({
+        ...prev,
+        activeReplyInputs: closeOthers 
+            ? { [inputKey]: !prev.activeReplyInputs[inputKey] } // Close all others, open only this one
+            : { ...prev.activeReplyInputs, [inputKey]: !prev.activeReplyInputs[inputKey] }, // Toggle only this one
+        replyContent: {
+            ...prev.replyContent,
+            [inputKey]: prev.replyContent[inputKey] || "",
+        },
+    }));
+};
 
     const handleReplySubmit = async (
         postId,
