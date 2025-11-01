@@ -117,7 +117,7 @@ const ProfilePage = () => {
         isLoadingMore: false,
     });
 
-    // ✅ ADDED: Confirmation modal states
+    // ✅ UPDATED: Confirmation modal states
     const [confirmationModal, setConfirmationModal] = useState({
         isOpen: false,
         type: "", // 'post', 'comment', 'reply'
@@ -530,7 +530,7 @@ const ProfilePage = () => {
     };
 
     // ✅ UPDATED: Comment deletion with modal
-    const handleDeleteComment = async (commentId, postId) => {
+    const handleDeleteComment = (commentId, postId) => {
         setConfirmationModal({
             isOpen: true,
             type: "comment",
@@ -583,29 +583,26 @@ const ProfilePage = () => {
                 await handleToggleCommentDropdown(postId);
             }
 
-            // toast.success("Comment deleted successfully!");
             handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting comment:", error);
-            // toast.error("Unable to delete comment.");
             setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
     // Reply handlers - UPDATED
-   // ✅ FIXED: Updated toggleReplyInput function to close other inputs
-const handleToggleReplyInput = (inputKey, closeOthers = true) => {
-    setCommentState((prev) => ({
-        ...prev,
-        activeReplyInputs: closeOthers 
-            ? { [inputKey]: !prev.activeReplyInputs[inputKey] } // Close all others, open only this one
-            : { ...prev.activeReplyInputs, [inputKey]: !prev.activeReplyInputs[inputKey] }, // Toggle only this one
-        replyContent: {
-            ...prev.replyContent,
-            [inputKey]: prev.replyContent[inputKey] || "",
-        },
-    }));
-};
+    const handleToggleReplyInput = (inputKey, closeOthers = true) => {
+        setCommentState((prev) => ({
+            ...prev,
+            activeReplyInputs: closeOthers 
+                ? { [inputKey]: !prev.activeReplyInputs[inputKey] } // Close all others, open only this one
+                : { ...prev.activeReplyInputs, [inputKey]: !prev.activeReplyInputs[inputKey] }, // Toggle only this one
+            replyContent: {
+                ...prev.replyContent,
+                [inputKey]: prev.replyContent[inputKey] || "",
+            },
+        }));
+    };
 
     const handleReplySubmit = async (
         postId,
@@ -1013,7 +1010,7 @@ const handleToggleReplyInput = (inputKey, closeOthers = true) => {
     };
 
     // ✅ UPDATED: Reply deletion with modal
-    const handleDeleteReply = async (replyId, commentId) => {
+    const handleDeleteReply = (replyId, commentId) => {
         setConfirmationModal({
             isOpen: true,
             type: "reply",
@@ -1058,11 +1055,9 @@ const handleToggleReplyInput = (inputKey, closeOthers = true) => {
                 })),
             }));
 
-            // toast.success("Reply deleted successfully!");
             handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting reply:", error);
-            // toast.error("Unable to delete reply.");
             setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
@@ -1433,16 +1428,14 @@ const handleToggleReplyInput = (inputKey, closeOthers = true) => {
             delete storedLikes[postId];
             localStorage.setItem("postLikes", JSON.stringify(storedLikes));
 
-            // toast.success("Post deleted successfully!");
             handleCloseConfirmationModal();
         } catch (error) {
             console.error("Error deleting post:", error);
-            // toast.error("Unable to delete post.");
             setConfirmationModal((prev) => ({ ...prev, isLoading: false }));
         }
     };
 
-    // ✅ ADDED: Unified confirmation handler
+    // ✅ UPDATED: Unified confirmation handler
     const handleConfirmDelete = async () => {
         const { type, id, postId, commentId } = confirmationModal;
 
