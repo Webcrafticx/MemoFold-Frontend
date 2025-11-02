@@ -33,6 +33,8 @@ const ProfilePostCard = ({
     onSetCommentContent,
     isCommenting,
     onDeleteComment,
+    onLikeComment,
+    isLikingComment,
     isFetchingComments,
     token,
     // Likes modal prop
@@ -341,44 +343,6 @@ const ProfilePostCard = ({
                         </button>
                     </div>
                 )}
-
-                {/* Edit mode mein Save/Cancel buttons */}
-                {isEditing && (
-                    <div className="flex items-center space-x-2">
-                        <button
-                            onClick={handleUpdateClick}
-                            disabled={isUpdatingPost}
-                            className={`p-2 rounded-full ${
-                                isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-100"
-                            } cursor-pointer ${
-                                isUpdatingPost
-                                    ? "opacity-50 cursor-not-allowed"
-                                    : ""
-                            }`}
-                            title="Save changes"
-                        >
-                            <FaCheck className="text-green-500 text-sm" />
-                        </button>
-                        <button
-                            onClick={handleCancelClick}
-                            disabled={isUpdatingPost}
-                            className={`p-2 rounded-full ${
-                                isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-100"
-                            } cursor-pointer ${
-                                isUpdatingPost
-                                    ? "opacity-50 cursor-not-allowed"
-                                    : ""
-                            }`}
-                            title="Cancel edit"
-                        >
-                            <FaTimes className="text-gray-500 text-sm" />
-                        </button>
-                    </div>
-                )}
             </div>
 
             {/* Post Content - Edit Mode */}
@@ -643,6 +607,8 @@ const ProfilePostCard = ({
                     onDeleteComment={onDeleteComment}
                     navigateToUserProfile={navigateToUserProfile}
                     formatDate={formatDate}
+                    onLikeComment={onLikeComment}
+                    isLikingComment={isLikingComment}
                     // Reply functionality props
                     activeReplyInputs={activeReplyInputs}
                     replyContent={replyContent}

@@ -431,6 +431,7 @@ const Navbar = ({ onDarkModeChange }) => {
 
             <NotificationModal
                 showModal={showNotificationModal}
+                unreadNotifications={unreadNotifications}
                 onClose={handleNotificationModalClose}
                 darkMode={darkMode}
             />
