@@ -60,7 +60,7 @@ const handleApiError = (error, defaultMessage = "Something went wrong") => {
 const ProfilePage = () => {
     // State management
     const [profileData, setProfileData] = useState({
-        profilePic: "https://ui-avatars.com/api/?name=User&background=random",
+        profilePic: "",
         username: "",
         realName: "",
         email: "",
@@ -154,6 +154,187 @@ const ProfilePage = () => {
         };
     }, []);
 
+    // State में add करें:
+    const [isLikingComment, setIsLikingComment] = useState({});
+
+    // Comment like handler function:
+    const handleLikeComment = async (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const token = localStorage.getItem("token");
+        const currentUserId = localStorage.getItem("userId");
+        const currentUsername = localStorage.getItem("username");
+
+        if (!currentUsername || !currentUserId) {
+            toast.error("You must be logged in to like comments");
+            return;
+        }
+
+        setIsLikingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        try {
+            // Find the current comment state for optimistic update
+            const currentPost = profileData.posts.find(
+                (post) => post._id === postId
+            );
+            const currentComment = currentPost?.comments?.find(
+                (comment) => comment._id === commentId
+            );
+
+            if (!currentComment) {
+                throw new Error("Comment not found");
+            }
+
+            const isCurrentlyLiked = currentComment.hasUserLiked;
+            const currentLikes = currentComment.likes || [];
+
+            // Optimistic update
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    let updatedLikes;
+
+                                    if (isCurrentlyLiked) {
+                                        // Unlike - remove user from likes
+                                        updatedLikes = currentLikes.filter(
+                                            (likeUserId) =>
+                                                likeUserId !== currentUserId
+                                        );
+                                    } else {
+                                        // Like - add user to likes
+                                        updatedLikes = [
+                                            ...currentLikes,
+                                            currentUserId,
+                                        ];
+                                    }
+
+                                    // ✅ UPDATE LOCAL STORAGE
+                                    const storedCommentLikes = JSON.parse(
+                                        localStorage.getItem("commentLikes") ||
+                                            "{}"
+                                    );
+                                    storedCommentLikes[commentId] =
+                                        updatedLikes;
+                                    localStorage.setItem(
+                                        "commentLikes",
+                                        JSON.stringify(storedCommentLikes)
+                                    );
+
+                                    return {
+                                        ...comment,
+                                        likes: updatedLikes,
+                                        hasUserLiked: !isCurrentlyLiked,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return { ...post, comments: updatedComments };
+                    }
+                    return post;
+                }),
+            }));
+
+            // API call
+            const response = await apiService.likeComment(
+                commentId,
+                currentUserId,
+                token
+            );
+
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to like comment");
+            }
+
+            // Final update with server data if available
+            if (response.likes !== undefined) {
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: prev.posts.map((post) => {
+                        if (post._id === postId) {
+                            const updatedComments = post.comments?.map(
+                                (comment) => {
+                                    if (comment._id === commentId) {
+                                        // ✅ UPDATE LOCAL STORAGE WITH SERVER DATA
+                                        const storedCommentLikes = JSON.parse(
+                                            localStorage.getItem(
+                                                "commentLikes"
+                                            ) || "{}"
+                                        );
+                                        storedCommentLikes[commentId] =
+                                            response.likes;
+                                        localStorage.setItem(
+                                            "commentLikes",
+                                            JSON.stringify(storedCommentLikes)
+                                        );
+
+                                        return {
+                                            ...comment,
+                                            likes: response.likes,
+                                            hasUserLiked:
+                                                response.likes.includes(
+                                                    currentUserId
+                                                ),
+                                        };
+                                    }
+                                    return comment;
+                                }
+                            );
+
+                            return { ...post, comments: updatedComments };
+                        }
+                        return post;
+                    }),
+                }));
+            }
+        } catch (error) {
+            console.error("Error liking comment:", error);
+
+            // Revert optimistic update on error
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    // ✅ REVERT LOCAL STORAGE ON ERROR
+                                    const storedCommentLikes = JSON.parse(
+                                        localStorage.getItem("commentLikes") ||
+                                            "{}"
+                                    );
+                                    storedCommentLikes[commentId] =
+                                        currentComment.likes || [];
+                                    localStorage.setItem(
+                                        "commentLikes",
+                                        JSON.stringify(storedCommentLikes)
+                                    );
+
+                                    return currentComment;
+                                }
+                                return comment;
+                            }
+                        );
+
+                        return { ...post, comments: updatedComments };
+                    }
+                    return post;
+                }),
+            }));
+
+            toast.error("Unable to like comment.");
+        } finally {
+            setIsLikingComment((prev) => ({ ...prev, [commentId]: false }));
+        }
+    };
     const initializeApp = async () => {
         const token = localStorage.getItem("token");
         if (!token) {
@@ -203,9 +384,7 @@ const ProfilePage = () => {
             // Set profile data from API response only
             setProfileData((prev) => ({
                 ...prev,
-                profilePic:
-                    userData.profilePic ||
-                    "https://ui-avatars.com/api/?name=User&background=random",
+                profilePic: userData.profilePic,
                 username: userData.username || "",
                 realName: userData.realname || "",
                 email: userData.email || "",
@@ -252,9 +431,7 @@ const ProfilePage = () => {
             // Update profile data from API
             setProfileData((prev) => ({
                 ...prev,
-                profilePic:
-                    userData.profilePic ||
-                    "https://ui-avatars.com/api/?name=User&background=random",
+                profilePic: userData.profilePic,
                 username: userData.username || "",
                 realName: userData.realname || "",
             }));
@@ -435,12 +612,26 @@ const ProfilePage = () => {
             // ✅ USE THE COUNT FROM API RESPONSE, NOT comments.length
             const commentCount = responseData.count || comments.length;
 
-            const commentsWithReplies = comments.map((comment) => ({
-                ...comment,
-                replies: comment.replies || [],
-                showReplies: false,
-                replyCount: comment.replyCount || comment.replies?.length || 0,
-            }));
+            // handleToggleCommentDropdown function में comments process करते समय
+            const commentsWithReplies = comments.map((comment) => {
+                // ✅ LOAD LIKES FROM LOCALSTORAGE
+                const storedCommentLikes = JSON.parse(
+                    localStorage.getItem("commentLikes") || "{}"
+                );
+                const commentLikes =
+                    storedCommentLikes[comment._id] || comment.likes || [];
+                const currentUserId = localStorage.getItem("userId");
+
+                return {
+                    ...comment,
+                    replies: comment.replies || [],
+                    showReplies: false,
+                    replyCount:
+                        comment.replyCount || comment.replies?.length || 0,
+                    likes: commentLikes,
+                    hasUserLiked: commentLikes.includes(currentUserId),
+                };
+            });
 
             setProfileData((prev) => ({
                 ...prev,
@@ -594,9 +785,12 @@ const ProfilePage = () => {
     const handleToggleReplyInput = (inputKey, closeOthers = true) => {
         setCommentState((prev) => ({
             ...prev,
-            activeReplyInputs: closeOthers 
+            activeReplyInputs: closeOthers
                 ? { [inputKey]: !prev.activeReplyInputs[inputKey] } // Close all others, open only this one
-                : { ...prev.activeReplyInputs, [inputKey]: !prev.activeReplyInputs[inputKey] }, // Toggle only this one
+                : {
+                      ...prev.activeReplyInputs,
+                      [inputKey]: !prev.activeReplyInputs[inputKey],
+                  }, // Toggle only this one
             replyContent: {
                 ...prev.replyContent,
                 [inputKey]: prev.replyContent[inputKey] || "",
@@ -844,11 +1038,7 @@ const ProfilePage = () => {
                 // CORRECT MAPPING - Use profilepic (small p) from API
                 const replies = (response.replies || []).map((reply) => {
                     // Profile picture API se aa raha hai reply.user.profilepic mein
-                    const profilePic =
-                        reply.user?.profilepic ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            reply.user?.username || "Unknown"
-                        )}&background=random`;
+                    const profilePic = reply.user?.profilepic;
 
                     const username = reply.user?.username || "unknown";
                     const realname = reply.user?.realname || username;
@@ -1668,6 +1858,7 @@ const ProfilePage = () => {
                                         onUpdatePost={handleUpdatePost}
                                         onCancelEdit={handleCancelEdit}
                                         onDeletePost={handleDeletePostClick}
+                                        onLikeComment={handleLikeComment}
                                         onImagePreview={(image) =>
                                             setUiState((prev) => ({
                                                 ...prev,

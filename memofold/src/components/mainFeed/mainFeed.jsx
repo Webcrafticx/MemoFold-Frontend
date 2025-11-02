@@ -66,6 +66,12 @@ const MainFeed = () => {
     const [activeReplies, setActiveReplies] = useState(() => {
         return localStorageService.getActiveReplies() || {};
     });
+    useEffect(() => {
+        // Reset all reply visibility on page load
+        setActiveReplies({});
+        localStorageService.setActiveReplies({});
+    }, []);
+
     const [replyContent, setReplyContent] = useState({});
     const [isReplying, setIsReplying] = useState({});
     const [isLikingReply, setIsLikingReply] = useState({});
@@ -416,19 +422,19 @@ const MainFeed = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, [isLoadingMore, hasMore, nextCursor, loadMorePosts]);
 
-    useEffect(() => {
-        const storedActiveReplies = localStorageService.getActiveReplies();
-        if (
-            storedActiveReplies &&
-            Object.keys(storedActiveReplies).length > 0
-        ) {
-            setActiveReplies(storedActiveReplies);
-        }
-    }, []);
+    // useEffect(() => {
+    //     const storedActiveReplies = localStorageService.getActiveReplies();
+    //     if (
+    //         storedActiveReplies &&
+    //         Object.keys(storedActiveReplies).length > 0
+    //     ) {
+    //         setActiveReplies(storedActiveReplies);
+    //     }
+    // }, []);
 
-    useEffect(() => {
-        localStorageService.setActiveReplies(activeReplies);
-    }, [activeReplies]);
+    // useEffect(() => {
+    //     localStorageService.setActiveReplies(activeReplies);
+    // }, [activeReplies]);
 
     const fetchCurrentUserProfile = async () => {
         try {
@@ -822,11 +828,31 @@ const MainFeed = () => {
             e.stopPropagation();
         }
 
+        // ✅ Step 1: Fetch comments if opening new post
         if (activeCommentPostId !== postId) {
             await fetchComments(postId);
         }
 
+        // ✅ Step 2: Collapse all replies globally
+        setPosts((prevPosts) =>
+            prevPosts.map((post) => ({
+                ...post,
+                comments:
+                    post.comments?.map((comment) => ({
+                        ...comment,
+                        showReplies: false,
+                    })) || [],
+            }))
+        );
+
+        // ✅ Step 3: Clear reply state completely
+        setActiveReplies({});
+        localStorageService.setActiveReplies({});
+
+        // ✅ Step 4: Toggle the comment dropdown
         setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
+
+        // ✅ Step 5: Maintain comment input state
         setCommentContent((prev) => ({
             ...prev,
             [postId]: prev[postId] || "",
@@ -1005,13 +1031,13 @@ const MainFeed = () => {
             if (closeOthers) {
                 // Close all other inputs and open only this one
                 return {
-                    [inputKey]: !prev[inputKey]
+                    [inputKey]: !prev[inputKey],
                 };
             } else {
                 // Toggle only this specific input (for cancel button)
                 return {
                     ...prev,
-                    [inputKey]: !prev[inputKey]
+                    [inputKey]: !prev[inputKey],
                 };
             }
         });

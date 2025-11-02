@@ -259,7 +259,7 @@ const ReplyItem = ({
                                     placeholder={`Reply to ${replyUsername}...`}
                                     value={currentReplyContent || ""}
                                     onChange={handleInputChange}
-                                    onKeyPress={handleInputKeyPress}
+                                    onKeyDownPress={handleInputKeyPress}
                                 />
                                 <div className="flex space-x-2 self-end sm:self-auto">
                                     <button

@@ -259,7 +259,9 @@ const CommentItem = ({
                                         isCurrentlyReplying
                                     }
                                 >
-                                    {isCurrentlyReplying ? "Posting..." : "Post"}
+                                    {isCurrentlyReplying
+                                        ? "Posting..."
+                                        : "Post"}
                                 </button>
                                 <button
                                     onClick={handleToggleReply}

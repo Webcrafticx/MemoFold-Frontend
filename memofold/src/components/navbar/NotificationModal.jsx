@@ -17,7 +17,12 @@ import {
     FaSpinner,
 } from "react-icons/fa";
 
-const NotificationModal = ({ showModal, onClose, darkMode }) => {
+const NotificationModal = ({
+    showModal,
+    onClose,
+    darkMode,
+    unreadNotifications,
+}) => {
     const [notifications, setNotifications] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -535,9 +540,11 @@ const NotificationModal = ({ showModal, onClose, darkMode }) => {
                                 Notifications
                             </h3>
                         </div>
-                        {unreadCount > 0 && (
+                        {unreadNotifications > 0 && (
                             <span className="bg-red-500 text-white text-xs font-medium rounded-full px-2 py-1 min-w-[20px] text-center cursor-default">
-                                {unreadCount > 99 ? "99+" : unreadCount}
+                                {unreadNotifications > 99
+                                    ? "99+"
+                                    : unreadNotifications}{" "}
                             </span>
                         )}
                     </div>

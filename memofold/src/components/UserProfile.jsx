@@ -302,7 +302,6 @@ const UserProfile = () => {
             );
 
             await apiService.deleteReply(replyId, token);
-
         } catch (err) {
             console.error("Error deleting reply:", err);
             setError(err.message);
@@ -1108,7 +1107,9 @@ const UserProfile = () => {
         }
 
         // Toggle current reply input
-        setActiveReplyInput(activeReplyInput === contentKey ? null : contentKey);
+        setActiveReplyInput(
+            activeReplyInput === contentKey ? null : contentKey
+        );
         setReplyContent((prev) => {
             if (prev[contentKey] === undefined) {
                 return {
@@ -1548,7 +1549,7 @@ const UserProfile = () => {
                 const value = e.target.value;
                 setLocalInputValue(value);
             };
-            
+
             const handleSubmit = (e) => {
                 e.preventDefault();
 
@@ -1576,8 +1577,10 @@ const UserProfile = () => {
 
             // Safe user data access
             const replyUser = reply?.userId || reply?.user || {};
-            const replyUsername = replyUser?.username || reply?.username || "Unknown";
-            const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic;
+            const replyUsername =
+                replyUser?.username || reply?.username || "Unknown";
+            const replyUserProfilePic =
+                replyUser?.profilePic || reply?.profilePic;
             const replyUserId = replyUser?._id || replyUser?.id || "unknown";
 
             // Check if current user can delete reply
@@ -1612,7 +1615,8 @@ const UserProfile = () => {
                                 />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs">
-                                    {replyUsername?.charAt(0).toUpperCase() || "U"}
+                                    {replyUsername?.charAt(0).toUpperCase() ||
+                                        "U"}
                                 </div>
                             )}
                         </div>
@@ -1622,7 +1626,10 @@ const UserProfile = () => {
                                     className="font-semibold text-xs hover:text-blue-500 cursor-pointer truncate"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (replyUserId === currentUserProfile?._id) {
+                                        if (
+                                            replyUserId ===
+                                            currentUserProfile?._id
+                                        ) {
                                             navigate("/profile");
                                         } else {
                                             navigate(`/user/${replyUserId}`);
@@ -1633,7 +1640,9 @@ const UserProfile = () => {
                                 </span>
                                 <span
                                     className={`text-xs ${
-                                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                                        isDarkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
                                     } whitespace-nowrap`}
                                 >
                                     {formatDate(reply.createdAt)}
@@ -1641,7 +1650,9 @@ const UserProfile = () => {
                             </div>
                             <p
                                 className={`text-xs whitespace-pre-line mt-1 break-words ${
-                                    isDarkMode ? "text-gray-200" : "text-gray-700"
+                                    isDarkMode
+                                        ? "text-gray-200"
+                                        : "text-gray-700"
                                 }`}
                             >
                                 {reply.content}
@@ -1667,13 +1678,17 @@ const UserProfile = () => {
                                     ) : (
                                         <FaRegHeart
                                             className={`text-xs ${
-                                                isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                isDarkMode
+                                                    ? "text-gray-400"
+                                                    : "text-gray-500"
                                             }`}
                                         />
                                     )}
                                     <span
                                         className={`text-xs ${
-                                            isDarkMode ? "text-gray-400" : "text-gray-600"
+                                            isDarkMode
+                                                ? "text-gray-400"
+                                                : "text-gray-600"
                                         }`}
                                     >
                                         {reply.likes?.length || 0}
@@ -1707,7 +1722,9 @@ const UserProfile = () => {
                                                     e
                                                 )
                                             }
-                                            disabled={isDeletingReply[reply._id]}
+                                            disabled={
+                                                isDeletingReply[reply._id]
+                                            }
                                             title="Delete reply"
                                         >
                                             {isDeletingReply[reply._id] ? (
@@ -1722,77 +1739,87 @@ const UserProfile = () => {
 
                             {/* Reply Input for Reply with PROFILE AVATAR and POST BUTTON FIRST */}
                             {activeReplyInput === contentKey && (
-                                <div className="mt-2">
-                                    <div className="flex items-start space-x-2">
-                                        {/* Profile Avatar */}
+                                <div className="mt-2 ml-0 sm:ml-2">
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                        {/* Profile Avatar
                                         <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 flex-shrink-0">
-                                            {currentUserProfile?.profilePic || user?.profilePic ? (
+                                            {currentUserProfile?.profilePic ||
+                                            user?.profilePic ? (
                                                 <img
-                                                    src={currentUserProfile?.profilePic || user?.profilePic}
+                                                    src={
+                                                        currentUserProfile?.profilePic ||
+                                                        user?.profilePic
+                                                    }
                                                     alt={username}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
-                                                        e.target.style.display = "none";
+                                                        e.target.style.display =
+                                                            "none";
                                                     }}
                                                 />
                                             ) : null}
                                             <div
                                                 className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                                                    currentUserProfile?.profilePic || user?.profilePic
+                                                    currentUserProfile?.profilePic ||
+                                                    user?.profilePic
                                                         ? "hidden"
                                                         : "flex"
                                                 }`}
                                             >
-                                                {username?.charAt(0).toUpperCase() || "U"}
+                                                {username
+                                                    ?.charAt(0)
+                                                    .toUpperCase() || "U"}
                                             </div>
-                                        </div>
-                                        
-                                        <div className="flex-1">
-                                            <input
-                                                type="text"
-                                                className={`w-full px-3 py-1 rounded-full text-xs border ${
+                                        </div> */}
+
+                                        <input
+                                            type="text"
+                                            className={`w-full px-3 py-1 rounded-full text-xs border ${
+                                                isDarkMode
+                                                    ? "bg-gray-700 border-gray-600 text-white"
+                                                    : "bg-white border-gray-300 text-gray-800"
+                                            } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                            placeholder={`Reply to ${replyUsername}...`}
+                                            value={localInputValue}
+                                            onChange={handleInputChange}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    handleSubmit(e);
+                                                }
+                                            }}
+                                        />
+                                        {/* BUTTONS: Post first, then Cancel */}
+                                        <div className="flex space-x-2 self-end sm:self-auto">
+                                            <button
+                                                onClick={handleSubmit}
+                                                className={`px-3 py-1 rounded-full text-xs ${
+                                                    !localInputValue.trim() ||
+                                                    isReplying[contentKey]
+                                                        ? "bg-blue-300 cursor-not-allowed"
+                                                        : "bg-blue-500 hover:bg-blue-600 text-white"
+                                                } transition-colors`}
+                                                disabled={
+                                                    !localInputValue.trim() ||
+                                                    isReplying[contentKey]
+                                                }
+                                            >
+                                                {isReplying[contentKey] ? (
+                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    "Post"
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={handleCancel}
+                                                className={`px-3 py-1 rounded-full text-xs ${
                                                     isDarkMode
-                                                        ? "bg-gray-700 border-gray-600 text-white"
-                                                        : "bg-white border-gray-300 text-gray-800"
-                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                placeholder={`Reply to ${replyUsername}...`}
-                                                value={localInputValue}
-                                                onChange={handleInputChange}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") {
-                                                        e.preventDefault();
-                                                        handleSubmit(e);
-                                                    }
-                                                }}
-                                            />
-                                            {/* BUTTONS: Post first, then Cancel */}
-                                            <div className="flex space-x-2 mt-2 justify-end">
-                                                <button
-                                                    onClick={handleSubmit}
-                                                    className={`px-3 py-1 rounded-full text-xs ${
-                                                        !localInputValue.trim() || isReplying[contentKey]
-                                                            ? "bg-blue-300 cursor-not-allowed"
-                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
-                                                    } transition-colors`}
-                                                    disabled={!localInputValue.trim() || isReplying[contentKey]}
-                                                >
-                                                    {isReplying[contentKey] ? (
-                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                    ) : (
-                                                        "Post"
-                                                    )}
-                                                </button>
-                                                <button
-                                                    onClick={handleCancel}
-                                                    className={`px-3 py-1 rounded-full text-xs ${
-                                                        isDarkMode
-                                                            ? "bg-gray-600 hover:bg-gray-500 text-white"
-                                                            : "bg-gray-300 hover:bg-gray-400 text-gray-700"
-                                                    } transition-colors cursor-pointer`}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
+                                                        ? "bg-gray-600 hover:bg-gray-500 text-white"
+                                                        : "bg-gray-300 hover:bg-gray-400 text-gray-700"
+                                                } transition-colors cursor-pointer`}
+                                            >
+                                                Cancel
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -2697,14 +2724,14 @@ const UserProfile = () => {
                                                                                             <button
                                                                                                 className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer text-xs flex items-center space-x-1"
                                                                                                 onClick={(
-                                                                                                e
-                                                                                            ) =>
-                                                                                                toggleReplies(
-                                                                                                    comment._id,
-                                                                                                    post._id,
                                                                                                     e
-                                                                                                )
-                                                                                            }
+                                                                                                ) =>
+                                                                                                    toggleReplies(
+                                                                                                        comment._id,
+                                                                                                        post._id,
+                                                                                                        e
+                                                                                                    )
+                                                                                                }
                                                                                                 title={
                                                                                                     activeReplies[
                                                                                                         comment
@@ -2733,11 +2760,12 @@ const UserProfile = () => {
                                                                                 </div>
 
                                                                                 {/* Reply Input for Comment with PROFILE AVATAR and POST BUTTON FIRST */}
-                                                                                {activeReplyInput === comment._id && (
-                                                                                    <div className="mt-2">
-                                                                                        <div className="flex items-start space-x-2">
+                                                                                {activeReplyInput ===
+                                                                                    comment._id && (
+                                                                                    <div className="mt-2 ml-0 sm:ml-2">
+                                                                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                                                                             {/* Profile Avatar */}
-                                                                                            <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 flex-shrink-0">
+                                                                                            {/* <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 flex-shrink-0">
                                                                                                 {currentUserProfile?.profilePic ||
                                                                                                 user?.profilePic ? (
                                                                                                     <img
@@ -2772,116 +2800,113 @@ const UserProfile = () => {
                                                                                                         .toUpperCase() ||
                                                                                                         "U"}
                                                                                                 </div>
-                                                                                            </div>
-                                                                                            
-                                                                                            <div className="flex-1">
-                                                                                                <input
-                                                                                                    type="text"
-                                                                                                    className={`w-full px-3 py-1 rounded-full text-xs border ${
-                                                                                                        isDarkMode
-                                                                                                            ? "bg-gray-700 border-gray-600 text-white"
-                                                                                                            : "bg-white border-gray-300"
-                                                                                                    } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                                                    placeholder="Write a reply..."
-                                                                                                    value={
-                                                                                                        replyContent[
-                                                                                                            comment
-                                                                                                                ._id
-                                                                                                        ] ||
-                                                                                                        ""
+                                                                                            </div> */}
+
+                                                                                            <input
+                                                                                                type="text"
+                                                                                                className={`w-full px-3 py-1 rounded-full text-xs border ${
+                                                                                                    isDarkMode
+                                                                                                        ? "bg-gray-700 border-gray-600 text-white"
+                                                                                                        : "bg-white border-gray-300"
+                                                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                                                placeholder="Write a reply..."
+                                                                                                value={
+                                                                                                    replyContent[
+                                                                                                        comment
+                                                                                                            ._id
+                                                                                                    ] ||
+                                                                                                    ""
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    setReplyContent(
+                                                                                                        {
+                                                                                                            ...replyContent,
+                                                                                                            [comment._id]:
+                                                                                                                e
+                                                                                                                    .target
+                                                                                                                    .value,
+                                                                                                        }
+                                                                                                    )
+                                                                                                }
+                                                                                                onKeyDown={(
+                                                                                                    e
+                                                                                                ) => {
+                                                                                                    if (
+                                                                                                        e.key ===
+                                                                                                        "Enter"
+                                                                                                    ) {
+                                                                                                        e.preventDefault();
+                                                                                                        handleAddReply(
+                                                                                                            comment._id,
+                                                                                                            post._id,
+                                                                                                            e
+                                                                                                        );
                                                                                                     }
-                                                                                                    onChange={(
+                                                                                                }}
+                                                                                            />
+                                                                                            <div className="flex space-x-2 self-end sm:self-auto">
+                                                                                                <button
+                                                                                                    onClick={(
                                                                                                         e
                                                                                                     ) =>
-                                                                                                        setReplyContent(
-                                                                                                            {
-                                                                                                                ...replyContent,
-                                                                                                                [comment._id]:
-                                                                                                                    e
-                                                                                                                        .target
-                                                                                                                        .value,
-                                                                                                            }
+                                                                                                        handleAddReply(
+                                                                                                            comment._id,
+                                                                                                            post._id,
+                                                                                                            e
                                                                                                         )
                                                                                                     }
-                                                                                                    onKeyDown={(
-                                                                                                        e
-                                                                                                    ) => {
-                                                                                                        if (
-                                                                                                            e.key ===
-                                                                                                            "Enter"
-                                                                                                        ) {
-                                                                                                            e.preventDefault();
-                                                                                                            handleAddReply(
-                                                                                                                comment._id,
-                                                                                                                post._id,
-                                                                                                                e
-                                                                                                            );
-                                                                                                        }
-                                                                                                    }}
-                                                                                                />
-                                                                                                {/* BUTTONS: Post first, then Cancel */}
-                                                                                                <div className="flex space-x-2 mt-2 justify-end">
-                                                                                                    <button
-                                                                                                        onClick={(
-                                                                                                            e
-                                                                                                        ) =>
-                                                                                                            handleAddReply(
-                                                                                                                comment._id,
-                                                                                                                post._id,
-                                                                                                                e
-                                                                                                            )
-                                                                                                        }
-                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
-                                                                                                            !replyContent[
-                                                                                                                comment
-                                                                                                                    ._id
-                                                                                                            ]?.trim() ||
-                                                                                                            isReplying[
-                                                                                                                comment
-                                                                                                                    ._id
-                                                                                                            ]
-                                                                                                                ? "bg-blue-300 cursor-not-allowed"
-                                                                                                                : "bg-blue-500 hover:bg-blue-600 text-white"
-                                                                                                        } transition-colors cursor-pointer`}
-                                                                                                        disabled={
-                                                                                                            !replyContent[
-                                                                                                                comment
-                                                                                                                    ._id
-                                                                                                            ]?.trim() ||
-                                                                                                            isReplying[
-                                                                                                                comment
-                                                                                                                    ._id
-                                                                                                            ]
-                                                                                                        }
-                                                                                                    >
-                                                                                                        {isReplying[
+                                                                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                        !replyContent[
                                                                                                             comment
                                                                                                                 ._id
-                                                                                                        ] ? (
-                                                                                                            <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin "></span>
-                                                                                                        ) : (
-                                                                                                            "Post"
-                                                                                                        )}
-                                                                                                    </button>
-                                                                                                    <button
-                                                                                                        onClick={(
+                                                                                                        ]?.trim() ||
+                                                                                                        isReplying[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]
+                                                                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                                                                                                    } transition-colors cursor-pointer`}
+                                                                                                    disabled={
+                                                                                                        !replyContent[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]?.trim() ||
+                                                                                                        isReplying[
+                                                                                                            comment
+                                                                                                                ._id
+                                                                                                        ]
+                                                                                                    }
+                                                                                                >
+                                                                                                    {isReplying[
+                                                                                                        comment
+                                                                                                            ._id
+                                                                                                    ] ? (
+                                                                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin "></span>
+                                                                                                    ) : (
+                                                                                                        "Post"
+                                                                                                    )}
+                                                                                                </button>
+                                                                                                <button
+                                                                                                    onClick={(
+                                                                                                        e
+                                                                                                    ) =>
+                                                                                                        toggleReplyInput(
+                                                                                                            comment._id,
+                                                                                                            post._id,
                                                                                                             e
-                                                                                                        ) =>
-                                                                                                            toggleReplyInput(
-                                                                                                                comment._id,
-                                                                                                                post._id,
-                                                                                                                e
-                                                                                                            )
-                                                                                                        }
-                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
-                                                                                                            isDarkMode
-                                                                                                                ? "bg-gray-600 hover:bg-gray-500 text-white"
-                                                                                                                : "bg-gray-300 hover:bg-gray-400 text-gray-700"
-                                                                                                        } transition-colors cursor-pointer`}
-                                                                                                    >
-                                                                                                        Cancel
-                                                                                                    </button>
-                                                                                                </div>
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                        isDarkMode
+                                                                                                            ? "bg-gray-600 hover:bg-gray-500 text-white"
+                                                                                                            : "bg-gray-300 hover:bg-gray-400 text-gray-700"
+                                                                                                    } transition-colors cursor-pointer`}
+                                                                                                >
+                                                                                                    Cancel
+                                                                                                </button>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -2992,7 +3017,7 @@ const UserProfile = () => {
                                                                         "U"}
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             <div className="flex-1 flex space-x-2">
                                                                 <input
                                                                     type="text"
