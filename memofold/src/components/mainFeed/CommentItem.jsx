@@ -232,7 +232,7 @@ const CommentItem = ({
                 {/* ✅ PROFILE-MATCHING: ENHANCED REPLY INPUT - SAME AS PROFILE */}
                 {isReplyInputActive && (
                     <div className="mt-2 ml-2">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             <input
                                 type="text"
                                 className={`flex-1 px-3 py-1 rounded-full text-xs border ${
@@ -245,27 +245,29 @@ const CommentItem = ({
                                 onChange={handleInputChange}
                                 onKeyDown={handleInputKeyPress}
                             />
-                            <button
-                                className={`px-2 py-1 rounded-full cursor-pointer text-xs ${
-                                    !currentReplyContent?.trim() ||
-                                    isCurrentlyReplying
-                                        ? "bg-blue-300 cursor-not-allowed"
-                                        : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                                } text-white transition-colors`}
-                                onClick={handleReplySubmit}
-                                disabled={
-                                    !currentReplyContent?.trim() ||
-                                    isCurrentlyReplying
-                                }
-                            >
-                                {isCurrentlyReplying ? "Posting..." : "Post"}
-                            </button>
-                            <button
-                                onClick={handleToggleReply}
-                                className="px-2 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
-                            >
-                                Cancel
-                            </button>
+                            <div className="flex space-x-2">
+                                <button
+                                    className={`px-3 py-1 rounded-full cursor-pointer text-xs ${
+                                        !currentReplyContent?.trim() ||
+                                        isCurrentlyReplying
+                                            ? "bg-blue-300 cursor-not-allowed"
+                                            : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                                    } text-white transition-colors flex-1`}
+                                    onClick={handleReplySubmit}
+                                    disabled={
+                                        !currentReplyContent?.trim() ||
+                                        isCurrentlyReplying
+                                    }
+                                >
+                                    {isCurrentlyReplying ? "Posting..." : "Post"}
+                                </button>
+                                <button
+                                    onClick={handleToggleReply}
+                                    className="px-3 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer flex-1"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
