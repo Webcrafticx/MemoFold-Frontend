@@ -29,6 +29,7 @@ import LikesModal from "./mainFeed/LikesModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 import FriendButton from "../components/FriendButton";
+import ConfirmationModal from "../common/ConfirmationModal"; // ✅ ADDED
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -57,6 +58,22 @@ const UserProfile = () => {
     const [likesModal, setLikesModal] = useState({
         isOpen: false,
         postId: null,
+    });
+
+    // ✅ ADDED: Confirmation modal states
+    const [deleteCommentModal, setDeleteCommentModal] = useState({
+        isOpen: false,
+        commentId: null,
+        postId: null,
+        commentData: null,
+    });
+
+    const [deleteReplyModal, setDeleteReplyModal] = useState({
+        isOpen: false,
+        replyId: null,
+        commentId: null,
+        postId: null,
+        replyData: null,
     });
 
     const navigateToProfile = (userId) => {
@@ -109,6 +126,208 @@ const UserProfile = () => {
 
     // Track which comment has reply input open
     const [activeReplyInput, setActiveReplyInput] = useState(null);
+
+    // ✅ ADDED: Modal handlers for comment deletion
+    const handleOpenDeleteCommentModal = (commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+
+        if (!post || !comment) {
+            setError("Comment not found");
+            return;
+        }
+
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this comment");
+            return;
+        }
+
+        setDeleteCommentModal({
+            isOpen: true,
+            commentId,
+            postId,
+            commentData: comment,
+        });
+    };
+
+    const handleConfirmDeleteComment = async () => {
+        const { commentId, postId } = deleteCommentModal;
+
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+
+        const originalPosts = [...userPosts];
+
+        try {
+            // Find the actual comment object
+            const post = userPosts.find((p) => p._id === postId);
+            const comment = post?.comments?.find((c) => c._id === commentId);
+            const replyIds = comment?.replies?.map((reply) => reply._id) || [];
+
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments =
+                            post.comments?.filter(
+                                (comment) => comment._id !== commentId
+                            ) || [];
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                            commentCount: Math.max(
+                                0,
+                                (post.commentCount || 1) - 1
+                            ),
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const storedCommentLikes = getStoredCommentLikes();
+            delete storedCommentLikes[commentId];
+            replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(storedCommentLikes)
+            );
+
+            await apiService.deleteComment(commentId, postId, token);
+        } catch (err) {
+            console.error("Error deleting comment:", err);
+            setError(err.message);
+            setUserPosts(originalPosts);
+        } finally {
+            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+            setDeleteCommentModal({
+                isOpen: false,
+                commentId: null,
+                postId: null,
+                commentData: null,
+            });
+        }
+    };
+
+    const handleCloseDeleteCommentModal = () => {
+        setDeleteCommentModal({
+            isOpen: false,
+            commentId: null,
+            postId: null,
+            commentData: null,
+        });
+    };
+
+    // ✅ ADDED: Modal handlers for reply deletion
+    const handleOpenDeleteReplyModal = (replyId, commentId, postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const post = userPosts.find((p) => p._id === postId);
+        const comment = post?.comments?.find((c) => c._id === commentId);
+        const reply = comment?.replies?.find((r) => r._id === replyId);
+
+        if (!post || !comment || !reply) {
+            setError("Reply not found");
+            return;
+        }
+
+        const isReplyOwner = reply.userId?.username === username;
+        const isCommentOwner = comment.userId?.username === username;
+        const isPostOwner = post.userId?.username === username;
+
+        if (!isReplyOwner && !isCommentOwner && !isPostOwner) {
+            setError("You don't have permission to delete this reply");
+            return;
+        }
+
+        setDeleteReplyModal({
+            isOpen: true,
+            replyId,
+            commentId,
+            postId,
+            replyData: reply,
+        });
+    };
+
+    const handleConfirmDeleteReply = async () => {
+        const { replyId, commentId, postId } = deleteReplyModal;
+
+        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        const originalPosts = [...userPosts];
+
+        try {
+            setUserPosts(
+                userPosts.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments = post.comments?.map(
+                            (comment) => {
+                                if (comment._id === commentId) {
+                                    const updatedReplies =
+                                        comment.replies?.filter(
+                                            (reply) => reply._id !== replyId
+                                        ) || [];
+                                    return {
+                                        ...comment,
+                                        replies: updatedReplies,
+                                        replyCount: updatedReplies.length,
+                                    };
+                                }
+                                return comment;
+                            }
+                        );
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                        };
+                    }
+                    return post;
+                })
+            );
+
+            const storedReplyLikes = getStoredReplyLikes();
+            delete storedReplyLikes[replyId];
+            localStorage.setItem(
+                "replyLikes",
+                JSON.stringify(storedReplyLikes)
+            );
+
+            await apiService.deleteReply(replyId, token);
+
+        } catch (err) {
+            console.error("Error deleting reply:", err);
+            setError(err.message);
+            setUserPosts(originalPosts);
+        } finally {
+            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
+            setDeleteReplyModal({
+                isOpen: false,
+                replyId: null,
+                commentId: null,
+                postId: null,
+                replyData: null,
+            });
+        }
+    };
+
+    const handleCloseDeleteReplyModal = () => {
+        setDeleteReplyModal({
+            isOpen: false,
+            replyId: null,
+            commentId: null,
+            postId: null,
+            replyData: null,
+        });
+    };
 
     // Save activeReplies to localStorage whenever it changes
     useEffect(() => {
@@ -299,8 +518,6 @@ const UserProfile = () => {
                         (post) => !existingIds.has(post._id)
                     );
 
-                    // console.log(`📦 Merging ${newPosts.length} new posts with ${prev.length} existing posts`);
-
                     return [...prev, ...newPosts];
                 });
             } else {
@@ -314,11 +531,6 @@ const UserProfile = () => {
                 hasMore: !!data.nextCursor,
                 isLoadingMore: false,
             }));
-
-            // console.log('✅ Pagination updated:', {
-            //     nextCursor: data.nextCursor,
-            //     hasMore: !!data.nextCursor
-            // });
 
             const likesByPost = {};
             postsData.forEach((post) => {
@@ -347,8 +559,6 @@ const UserProfile = () => {
 
     // Scroll handler
     useEffect(() => {
-        // console.log('📜 Scroll handler setup');
-
         const handleScroll = () => {
             const { scrollTop, scrollHeight, clientHeight } =
                 document.documentElement;
@@ -357,21 +567,12 @@ const UserProfile = () => {
             const scrollPosition = scrollTop + clientHeight;
             const threshold = scrollHeight - 200; // 200px threshold
 
-            // console.log('🖱️ Scroll check:', {
-            //     scrollPosition,
-            //     threshold,
-            //     hasMore,
-            //     isLoadingMore,
-            //     nextCursor
-            // });
-
             if (
                 scrollPosition >= threshold &&
                 hasMore &&
                 !isLoadingMore &&
                 nextCursor
             ) {
-                // console.log('🚀 Loading more posts...');
                 loadMorePosts();
             }
         };
@@ -383,10 +584,7 @@ const UserProfile = () => {
     const loadMorePosts = async () => {
         const { nextCursor } = paginationState;
 
-        // console.log('🎯 loadMorePosts triggered with cursor:', nextCursor);
-
         if (!nextCursor) {
-            // console.log('❌ No cursor available');
             return;
         }
 
@@ -479,6 +677,7 @@ const UserProfile = () => {
             setLoadingComments((prev) => ({ ...prev, [postId]: false }));
         }
     };
+
     const fetchCommentReplies = async (commentId, postId) => {
         try {
             const responseData = await apiService.fetchCommentReplies(
@@ -564,153 +763,9 @@ const UserProfile = () => {
         });
     };
 
-    const handleDeleteComment = async (commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    // ✅ REMOVED: Old handleDeleteComment function
 
-        const post = userPosts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
-
-        if (!post || !comment) {
-            setError("Comment not found");
-            return;
-        }
-
-        const isCommentOwner = comment.userId?.username === username;
-        const isPostOwner = post.userId?.username === username;
-
-        if (!isCommentOwner && !isPostOwner) {
-            setError("You don't have permission to delete this comment");
-            return;
-        }
-
-        if (
-            !window.confirm(
-                "Are you sure you want to delete this comment and all its replies?"
-            )
-        ) {
-            return;
-        }
-
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
-
-        const originalPosts = [...userPosts];
-
-        try {
-            setUserPosts(
-                userPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments =
-                            post.comments?.filter(
-                                (comment) => comment._id !== commentId
-                            ) || [];
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                            commentCount: updatedComments.length,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            const storedCommentLikes = getStoredCommentLikes();
-            delete storedCommentLikes[commentId];
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(storedCommentLikes)
-            );
-
-            await apiService.deleteComment(commentId, postId, token);
-        } catch (err) {
-            console.error("Error deleting comment:", err);
-            setError(err.message);
-            setUserPosts(originalPosts);
-        } finally {
-            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-        }
-    };
-
-    const handleDeleteReply = async (replyId, commentId, postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        const post = userPosts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
-        const reply = comment?.replies?.find((r) => r._id === replyId);
-
-        if (!post || !comment || !reply) {
-            setError("Reply not found");
-            return;
-        }
-
-        const isReplyOwner = reply.userId?.username === username;
-        const isCommentOwner = comment.userId?.username === username;
-        const isPostOwner = post.userId?.username === username;
-
-        if (!isReplyOwner && !isCommentOwner && !isPostOwner) {
-            setError("You don't have permission to delete this reply");
-            return;
-        }
-
-        if (!window.confirm("Are you sure you want to delete this reply?")) {
-            return;
-        }
-
-        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
-
-        const originalPosts = [...userPosts];
-
-        try {
-            setUserPosts(
-                userPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments = post.comments?.map(
-                            (comment) => {
-                                if (comment._id === commentId) {
-                                    const updatedReplies =
-                                        comment.replies?.filter(
-                                            (reply) => reply._id !== replyId
-                                        ) || [];
-                                    return {
-                                        ...comment,
-                                        replies: updatedReplies,
-                                        replyCount: updatedReplies.length,
-                                    };
-                                }
-                                return comment;
-                            }
-                        );
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            const storedReplyLikes = getStoredReplyLikes();
-            delete storedReplyLikes[replyId];
-            localStorage.setItem(
-                "replyLikes",
-                JSON.stringify(storedReplyLikes)
-            );
-
-            await apiService.deleteReply(replyId, token);
-
-        } catch (err) {
-            console.error("Error deleting reply:", err);
-            setError(err.message);
-            setUserPosts(originalPosts);
-        } finally {
-            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
-        }
-    };
+    // ✅ REMOVED: Old handleDeleteReply function
 
     const handleLike = async (postId, e) => {
         if (e) {
@@ -1470,14 +1525,12 @@ const UserProfile = () => {
         }
     };
 
-    // Reply Item Component
-
+    // Reply Item Component - UPDATED WITH MODAL HANDLERS
     const ReplyItem = React.memo(
         ({ reply, commentId, postId, commentOwner }) => {
             const contentKey = `${reply._id}-${commentId}`;
-
-            // Use local state only - don't sync with parent state during typing
             const [localInputValue, setLocalInputValue] = useState("");
+            const [profilePicError, setProfilePicError] = useState(false);
 
             // Initialize with parent state when input becomes visible
             useEffect(() => {
@@ -1485,6 +1538,11 @@ const UserProfile = () => {
                     setLocalInputValue(replyContent[contentKey] || "");
                 }
             }, [activeReplyInput, contentKey]);
+
+            const handleProfilePicError = (e) => {
+                setProfilePicError(true);
+                e.target.style.display = "none";
+            };
 
             const handleInputChange = (e) => {
                 const value = e.target.value;
@@ -1499,7 +1557,6 @@ const UserProfile = () => {
                     return;
                 }
 
-                // Directly pass localInputValue to handleAddReplyToReply as 5th parameter
                 handleAddReplyToReply(
                     reply._id,
                     commentId,
@@ -1517,84 +1574,80 @@ const UserProfile = () => {
                 setLocalInputValue("");
             };
 
+            // Safe user data access
+            const replyUser = reply?.userId || reply?.user || {};
+            const replyUsername = replyUser?.username || reply?.username || "Unknown";
+            const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic;
+            const replyUserId = replyUser?._id || replyUser?.id || "unknown";
+
+            // Check if current user can delete reply
+            const canDeleteReply = () => {
+                const currentUsername = localStorage.getItem("username");
+                return (
+                    replyUsername === currentUsername ||
+                    commentOwner === currentUsername
+                );
+            };
+
             return (
-                <div className="ml-6 mt-2 pl-2 border-l-2 border-gray-300">
+                <div className="ml-4 md:ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
                     <div className="flex items-start space-x-2">
                         <div
-                            className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                            className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (
-                                    reply.userId?._id ===
-                                    currentUserProfile?._id
-                                ) {
+                                if (replyUserId === currentUserProfile?._id) {
                                     navigate("/profile");
                                 } else {
-                                    navigate(`/user/${reply.userId?._id}`);
+                                    navigate(`/user/${replyUserId}`);
                                 }
                             }}
                         >
-                            {reply.userId?.profilePic ? (
+                            {replyUserProfilePic && !profilePicError ? (
                                 <img
-                                    src={reply.userId.profilePic}
-                                    alt={reply.userId.username}
+                                    src={replyUserProfilePic}
+                                    alt={replyUsername}
                                     className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        e.target.style.display = "none";
-                                    }}
+                                    onError={handleProfilePicError}
                                 />
-                            ) : null}
-                            <div
-                                className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                                    reply.userId?.profilePic ? "hidden" : "flex"
-                                }`}
-                            >
-                                {reply.userId?.username
-                                    ?.charAt(0)
-                                    .toUpperCase() || "U"}
-                            </div>
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs">
+                                    {replyUsername?.charAt(0).toUpperCase() || "U"}
+                                </div>
+                            )}
                         </div>
-                        <div className="flex-1">
-                            <div className="flex items-center space-x-2">
+                        <div className="flex-1 min-w-0">
+                            <div className="flex flex-col xs:flex-row xs:items-center xs:space-x-2 gap-1">
                                 <span
-                                    className="font-semibold text-xs hover:text-blue-500 cursor-pointer"
+                                    className="font-semibold text-xs hover:text-blue-500 cursor-pointer truncate"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (
-                                            reply.userId?._id ===
-                                            currentUserProfile?._id
-                                        ) {
+                                        if (replyUserId === currentUserProfile?._id) {
                                             navigate("/profile");
                                         } else {
-                                            navigate(
-                                                `/user/${reply.userId?._id}`
-                                            );
+                                            navigate(`/user/${replyUserId}`);
                                         }
                                     }}
                                 >
-                                    {reply.userId?.username || "Unknown"}
+                                    {replyUsername}
                                 </span>
                                 <span
                                     className={`text-xs ${
-                                        isDarkMode
-                                            ? "text-gray-400"
-                                            : "text-gray-500"
-                                    }`}
+                                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                                    } whitespace-nowrap`}
                                 >
                                     {formatDate(reply.createdAt)}
                                 </span>
                             </div>
                             <p
-                                className={`text-xs whitespace-pre-line mt-1 ${
-                                    isDarkMode
-                                        ? "text-gray-200"
-                                        : "text-gray-700"
+                                className={`text-xs whitespace-pre-line mt-1 break-words ${
+                                    isDarkMode ? "text-gray-200" : "text-gray-700"
                                 }`}
                             >
                                 {reply.content}
                             </p>
 
-                            <div className="mt-1 flex items-center justify-between">
+                            <div className="mt-1 flex items-center justify-between flex-wrap gap-2">
                                 <button
                                     className="flex items-center space-x-1 hover:text-red-500 transition-colors cursor-pointer"
                                     onClick={(e) =>
@@ -1614,17 +1667,13 @@ const UserProfile = () => {
                                     ) : (
                                         <FaRegHeart
                                             className={`text-xs ${
-                                                isDarkMode
-                                                    ? "text-gray-400"
-                                                    : "text-gray-500"
+                                                isDarkMode ? "text-gray-400" : "text-gray-500"
                                             }`}
                                         />
                                     )}
                                     <span
                                         className={`text-xs ${
-                                            isDarkMode
-                                                ? "text-gray-400"
-                                                : "text-gray-600"
+                                            isDarkMode ? "text-gray-400" : "text-gray-600"
                                         }`}
                                     >
                                         {reply.likes?.length || 0}
@@ -1647,21 +1696,18 @@ const UserProfile = () => {
                                         <FaReply />
                                     </button>
 
-                                    {(reply.userId?.username === username ||
-                                        commentOwner === username) && (
+                                    {canDeleteReply() && (
                                         <button
                                             className="text-red-500 hover:text-red-700 transition-colors cursor-pointer text-xs"
                                             onClick={(e) =>
-                                                handleDeleteReply(
+                                                handleOpenDeleteReplyModal(
                                                     reply._id,
                                                     commentId,
                                                     postId,
                                                     e
                                                 )
                                             }
-                                            disabled={
-                                                isDeletingReply[reply._id]
-                                            }
+                                            disabled={isDeletingReply[reply._id]}
                                             title="Delete reply"
                                         >
                                             {isDeletingReply[reply._id] ? (
@@ -1674,48 +1720,42 @@ const UserProfile = () => {
                                 </div>
                             </div>
 
-                            {/* Reply Input for Reply with Post and Cancel buttons */}
-                            {activeReplyInput === `${reply._id}-${commentId}` && (
+                            {/* Reply Input for Reply with PROFILE AVATAR and POST BUTTON FIRST */}
+                            {activeReplyInput === contentKey && (
                                 <div className="mt-2">
-                                    <div className="flex items-center space-x-2">
-                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
-                                            {currentUserProfile?.profilePic ||
-                                            user?.profilePic ? (
+                                    <div className="flex items-start space-x-2">
+                                        {/* Profile Avatar */}
+                                        <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 flex-shrink-0">
+                                            {currentUserProfile?.profilePic || user?.profilePic ? (
                                                 <img
-                                                    src={
-                                                        currentUserProfile?.profilePic ||
-                                                        user?.profilePic
-                                                    }
+                                                    src={currentUserProfile?.profilePic || user?.profilePic}
                                                     alt={username}
                                                     className="w-full h-full object-cover"
                                                     onError={(e) => {
-                                                        e.target.style.display =
-                                                            "none";
+                                                        e.target.style.display = "none";
                                                     }}
                                                 />
                                             ) : null}
                                             <div
                                                 className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
-                                                    currentUserProfile?.profilePic ||
-                                                    user?.profilePic
+                                                    currentUserProfile?.profilePic || user?.profilePic
                                                         ? "hidden"
                                                         : "flex"
                                                 }`}
                                             >
-                                                {username
-                                                    ?.charAt(0)
-                                                    .toUpperCase() || "U"}
+                                                {username?.charAt(0).toUpperCase() || "U"}
                                             </div>
                                         </div>
+                                        
                                         <div className="flex-1">
                                             <input
                                                 type="text"
                                                 className={`w-full px-3 py-1 rounded-full text-xs border ${
                                                     isDarkMode
                                                         ? "bg-gray-700 border-gray-600 text-white"
-                                                        : "bg-white border-gray-300"
+                                                        : "bg-white border-gray-300 text-gray-800"
                                                 } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                placeholder="Write a reply..."
+                                                placeholder={`Reply to ${replyUsername}...`}
                                                 value={localInputValue}
                                                 onChange={handleInputChange}
                                                 onKeyDown={(e) => {
@@ -1725,7 +1765,23 @@ const UserProfile = () => {
                                                     }
                                                 }}
                                             />
+                                            {/* BUTTONS: Post first, then Cancel */}
                                             <div className="flex space-x-2 mt-2 justify-end">
+                                                <button
+                                                    onClick={handleSubmit}
+                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                        !localInputValue.trim() || isReplying[contentKey]
+                                                            ? "bg-blue-300 cursor-not-allowed"
+                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
+                                                    } transition-colors`}
+                                                    disabled={!localInputValue.trim() || isReplying[contentKey]}
+                                                >
+                                                    {isReplying[contentKey] ? (
+                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        "Post"
+                                                    )}
+                                                </button>
                                                 <button
                                                     onClick={handleCancel}
                                                     className={`px-3 py-1 rounded-full text-xs ${
@@ -1735,25 +1791,6 @@ const UserProfile = () => {
                                                     } transition-colors cursor-pointer`}
                                                 >
                                                     Cancel
-                                                </button>
-                                                <button
-                                                    onClick={handleSubmit}
-                                                    className={`px-3 py-1 rounded-full text-xs ${
-                                                        !localInputValue.trim() ||
-                                                        isReplying[contentKey]
-                                                            ? "bg-blue-300 cursor-not-allowed"
-                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
-                                                    } transition-colors`}
-                                                    disabled={
-                                                        !localInputValue.trim() ||
-                                                        isReplying[contentKey]
-                                                    }
-                                                >
-                                                    {isReplying[contentKey] ? (
-                                                        <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                    ) : (
-                                                        "Post"
-                                                    )}
                                                 </button>
                                             </div>
                                         </div>
@@ -1837,6 +1874,34 @@ const UserProfile = () => {
                 isDarkMode={isDarkMode}
             />
 
+            {/* ✅ ADDED: Comment Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteCommentModal.isOpen}
+                onClose={handleCloseDeleteCommentModal}
+                onConfirm={handleConfirmDeleteComment}
+                title="Delete Comment"
+                message="Are you sure you want to delete this comment?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingComment[deleteCommentModal.commentId]}
+                isDarkMode={isDarkMode}
+            />
+
+            {/* ✅ ADDED: Reply Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteReplyModal.isOpen}
+                onClose={handleCloseDeleteReplyModal}
+                onConfirm={handleConfirmDeleteReply}
+                title="Delete Reply"
+                message="Are you sure you want to delete this reply?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingReply[deleteReplyModal.replyId]}
+                isDarkMode={isDarkMode}
+            />
+
             {/* Image Preview Modal */}
             {showImagePreview && (
                 <div
@@ -1888,7 +1953,6 @@ const UserProfile = () => {
                 </div>
             )}
 
-
             <section className="py-10 px-4 sm:px-6 flex flex-col items-center gap-8">
                 <div
                     className={`relative w-full max-w-5xl rounded-2xl p-5 sm:p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-lg mx-auto ${
@@ -1897,6 +1961,7 @@ const UserProfile = () => {
                             : "bg-white text-gray-900"
                     }`}
                 >
+                    {/* ... (rest of the profile section remains the same) ... */}
                     <div
                         className="
           flex flex-col items-center text-center 
@@ -2073,6 +2138,7 @@ const UserProfile = () => {
                                                 : "bg-white text-gray-900"
                                         }`}
                                     >
+                                        {/* ... (post content remains the same) ... */}
                                         <div className="flex items-center gap-3 mb-3">
                                             <div
                                                 className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-400 shadow-md bg-gradient-to-r from-blue-500 to-cyan-400 cursor-pointer hover:border-blue-500 transition-all"
@@ -2262,7 +2328,7 @@ const UserProfile = () => {
                                                                                         e.stopPropagation();
                                                                                         navigateToProfile(
                                                                                             user.id
-                                                                                        ); // ✅ YAHAN CHANGE
+                                                                                        );
                                                                                     }}
                                                                                 >
                                                                                     {
@@ -2600,7 +2666,7 @@ const UserProfile = () => {
                                                                                                 onClick={(
                                                                                                     e
                                                                                                 ) =>
-                                                                                                    handleDeleteComment(
+                                                                                                    handleOpenDeleteCommentModal(
                                                                                                         comment._id,
                                                                                                         post._id,
                                                                                                         e
@@ -2666,10 +2732,11 @@ const UserProfile = () => {
                                                                                     </div>
                                                                                 </div>
 
-                                                                                {/* Reply Input for Comment with Post and Cancel buttons - FIXED LAYOUT */}
+                                                                                {/* Reply Input for Comment with PROFILE AVATAR and POST BUTTON FIRST */}
                                                                                 {activeReplyInput === comment._id && (
                                                                                     <div className="mt-2">
                                                                                         <div className="flex items-start space-x-2">
+                                                                                            {/* Profile Avatar */}
                                                                                             <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 flex-shrink-0">
                                                                                                 {currentUserProfile?.profilePic ||
                                                                                                 user?.profilePic ? (
@@ -2706,6 +2773,7 @@ const UserProfile = () => {
                                                                                                         "U"}
                                                                                                 </div>
                                                                                             </div>
+                                                                                            
                                                                                             <div className="flex-1">
                                                                                                 <input
                                                                                                     type="text"
@@ -2751,25 +2819,8 @@ const UserProfile = () => {
                                                                                                         }
                                                                                                     }}
                                                                                                 />
+                                                                                                {/* BUTTONS: Post first, then Cancel */}
                                                                                                 <div className="flex space-x-2 mt-2 justify-end">
-                                                                                                    <button
-                                                                                                        onClick={(
-                                                                                                            e
-                                                                                                        ) =>
-                                                                                                            toggleReplyInput(
-                                                                                                                comment._id,
-                                                                                                                post._id,
-                                                                                                                e
-                                                                                                            )
-                                                                                                        }
-                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
-                                                                                                            isDarkMode
-                                                                                                                ? "bg-gray-600 hover:bg-gray-500 text-white"
-                                                                                                                : "bg-gray-300 hover:bg-gray-400 text-gray-700"
-                                                                                                        } transition-colors cursor-pointer`}
-                                                                                                    >
-                                                                                                        Cancel
-                                                                                                    </button>
                                                                                                     <button
                                                                                                         onClick={(
                                                                                                             e
@@ -2811,6 +2862,24 @@ const UserProfile = () => {
                                                                                                         ) : (
                                                                                                             "Post"
                                                                                                         )}
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        onClick={(
+                                                                                                            e
+                                                                                                        ) =>
+                                                                                                            toggleReplyInput(
+                                                                                                                comment._id,
+                                                                                                                post._id,
+                                                                                                                e
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                            isDarkMode
+                                                                                                                ? "bg-gray-600 hover:bg-gray-500 text-white"
+                                                                                                                : "bg-gray-300 hover:bg-gray-400 text-gray-700"
+                                                                                                        } transition-colors cursor-pointer`}
+                                                                                                    >
+                                                                                                        Cancel
                                                                                                     </button>
                                                                                                 </div>
                                                                                             </div>
@@ -2875,7 +2944,7 @@ const UserProfile = () => {
                                                             </div>
                                                         )}
 
-                                                        {/* Add Comment Input */}
+                                                        {/* Add Comment Input - WITH PROFILE AVATAR and POST BUTTON FIRST */}
                                                         <form
                                                             onSubmit={(e) => {
                                                                 e.preventDefault();
@@ -2886,7 +2955,8 @@ const UserProfile = () => {
                                                             }}
                                                             className="flex items-center space-x-2"
                                                         >
-                                                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200">
+                                                            {/* Profile Avatar */}
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 flex-shrink-0">
                                                                 {currentUserProfile?.profilePic ||
                                                                 user?.profilePic ? (
                                                                     <img
@@ -2907,7 +2977,7 @@ const UserProfile = () => {
                                                                     />
                                                                 ) : null}
                                                                 <div
-                                                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-xs ${
+                                                                    className={`w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm ${
                                                                         currentUserProfile?.profilePic ||
                                                                         user?.profilePic
                                                                             ? "hidden"
@@ -2922,6 +2992,7 @@ const UserProfile = () => {
                                                                         "U"}
                                                                 </div>
                                                             </div>
+                                                            
                                                             <div className="flex-1 flex space-x-2">
                                                                 <input
                                                                     type="text"
@@ -2951,9 +3022,10 @@ const UserProfile = () => {
                                                                         )
                                                                     }
                                                                 />
+                                                                {/* POST BUTTON FIRST */}
                                                                 <button
                                                                     type="submit"
-                                                                    className={`px-3 py-1 rounded-full text-sm ${
+                                                                    className={`px-4 py-2 rounded-full text-sm ${
                                                                         !commentContent[
                                                                             post
                                                                                 ._id
