@@ -117,9 +117,9 @@ const CommentSection = ({
                                     }}
                                 />
                             ) : (
-                                <span className="text-xs font-semibold text-gray-700">
+                                <div className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm">
                                     {username?.charAt(0).toUpperCase() || "U"}
-                                </span>
+                                </div>
                             )}
                         </div>
                         <div className="flex-1 flex space-x-2">
