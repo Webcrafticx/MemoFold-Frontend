@@ -249,7 +249,7 @@ const Navbar = ({ onDarkModeChange }) => {
             fetchUnreadMessagesCount();
 
             // Poll every 10 seconds
-            const intervalId = setInterval(fetchUnreadMessagesCount, 10000);
+            const intervalId = setInterval(fetchUnreadMessagesCount, 5000);
 
             return () => clearInterval(intervalId);
         }

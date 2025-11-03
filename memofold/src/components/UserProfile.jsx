@@ -1812,11 +1812,7 @@ const UserProfile = () => {
                                             </button>
                                             <button
                                                 onClick={handleCancel}
-                                                className={`px-3 py-1 rounded-full text-xs ${
-                                                    isDarkMode
-                                                        ? "bg-gray-600 hover:bg-gray-500 text-white"
-                                                        : "bg-gray-300 hover:bg-gray-400 text-gray-700"
-                                                } transition-colors cursor-pointer`}
+                                                className="px-3 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer flex-1"
                                             >
                                                 Cancel
                                             </button>
@@ -2899,11 +2895,7 @@ const UserProfile = () => {
                                                                                                             e
                                                                                                         )
                                                                                                     }
-                                                                                                    className={`px-3 py-1 rounded-full text-xs ${
-                                                                                                        isDarkMode
-                                                                                                            ? "bg-gray-600 hover:bg-gray-500 text-white"
-                                                                                                            : "bg-gray-300 hover:bg-gray-400 text-gray-700"
-                                                                                                    } transition-colors cursor-pointer`}
+                                                                                                    className="px-3 py-1 rounded-full text-xs bg-gray-500 hover:bg-gray-600 text-white cursor-pointer flex-1"
                                                                                                 >
                                                                                                     Cancel
                                                                                                 </button>
@@ -3094,7 +3086,7 @@ const UserProfile = () => {
                     )}
 
                     {/* Loading More Indicator */}
-                    {paginationState.isLoadingMore && (
+                    {/* {paginationState.isLoadingMore && (
                         <div className="flex justify-center items-center py-6">
                             <div
                                 className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
@@ -3113,10 +3105,10 @@ const UserProfile = () => {
                                 Loading more posts...
                             </span>
                         </div>
-                    )}
+                    )} */}
 
                     {/* End of Posts Message */}
-                    {!paginationState.hasMore && userPosts.length > 0 && (
+                    {/* {!paginationState.hasMore && userPosts.length > 0 && (
                         <div
                             className={`text-center py-6 ${
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
@@ -3127,7 +3119,7 @@ const UserProfile = () => {
                                 posts
                             </p>
                         </div>
-                    )}
+                    )} */}
                 </div>
             </section>
         </div>
