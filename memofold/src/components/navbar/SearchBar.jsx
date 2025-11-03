@@ -180,7 +180,7 @@ const SearchBar = ({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onFocus={handleSearchFocus}
-                        className={`flex-1 bg-transparent outline-none text-sm ${
+                        className={`flex-1 bg-transparent cursor-pointer outline-none text-sm ${
                             darkMode
                                 ? "text-white placeholder-gray-400"
                                 : "text-gray-800 placeholder-gray-500"
@@ -189,7 +189,7 @@ const SearchBar = ({
                     {isMobile && (
                         <button
                             onClick={clearSearch}
-                            className={`p-1 rounded-full ${
+                            className={`p-1 rounded-full cursor-pointer ${
                                 darkMode
                                     ? "text-gray-400 hover:text-gray-200 hover:bg-gray-600"
                                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"
@@ -201,7 +201,7 @@ const SearchBar = ({
                     {!isMobile && searchQuery && (
                         <button
                             onClick={clearSearch}
-                            className={`p-1 rounded-full ${
+                            className={`p-1 rounded-full cursor-pointer ${
                                 darkMode
                                     ? "text-gray-400 hover:text-gray-200 hover:bg-gray-600"
                                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"

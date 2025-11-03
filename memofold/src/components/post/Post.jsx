@@ -10,6 +10,7 @@ import CommentSection from "../mainFeed/CommentSection";
 import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
 import MessageBanner from "../mainFeed/MessageBanner";
+import ConfirmationModal from "../../common/ConfirmationModal";
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 
@@ -42,6 +43,22 @@ const Post = () => {
     const [isReplying, setIsReplying] = useState({});
     const [isLikingReply, setIsLikingReply] = useState({});
     const [isDeletingReply, setIsDeletingReply] = useState({});
+    const [activeReplyInputs, setActiveReplyInputs] = useState({});
+
+    // ✅ ADDED: Confirmation modal states
+    const [deleteCommentModal, setDeleteCommentModal] = useState({
+        isOpen: false,
+        commentId: null,
+        postId: null,
+        event: null,
+    });
+
+    const [deleteReplyModal, setDeleteReplyModal] = useState({
+        isOpen: false,
+        replyId: null,
+        commentId: null,
+        event: null,
+    });
 
     // Modal states
     const [showLikesModal, setShowLikesModal] = useState(false);
@@ -446,7 +463,8 @@ const Post = () => {
         }
     };
 
-    const handleDeleteComment = async (commentId, postId, e) => {
+    // ✅ ADDED: Comment deletion modal handlers
+    const handleOpenDeleteCommentModal = (commentId, postId, e) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -467,20 +485,24 @@ const Post = () => {
             return;
         }
 
-        if (
-            !window.confirm(
-                "Are you sure you want to delete this comment and all its replies?"
-            )
-        ) {
-            return;
-        }
+        setDeleteCommentModal({
+            isOpen: true,
+            commentId,
+            postId,
+            event: e,
+        });
+    };
+
+    const handleConfirmDeleteComment = async () => {
+        const { commentId, postId } = deleteCommentModal;
 
         setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
 
         const originalPost = { ...post };
 
         try {
-            const replyIds = comment.replies?.map((reply) => reply._id) || [];
+            const comment = post?.comments?.find((c) => c._id === commentId);
+            const replyIds = comment?.replies?.map((reply) => reply._id) || [];
 
             setPost((prev) => ({
                 ...prev,
@@ -494,7 +516,6 @@ const Post = () => {
             const storedCommentLikes =
                 localStorageService.getStoredCommentLikes();
             delete storedCommentLikes[commentId];
-
             replyIds.forEach((replyId) => {
                 delete storedCommentLikes[replyId];
             });
@@ -506,22 +527,131 @@ const Post = () => {
 
             await apiService.deleteComment(commentId, postId, token);
 
-            setSuccessMessage(
-                "Comment and all its replies deleted successfully!"
-            );
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             setError(err.message);
             setPost(originalPost);
         } finally {
             setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+            setDeleteCommentModal({
+                isOpen: false,
+                commentId: null,
+                postId: null,
+                event: null,
+            });
         }
     };
 
-    const handleAddReply = async (commentId, postId, e) => {
-        if (e) e.preventDefault();
+    const handleCloseDeleteCommentModal = () => {
+        setDeleteCommentModal({
+            isOpen: false,
+            commentId: null,
+            postId: null,
+            event: null,
+        });
+    };
 
-        const content = replyContent[commentId] || "";
+    // ✅ ADDED: Reply deletion modal handlers
+    const handleOpenDeleteReplyModal = (replyId, commentId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        let replyOwner = "";
+
+        for (const comment of post.comments || []) {
+            const reply = comment.replies?.find((r) => r._id === replyId);
+            if (reply && comment._id === commentId) {
+                replyOwner = reply.userId?.username;
+                break;
+            }
+        }
+
+        if (!replyOwner) {
+            setError("Reply not found");
+            return;
+        }
+
+        const isReplyOwner = replyOwner === username;
+
+        if (!isReplyOwner) {
+            setError("You don't have permission to delete this reply");
+            return;
+        }
+
+        setDeleteReplyModal({
+            isOpen: true,
+            replyId,
+            commentId,
+            event: e,
+        });
+    };
+
+    const handleConfirmDeleteReply = async () => {
+        const { replyId, commentId } = deleteReplyModal;
+
+        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
+
+        const originalPost = { ...post };
+
+        try {
+            setPost((prev) => ({
+                ...prev,
+                comments:
+                    prev.comments?.map((comment) =>
+                        comment._id === commentId
+                            ? {
+                                  ...comment,
+                                  replies:
+                                      comment.replies?.filter(
+                                          (reply) => reply._id !== replyId
+                                      ) || [],
+                                  replyCount: Math.max(
+                                      0,
+                                      (comment.replyCount || 1) - 1
+                                  ),
+                              }
+                            : comment
+                    ) || [],
+            }));
+
+            const result = await apiService.deleteReply(replyId, token);
+
+            if (result.success) {
+                setTimeout(() => setSuccessMessage(null), 3000);
+            } else {
+                throw new Error(result.message || "Failed to delete reply");
+            }
+        } catch (err) {
+            setError(err.message || "Failed to delete reply");
+            setPost(originalPost);
+        } finally {
+            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
+            setDeleteReplyModal({
+                isOpen: false,
+                replyId: null,
+                commentId: null,
+                event: null,
+            });
+        }
+    };
+
+    const handleCloseDeleteReplyModal = () => {
+        setDeleteReplyModal({
+            isOpen: false,
+            replyId: null,
+            commentId: null,
+            event: null,
+        });
+    };
+
+    // Replace the existing handleAddReply with this
+    const handleAddReply = async (postId, commentId, replyKey) => {
+        // replyKey may be same as commentId for simple comment->reply flow,
+        // but we use replyKey for reply-content/isReplying keys consistently.
+
+        const content = replyContent[replyKey] || "";
 
         if (!content.trim()) {
             setError("Reply cannot be empty");
@@ -534,7 +664,7 @@ const Post = () => {
             return;
         }
 
-        setIsReplying((prev) => ({ ...prev, [commentId]: true }));
+        setIsReplying((prev) => ({ ...prev, [replyKey]: true }));
         setError(null);
 
         try {
@@ -590,17 +720,20 @@ const Post = () => {
                 }),
             }));
 
-            setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
-            setSuccessMessage("Reply posted successfully!");
+            // clear the correct reply input
+            setReplyContent((prev) => ({ ...prev, [replyKey]: "" }));
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
-            if (err.message.includes("token") || err.message.includes("auth")) {
+            if (
+                err.message &&
+                (err.message.includes("token") || err.message.includes("auth"))
+            ) {
                 setError("Authentication failed. Please log in again.");
             } else {
-                setError(err.message);
+                setError(err.message || "Failed to post reply");
             }
         } finally {
-            setIsReplying((prev) => ({ ...prev, [commentId]: false }));
+            setIsReplying((prev) => ({ ...prev, [replyKey]: false }));
         }
     };
 
@@ -657,79 +790,6 @@ const Post = () => {
             await fetchComments(post._id);
         } finally {
             setIsLikingReply((prev) => ({ ...prev, [replyId]: false }));
-        }
-    };
-
-    const handleDeleteReply = async (replyId, commentId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        let replyOwner = "";
-
-        for (const comment of post.comments || []) {
-            const reply = comment.replies?.find((r) => r._id === replyId);
-            if (reply && comment._id === commentId) {
-                replyOwner = reply.userId?.username;
-                break;
-            }
-        }
-
-        if (!replyOwner) {
-            setError("Reply not found");
-            return;
-        }
-
-        const isReplyOwner = replyOwner === username;
-
-        if (!isReplyOwner) {
-            setError("You don't have permission to delete this reply");
-            return;
-        }
-
-        if (!window.confirm("Are you sure you want to delete this reply?")) {
-            return;
-        }
-
-        setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
-
-        const originalPost = { ...post };
-
-        try {
-            setPost((prev) => ({
-                ...prev,
-                comments:
-                    prev.comments?.map((comment) =>
-                        comment._id === commentId
-                            ? {
-                                  ...comment,
-                                  replies:
-                                      comment.replies?.filter(
-                                          (reply) => reply._id !== replyId
-                                      ) || [],
-                                  replyCount: Math.max(
-                                      0,
-                                      (comment.replyCount || 1) - 1
-                                  ),
-                              }
-                            : comment
-                    ) || [],
-            }));
-
-            const result = await apiService.deleteReply(replyId, token);
-
-            if (result.success) {
-                setSuccessMessage("Reply deleted successfully!");
-                setTimeout(() => setSuccessMessage(null), 3000);
-            } else {
-                throw new Error(result.message || "Failed to delete reply");
-            }
-        } catch (err) {
-            setError(err.message || "Failed to delete reply");
-            setPost(originalPost);
-        } finally {
-            setIsDeletingReply((prev) => ({ ...prev, [replyId]: false }));
         }
     };
 
@@ -807,28 +867,30 @@ const Post = () => {
         setActiveReplies(newActiveRepliesState);
     };
 
-    const toggleReplyInput = (commentId, replyId = null, e) => {
+    const toggleReplyInput = (key, e) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
-        setPost((prev) => ({
+        // ✅ Toggle the active input box for the given key (comment or reply)
+        setActiveReplyInputs((prev) => ({
             ...prev,
-            comments:
-                prev.comments?.map((comment) =>
-                    comment._id === commentId
-                        ? {
-                              ...comment,
-                              showReplyInput: !comment.showReplyInput,
-                          }
-                        : comment
-                ) || [],
+            [key]: !prev[key],
         }));
 
+        // ✅ Ensure reply content state exists for this key
         setReplyContent((prev) => ({
             ...prev,
-            [commentId]: prev[commentId] || "",
+            [key]: prev[key] || "",
+        }));
+    };
+
+    // ✅ Fix reply input typing not updating state
+    const handleSetReplyContent = (key, value) => {
+        setReplyContent((prev) => ({
+            ...prev,
+            [key]: value,
         }));
     };
 
@@ -924,28 +986,40 @@ const Post = () => {
                 setHearts={setFloatingHearts}
             />
 
-            {error && (
-                <MessageBanner
-                    type="error"
-                    message={error}
-                    onClose={() => setError(null)}
-                />
-            )}
-
-            {successMessage && (
-                <MessageBanner
-                    type="success"
-                    message={successMessage}
-                    onClose={() => setSuccessMessage(null)}
-                />
-            )}
-
             {showImagePreview && (
                 <ImagePreviewModal
                     image={previewImage}
                     onClose={() => setShowImagePreview(false)}
                 />
             )}
+
+            {/* ✅ ADDED: Comment Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteCommentModal.isOpen}
+                onClose={handleCloseDeleteCommentModal}
+                onConfirm={handleConfirmDeleteComment}
+                title="Delete Comment"
+                message="Are you sure you want to delete this comment and all its replies?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingComment[deleteCommentModal.commentId]}
+                isDarkMode={darkMode}
+            />
+
+            {/* ✅ ADDED: Reply Deletion Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteReplyModal.isOpen}
+                onClose={handleCloseDeleteReplyModal}
+                onConfirm={handleConfirmDeleteReply}
+                title="Delete Reply"
+                message="Are you sure you want to delete this reply?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="delete"
+                isLoading={isDeletingReply[deleteReplyModal.replyId]}
+                isDarkMode={darkMode}
+            />
 
             {/* Header */}
             <div
@@ -1134,7 +1208,7 @@ const Post = () => {
                                                                     e.stopPropagation();
                                                                     navigateToUserProfile(
                                                                         user.id
-                                                                    ); // ✅ YAHAN CHANGE
+                                                                    );
                                                                 }}
                                                             >
                                                                 {user.username}
@@ -1246,14 +1320,15 @@ const Post = () => {
                             onCommentSubmit={handleCommentSubmit}
                             onSetCommentContent={setCommentContent}
                             onLikeComment={handleLikeComment}
-                            onDeleteComment={handleDeleteComment}
+                            onDeleteComment={handleOpenDeleteCommentModal}
                             onToggleReplies={toggleReplies}
                             onToggleReplyInput={toggleReplyInput}
                             onAddReply={handleAddReply}
                             onLikeReply={handleLikeReply}
-                            onDeleteReply={handleDeleteReply}
-                            onSetReplyContent={setReplyContent}
+                            onDeleteReply={handleOpenDeleteReplyModal}
+                            onSetReplyContent={handleSetReplyContent}
                             navigateToUserProfile={navigateToUserProfile}
+                            activeReplyInputs={activeReplyInputs}
                         />
                     </div>
                 )}
