@@ -20,6 +20,7 @@ import {
     FaUserFriends,
     FaChartBar,
     FaMapMarkerAlt,
+    FaUsers,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
@@ -1797,8 +1798,8 @@ const UserProfile = () => {
                                                     !localInputValue.trim() ||
                                                     isReplying[contentKey]
                                                         ? "bg-blue-300 cursor-not-allowed"
-                                                        : "bg-blue-500 hover:bg-blue-600 text-white"
-                                                } transition-colors`}
+                                                        : "bg-blue-500 hover:bg-blue-600 "
+                                                } text-white transition-colors`}
                                                 disabled={
                                                     !localInputValue.trim() ||
                                                     isReplying[contentKey]
@@ -2024,7 +2025,7 @@ const UserProfile = () => {
 
                         {/* User Info */}
                         <div className="flex-1">
-                            <h2 className="text-xl sm:text-2xl font-bold leading-snug">
+                            <h2 className="text-xl sm:text-2xl  font-bold leading-snug">
                                 {userData.realname || userData.username}
                             </h2>
                             <p className="text-gray-500 text-sm sm:text-base">
@@ -2092,7 +2093,7 @@ const UserProfile = () => {
                                             : "bg-gray-100 hover:bg-gray-200 text-gray-800"
                                     } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                                 >
-                                    <FaUserFriends className="text-blue-500" />
+                                    <FaUsers className="text-blue-500" />
                                     <span className="text-xs sm:text-sm">
                                         {userStats.friendsCount} Friends
                                     </span>
@@ -2204,7 +2205,7 @@ const UserProfile = () => {
 
                                             <div>
                                                 <h3
-                                                    className={`text-base font-semibold ${
+                                                    className={`text-base hover:text-blue-500 font-semibold ${
                                                         isDarkMode
                                                             ? "text-white"
                                                             : "text-gray-800"
@@ -2862,9 +2863,9 @@ const UserProfile = () => {
                                                                                                             comment
                                                                                                                 ._id
                                                                                                         ]
-                                                                                                            ? "bg-blue-300 cursor-not-allowed"
-                                                                                                            : "bg-blue-500 hover:bg-blue-600 text-white"
-                                                                                                    } transition-colors cursor-pointer`}
+                                                                                                            ? "bg-blue-300 cursor-not-allowed "
+                                                                                                            : "bg-blue-500 hover:bg-blue-600 "
+                                                                                                    } text-white transition-colors cursor-pointer`}
                                                                                                     disabled={
                                                                                                         !replyContent[
                                                                                                             comment

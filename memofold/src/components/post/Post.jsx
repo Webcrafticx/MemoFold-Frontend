@@ -820,27 +820,38 @@ const Post = () => {
                                 ? {
                                       ...comment,
                                       replies: replies.map((reply) => {
-                                          const replyUserData = reply.userId ||
-                                              reply.user || {
-                                                  _id: "unknown",
-                                                  username: "Unknown",
-                                                  realname: "Unknown User",
-                                                  profilePic: "",
-                                              };
+                                          // ✅ FIXED: Properly extract user data from reply
+                                          const replyUserData =
+                                              reply.userId || reply.user;
 
+                                          // ✅ DEBUG: Log the reply data to see what's coming from API
+                                          console.log("Reply data:", reply);
+                                          console.log(
+                                              "Reply user data:",
+                                              replyUserData
+                                          );
+
+                                          // ✅ CORRECTED: Ensure all user fields are properly mapped
                                           const finalReplyUserData = {
                                               _id:
-                                                  replyUserData._id ||
+                                                  replyUserData?._id ||
+                                                  replyUserData?.id ||
                                                   "unknown",
                                               username:
-                                                  replyUserData.username ||
+                                                  replyUserData?.username ||
+                                                  replyUserData?.userName ||
                                                   "Unknown",
                                               realname:
-                                                  replyUserData.realname ||
-                                                  replyUserData.username ||
+                                                  replyUserData?.realname ||
+                                                  replyUserData?.realName ||
+                                                  replyUserData?.username ||
                                                   "Unknown User",
+                                              // ✅ Try all possible profile picture field names
                                               profilePic:
-                                                  replyUserData.profilePic ||
+                                                  replyUserData?.profilePic ||
+                                                  replyUserData?.profilepic ||
+                                                  replyUserData?.avatar ||
+                                                  replyUserData?.image ||
                                                   "",
                                           };
 
@@ -850,6 +861,7 @@ const Post = () => {
                                               hasUserLiked: (
                                                   reply.likes || []
                                               ).includes(user._id),
+                                              // ✅ CRITICAL: Make sure userId contains the complete user object
                                               userId: finalReplyUserData,
                                           };
                                       }),
@@ -1197,7 +1209,7 @@ const Post = () => {
                                                         .map((user, index) => (
                                                             <span
                                                                 key={index}
-                                                                className={`font-medium mr-1 cursor-pointer ${
+                                                                className={`font-medium mr-1 hover:underline cursor-pointer ${
                                                                     darkMode
                                                                         ? "text-gray-300"
                                                                         : "text-gray-700"
