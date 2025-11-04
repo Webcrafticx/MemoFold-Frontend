@@ -8,6 +8,8 @@ import {
     FaUpload,
     FaEye,
     FaTimes,
+    FaChartBar,
+    FaCalendarAlt,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import EditProfileModal from "./EditProfileModal";
@@ -259,7 +261,13 @@ const ProfileHeader = ({
                                 } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                             >
                                 <div className="flex items-center">
-                                    <FaCalendar className="mr-1" />
+                                    <FaCalendarAlt
+                                        className={
+                                            isDarkMode
+                                                ? "text-gray-300 mr-1"
+                                                : "text-gray-600 mr-1"
+                                        }
+                                    />{" "}
                                     <span>Joined {joinedDate}</span>
                                 </div>
                             </div>
@@ -270,7 +278,13 @@ const ProfileHeader = ({
                                         : "bg-gray-100 hover:bg-gray-200 text-gray-800"
                                 } px-3 py-1.5 rounded-lg transition-all cursor-pointer text-sm sm:text-base`}
                             >
-                                <span className="text-blue-500">📊</span>
+                                <FaChartBar
+                                    className={
+                                        isDarkMode
+                                            ? "text-gray-300"
+                                            : "text-gray-600"
+                                    }
+                                />{" "}
                                 <span>
                                     {stats?.posts || posts.length} Posts
                                 </span>
