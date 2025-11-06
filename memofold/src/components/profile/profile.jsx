@@ -153,6 +153,29 @@ const ProfilePage = () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+    // ✅ Refresh a single post by ID (for accurate comment counts)
+    const refreshSinglePost = async (postId) => {
+        try {
+            const token = localStorage.getItem("token");
+            const response = await apiService.fetchSinglePost(token, postId);
+
+            if (!response || response.success === false) {
+                throw new Error(response?.message || "Failed to refresh post");
+            }
+
+            const updatedPost = response.post || response;
+
+            // Update only that specific post in profileData
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((p) =>
+                    p._id === postId ? { ...updatedPost } : p
+                ),
+            }));
+        } catch (err) {
+            console.error("Failed to refresh post:", err);
+        }
+    };
 
     // State में add करें:
     const [isLikingComment, setIsLikingComment] = useState({});
@@ -746,33 +769,20 @@ const ProfilePage = () => {
                 token
             );
 
-            // Check if API call was actually successful
             if (!response || response.success === false) {
                 throw new Error(
                     response?.message || "Failed to delete comment"
                 );
             }
 
-            // Update comment count immediately
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              commentCount: Math.max(
-                                  0,
-                                  (post.commentCount || 0) - 1
-                              ),
-                          }
-                        : post
-                ),
-            }));
+            // ✅ Refresh only that post to update commentCount
+            await refreshSinglePost(postId);
 
-            // Refresh comments if comments section is open
-            if (commentState.activeCommentPostId === postId) {
-                await handleToggleCommentDropdown(postId);
-            }
+            // ✅ Close the comment modal/dropdown
+            setCommentState((prev) => ({
+                ...prev,
+                activeCommentPostId: null,
+            }));
 
             handleCloseConfirmationModal();
         } catch (error) {
@@ -1356,7 +1366,11 @@ const ProfilePage = () => {
                 throw new Error(response?.message || "Failed to create post");
             }
 
-            await fetchUserPosts(token);
+            // ✅ REFRESH USER DATA TO UPDATE POST COUNT
+            await Promise.all([
+                fetchUserPosts(token), // Refresh posts
+                fetchCurrentUserData(token), // Refresh user data including postCount
+            ]);
         } catch (error) {
             console.error("Post error:", error);
             toast.error("Unable to create post.");
@@ -1613,7 +1627,7 @@ const ProfilePage = () => {
                 ...prev,
                 posts: prev.posts.filter((post) => post._id !== postId),
             }));
-
+            await fetchCurrentUserData(token);
             const storedLikes = localStorageService.getStoredLikes();
             delete storedLikes[postId];
             localStorage.setItem("postLikes", JSON.stringify(storedLikes));

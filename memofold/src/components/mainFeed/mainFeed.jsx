@@ -99,6 +99,22 @@ const MainFeed = () => {
         setShowLikesModal(true);
     };
 
+    // ✅ Fetch and refresh only one post (used after comment/reply delete)
+    const refreshSinglePost = async (postId) => {
+        try {
+            const updatedData = await apiService.fetchSinglePost(token, postId);
+            const updatedPost = updatedData.post || updatedData;
+
+            setPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                    p._id === postId ? { ...updatedPost } : p
+                )
+            );
+        } catch (err) {
+            console.error("Failed to refresh post:", err);
+        }
+    };
+
     // ✅ ADDED: Comment deletion modal handlers
     const handleOpenDeleteCommentModal = (commentId, postId, e) => {
         if (e) {
@@ -174,7 +190,8 @@ const MainFeed = () => {
 
             // ✅ Now call the API
             await apiService.deleteComment(commentId, postId, token);
-
+            await refreshSinglePost(postId);
+            setActiveCommentPostId(null);
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             setError(err.message);
@@ -294,6 +311,8 @@ const MainFeed = () => {
             const result = await apiService.deleteReply(replyId, token);
 
             if (result.success) {
+                await refreshSinglePost(foundPostId);
+                setActiveCommentPostId(null);
                 setTimeout(() => setSuccessMessage(null), 3000);
             } else {
                 throw new Error(result.message || "Failed to delete reply");
@@ -524,7 +543,6 @@ const MainFeed = () => {
             setIsLoading(false);
         }
     };
-
     const fetchComments = async (postId) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
 
@@ -1133,6 +1151,7 @@ const MainFeed = () => {
                         return {
                             ...post,
                             comments: updatedComments,
+                            commentCount: (post.commentCount || 0) + 1,
                         };
                     }
                     return post;

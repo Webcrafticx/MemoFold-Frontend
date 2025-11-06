@@ -128,6 +128,22 @@ const UserProfile = () => {
     // Track which comment has reply input open
     const [activeReplyInput, setActiveReplyInput] = useState(null);
 
+    // ✅ Fetch and refresh only one post (used after comment/reply delete)
+    const refreshSinglePost = async (postId) => {
+        try {
+            const updatedData = await apiService.fetchSinglePost(token, postId);
+            const updatedPost = updatedData.post || updatedData;
+
+            setUserPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                    p._id === postId ? { ...updatedPost } : p
+                )
+            );
+        } catch (err) {
+            console.error("Failed to refresh post:", err);
+        }
+    };
+
     // ✅ ADDED: Modal handlers for comment deletion
     const handleOpenDeleteCommentModal = (commentId, postId, e) => {
         if (e) {
@@ -201,6 +217,8 @@ const UserProfile = () => {
             );
 
             await apiService.deleteComment(commentId, postId, token);
+            await refreshSinglePost(postId);
+            setActiveCommentPostId(null);
         } catch (err) {
             console.error("Error deleting comment:", err);
             setError(err.message);
@@ -289,6 +307,7 @@ const UserProfile = () => {
                         return {
                             ...post,
                             comments: updatedComments,
+                            commentCount: (post.commentCount || 0) - 1,
                         };
                     }
                     return post;
@@ -1268,6 +1287,7 @@ const UserProfile = () => {
                         return {
                             ...post,
                             comments: updatedComments,
+                            commentCount: (post.commentCount || 0) + 1,
                         };
                     }
                     return post;

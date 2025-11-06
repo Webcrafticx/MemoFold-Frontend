@@ -31,6 +31,28 @@ const Navbar = ({ onDarkModeChange }) => {
     const profileDropdownRef = useRef(null);
     const mobileSearchRef = useRef(null);
     const profileTriggerRef = useRef(null);
+    useEffect(() => {
+        if (!token) {
+            // No token found — redirect immediately
+            navigate("/login", { replace: true });
+        } else {
+            try {
+                const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+                const currentTime = Date.now() / 1000;
+
+                // If token expired, logout and redirect
+                if (tokenPayload.exp && tokenPayload.exp < currentTime) {
+                    localStorage.removeItem("token");
+                    navigate("/login", { replace: true });
+                }
+            } catch (error) {
+                // Invalid or malformed token
+                console.error("Invalid token format:", error);
+                localStorage.removeItem("token");
+                navigate("/login", { replace: true });
+            }
+        }
+    }, [token, navigate]);
 
     // Handle dark mode
     useEffect(() => {
