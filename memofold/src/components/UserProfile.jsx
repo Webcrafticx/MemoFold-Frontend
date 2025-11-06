@@ -2819,50 +2819,67 @@ const UserProfile = () => {
                                                                                                 </div>
                                                                                             </div> */}
 
-                                                                                            <input
-                                                                                                type="text"
-                                                                                                className={`w-full px-3 py-1 rounded-full text-xs border ${
-                                                                                                    isDarkMode
-                                                                                                        ? "bg-gray-700 border-gray-600 text-white"
-                                                                                                        : "bg-white border-gray-300"
-                                                                                                } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                                                placeholder="Write a reply..."
-                                                                                                value={
-                                                                                                    replyContent[
-                                                                                                        comment
-                                                                                                            ._id
-                                                                                                    ] ||
-                                                                                                    ""
-                                                                                                }
-                                                                                                onChange={(
-                                                                                                    e
-                                                                                                ) =>
-                                                                                                    setReplyContent(
-                                                                                                        {
-                                                                                                            ...replyContent,
-                                                                                                            [comment._id]:
-                                                                                                                e
-                                                                                                                    .target
-                                                                                                                    .value,
+                                                                                            {(() => {
+                                                                                                const commentUsername =
+                                                                                                    comment
+                                                                                                        ?.userId
+                                                                                                        ?.username ||
+                                                                                                    comment
+                                                                                                        ?.user
+                                                                                                        ?.username ||
+                                                                                                    comment?.username ||
+                                                                                                    "User";
+
+                                                                                                return (
+                                                                                                    <input
+                                                                                                        type="text"
+                                                                                                        className={`w-full px-3 py-1 rounded-full text-xs border ${
+                                                                                                            isDarkMode
+                                                                                                                ? "bg-gray-700 border-gray-600 text-white"
+                                                                                                                : "bg-white border-gray-300 text-gray-800"
+                                                                                                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                                                                                                        placeholder={`Reply to ${commentUsername}...`}
+                                                                                                        value={
+                                                                                                            replyContent[
+                                                                                                                comment
+                                                                                                                    ._id
+                                                                                                            ] ||
+                                                                                                            ""
                                                                                                         }
-                                                                                                    )
-                                                                                                }
-                                                                                                onKeyDown={(
-                                                                                                    e
-                                                                                                ) => {
-                                                                                                    if (
-                                                                                                        e.key ===
-                                                                                                        "Enter"
-                                                                                                    ) {
-                                                                                                        e.preventDefault();
-                                                                                                        handleAddReply(
-                                                                                                            comment._id,
-                                                                                                            post._id,
+                                                                                                        onChange={(
                                                                                                             e
-                                                                                                        );
-                                                                                                    }
-                                                                                                }}
-                                                                                            />
+                                                                                                        ) =>
+                                                                                                            setReplyContent(
+                                                                                                                (
+                                                                                                                    prev
+                                                                                                                ) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [comment._id]:
+                                                                                                                        e
+                                                                                                                            .target
+                                                                                                                            .value,
+                                                                                                                })
+                                                                                                            )
+                                                                                                        }
+                                                                                                        onKeyDown={(
+                                                                                                            e
+                                                                                                        ) => {
+                                                                                                            if (
+                                                                                                                e.key ===
+                                                                                                                "Enter"
+                                                                                                            ) {
+                                                                                                                e.preventDefault();
+                                                                                                                handleAddReply(
+                                                                                                                    comment._id,
+                                                                                                                    post._id,
+                                                                                                                    e
+                                                                                                                );
+                                                                                                            }
+                                                                                                        }}
+                                                                                                    />
+                                                                                                );
+                                                                                            })()}
+
                                                                                             <div className="flex space-x-2 self-end sm:self-auto">
                                                                                                 <button
                                                                                                     onClick={(
