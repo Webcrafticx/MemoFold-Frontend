@@ -6,6 +6,34 @@ const ImagePreviewModal = ({ image, onClose }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const imageRef = useRef(null);
 
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      return false;
+    };
+
+    // Pure page par restrictions
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('dragstart', handleContextMenu);
+    
+    // Body par CSS bhi add karo
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+    document.body.style.mozUserSelect = 'none';
+    document.body.style.msUserSelect = 'none';
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('dragstart', handleContextMenu);
+      
+      // Wapas normal kar do
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.mozUserSelect = '';
+      document.body.style.msUserSelect = '';
+    };
+  }, []);
+
   const handleImageLoad = (e) => {
     const img = e.target;
     setDimensions({
@@ -39,21 +67,43 @@ const ImagePreviewModal = ({ image, onClose }) => {
     <div
       className="fixed inset-0 backdrop-blur bg-transparent bg-opacity-80 flex items-center justify-center z-50 p-4"
       onClick={onClose}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        pointerEvents: 'auto'
+      }}
     >
       <div
         className="relative max-w-full max-h-full flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
       >
+        {/* Transparent overlay jo image ko cover kare */}
+        <div 
+          className="absolute inset-0 z-10"
+          onContextMenu={(e) => e.preventDefault()}
+          style={{
+            pointerEvents: 'auto',
+            cursor: 'default'
+          }}
+        />
+        
         <img
           ref={imageRef}
           src={image}
           alt="Preview"
-          className="max-w-full max-h-full object-contain rounded-lg"
+          className="max-w-full max-h-full object-contain rounded-lg relative z-0"
           onLoad={handleImageLoad}
           style={getImageStyle()}
+          onContextMenu={(e) => e.preventDefault()}
+          draggable={false}
         />
+        
         <button
-          className="absolute top-2 right-2 bg-red-500 cursor-pointer text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+          className="absolute top-2 right-2 bg-red-500 cursor-pointer text-white rounded-full p-2 hover:bg-red-600 transition-colors z-20"
           onClick={onClose}
         >
           <FaTimes />
