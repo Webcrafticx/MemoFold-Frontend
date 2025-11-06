@@ -276,7 +276,11 @@ const ProfileCommentSection = ({
                                                                 comment
                                                             )
                                                         }
-                                                        className="text-gray-500 hover:text-gray-700 text-xs flex items-center cursor-pointer"
+                                                        className={` text-xs flex items-center cursor-pointer${
+                                    isDarkMode
+                                        ? "text-gray-200 hover:text-gray-200"
+                                        : "text-gray-500 hover:text-gray-700"
+                                }`}
                                                         disabled={
                                                             isFetchingReplies[
                                                                 comment._id

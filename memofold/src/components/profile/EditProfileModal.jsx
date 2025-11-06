@@ -236,7 +236,7 @@ const EditProfileModal = ({
                                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
                                         loading
                                             ? "bg-gray-400 cursor-not-allowed"
-                                            : "bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 cursor-pointer"
+                                            : "bg-gray-300 text-white hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 cursor-pointer"
                                     }`}
                                 >
                                     Cancel
