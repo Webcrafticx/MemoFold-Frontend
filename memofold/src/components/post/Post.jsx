@@ -155,7 +155,28 @@ const Post = () => {
             setLoading(false);
         }
     };
+    const refreshSinglePost = async (postId) => {
+        try {
+            const updatedData = await apiService.fetchSinglePost(token, postId);
+            const updatedPost = updatedData.post || updatedData;
 
+            if (updatedPost) {
+                // ✅ Post state को update करें
+                setPost((prev) => ({
+                    ...prev,
+                    ...updatedPost,
+                    // ✅ Comments को preserve करें (अगर वर्तमान में open हैं)
+                    comments: prev.comments || updatedPost.comments || [],
+                    commentCount:
+                        updatedPost.commentCount ||
+                        updatedPost.comments?.length ||
+                        0,
+                }));
+            }
+        } catch (err) {
+            console.error("Failed to refresh post:", err);
+        }
+    };
     const handleLike = async (postId, e) => {
         if (e) {
             e.preventDefault();
@@ -281,6 +302,7 @@ const Post = () => {
         try {
             const responseData = await apiService.fetchComments(postId, token);
             const comments = responseData.comments || [];
+            const commentCount = responseData.count || comments.length;
 
             const storedCommentLikes =
                 localStorageService.getStoredCommentLikes();
@@ -322,7 +344,7 @@ const Post = () => {
             setPost((prev) => ({
                 ...prev,
                 comments: commentsWithLikes,
-                commentCount: commentsWithLikes.length,
+                commentCount: commentCount,
             }));
 
             setActiveCommentPostId(postId);
@@ -526,6 +548,7 @@ const Post = () => {
             );
 
             await apiService.deleteComment(commentId, postId, token);
+            await refreshSinglePost(postId);
 
             setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
@@ -614,6 +637,7 @@ const Post = () => {
                               }
                             : comment
                     ) || [],
+                commentCount: Math.max(0, (prev.commentCount || 1) - 1),
             }));
 
             const result = await apiService.deleteReply(replyId, token);
@@ -718,6 +742,7 @@ const Post = () => {
                     }
                     return comment;
                 }),
+                commentCount: (prev.commentCount || 0) + 1,
             }));
 
             // clear the correct reply input
