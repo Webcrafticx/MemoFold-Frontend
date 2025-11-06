@@ -284,7 +284,7 @@ const ProfilePostCard = ({
                                 }}
                             />
                         ) : (
-                            <span className="profile-fallback flex items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
+                            <span className="profile-fallback flex items-center cursor-pointer justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
                                 {getUsername().charAt(0).toUpperCase()}
                             </span>
                         )}
