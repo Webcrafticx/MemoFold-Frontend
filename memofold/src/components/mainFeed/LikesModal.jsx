@@ -166,7 +166,7 @@ const LikesModal = ({
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className={`w-full max-w-md max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] rounded-xl sm:rounded-2xl shadow-2xl ${
+                        className={`w-full max-w-md p-2 max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] rounded-xl sm:rounded-2xl shadow-2xl ${
                             isDarkMode
                                 ? "bg-gray-800 text-gray-100 border border-gray-700"
                                 : "bg-white text-gray-900 border border-gray-200"
