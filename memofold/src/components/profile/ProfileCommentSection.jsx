@@ -277,10 +277,10 @@ const ProfileCommentSection = ({
                                                             )
                                                         }
                                                         className={` text-xs flex items-center cursor-pointer${
-                                    isDarkMode
-                                        ? "text-gray-200 hover:text-gray-200"
-                                        : "text-gray-500 hover:text-gray-700"
-                                }`}
+                                                            isDarkMode
+                                                                ? "text-gray-200 hover:text-gray-200"
+                                                                : "text-gray-500 hover:text-gray-700"
+                                                        }`}
                                                         disabled={
                                                             isFetchingReplies[
                                                                 comment._id
@@ -289,10 +289,10 @@ const ProfileCommentSection = ({
                                                     >
                                                         {isRepliesVisible ? (
                                                             // Chevron DOWN (replies visible) - clicking will hide without API
-                                                            <FaChevronDown className="mr-1" />
+                                                            <FaChevronDown className="mr-1 cursor-pointer" />
                                                         ) : (
                                                             // Chevron UP (replies hidden) - clicking will IMMEDIATELY fetch with API
-                                                            <FaChevronRight className="mr-1" />
+                                                            <FaChevronRight className="mr-1 cursor-pointer" />
                                                         )}
                                                         <span className="ml-1">
                                                             {replyCount}
