@@ -8,34 +8,31 @@ import { StreamChat } from "stream-chat";
 import toast from "react-hot-toast";
 
 import "stream-chat-react/dist/css/v2/index.css";
-import ChatLoader from "./ChatLoader";
 import CallButton from "./CallButton";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
 // 🟡 Skeleton Loader
-const ChatSkeleton = () => {
-  return (
-    <div className="bg-white fixed inset-0 flex flex-col">
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse"></div>
-          <div className="flex-1">
-            <div className="h-4 bg-gray-300 rounded w-32 mb-2 animate-pulse"></div>
-            <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 p-4 space-y-6 overflow-hidden"></div>
-      <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="flex space-x-2">
-          <div className="flex-1 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
-          <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+const ChatSkeleton = () => (
+  <div className="bg-white fixed inset-0 flex flex-col">
+    <div className="p-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center space-x-3">
+        <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse"></div>
+        <div className="flex-1">
+          <div className="h-4 bg-gray-300 rounded w-32 mb-2 animate-pulse"></div>
+          <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
         </div>
       </div>
     </div>
-  );
-};
+    <div className="flex-1 p-4 space-y-6 overflow-hidden"></div>
+    <div className="p-4 border-t border-gray-200 bg-white">
+      <div className="flex space-x-2">
+        <div className="flex-1 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+      </div>
+    </div>
+  </div>
+);
 
 const formatLastSeen = (lastActive) => {
   if (!lastActive) return "Offline";
@@ -59,17 +56,12 @@ const ChatPage = () => {
   const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [reloadAttempted, setReloadAttempted] = useState(false);
   const [isSendingCall, setIsSendingCall] = useState(false);
-  const [initFailed, setInitFailed] = useState(false);
   const { user: authUser, token } = useAuth();
   const initializedRef = useRef(false);
+  const reloadAttemptedRef = useRef(false); // track reload
 
-  const {
-    data: tokenData,
-    isLoading: tokenLoading,
-    error: tokenError,
-  } = useQuery({
+  const { data: tokenData, isLoading: tokenLoading } = useQuery({
     queryKey: ["streamToken", authUser?._id],
     queryFn: async () => {
       if (!token) throw new Error("No auth token");
@@ -79,20 +71,11 @@ const ChatPage = () => {
     retry: 1,
   });
 
-  useEffect(() => {
-    if (tokenError) {
-      console.error("Token error:", tokenError);
-      setLoading(false);
-      setInitFailed(true);
-    }
-  }, [tokenError]);
-
   const initChat = async () => {
     if (tokenLoading || !tokenData?.token || !authUser?._id || !targetUserId) return;
 
     if (authUser._id === targetUserId) {
       setLoading(false);
-      setInitFailed(true);
       return;
     }
 
@@ -121,27 +104,18 @@ const ChatPage = () => {
       setChatClient(client);
       setLoading(false);
       initializedRef.current = true;
-      setInitFailed(false);
     } catch (err) {
       console.error("Chat init error:", err);
-      const statusCode = err?.response?.status;
-      if (statusCode === 400) {
-        setLoading(false);
-        setInitFailed(true);
-        toast.error("Failed to initialize chat (400). Please try again.");
-        return;
-      }
-      
-      // Pehli baar error pe automatically reload karein
-      if (!reloadAttempted) {
-        setReloadAttempted(true);
+      setLoading(false);
+
+      // 🔄 Automatically reload once
+      if (!reloadAttemptedRef.current) {
+        reloadAttemptedRef.current = true;
         setTimeout(() => {
           window.location.reload();
-        }, 1000);
+        }, 1000); // 1 second delay
       } else {
-        // Dusri baar reload ke baad bhi error aaye toh error screen dikhayein
-        setLoading(false);
-        setInitFailed(true);
+        toast.error("Unable to initialize chat. Please reload the page manually.");
       }
     }
   };
@@ -191,63 +165,18 @@ const ChatPage = () => {
     }
   };
 
-  const handleRetry = () => {
-    setInitFailed(false);
-    setLoading(true);
-    setReloadAttempted(false);
-    initializedRef.current = false;
-    initChat();
-  };
-
-  // ✅ Navigate to user profile
   const navigateToUserProfile = (userId, e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-
     if (!userId) return;
-
-    if (userId === authUser._id) {
-      navigate("/profile");
-    } else {
-      navigate(`/user/${userId}`);
-    }
+    navigate(userId === authUser._id ? "/profile" : `/user/${userId}`);
   };
 
   if (loading) return <ChatSkeleton />;
 
-  // Yeh condition change karein - sirf reload attempted hone ke baad hi error screen dikhayein
-  if ((initFailed && reloadAttempted) || !chatClient || !channel) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white px-4">
-        <div className="text-center max-w-sm">
-          <div className="animate-bounce text-5xl mb-4">💬</div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Reconnecting...
-          </h2>
-          <p className="text-gray-600 mb-6">Something went wrong while connecting to the chat.</p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center w-full">
-            <button
-              onClick={handleRetry}
-              className="px-5 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={handleBack}
-              className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const targetUser = channel.state.members[targetUserId]?.user;
+  const targetUser = channel?.state?.members[targetUserId]?.user;
   const lastSeenText = targetUser?.online
     ? "Online"
     : formatLastSeen(targetUser?.last_active);
@@ -260,7 +189,6 @@ const ChatPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-4 border-b border-gray-200 bg-white">
               <div className="flex items-center space-x-3">
-                {/* Back Button */}
                 <button
                   onClick={handleBack}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
@@ -281,7 +209,6 @@ const ChatPage = () => {
                   </svg>
                 </button>
 
-                {/* Avatar + Username Clickable */}
                 <div
                   onClick={(e) => navigateToUserProfile(targetUser?.id, e)}
                   className="flex items-center space-x-3 cursor-pointer group"
@@ -312,7 +239,6 @@ const ChatPage = () => {
                 </div>
               </div>
 
-              {/* Call Button */}
               <CallButton handleVideoCall={handleVideoCall} isSending={isSendingCall} />
             </div>
 
