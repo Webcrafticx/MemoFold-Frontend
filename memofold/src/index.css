@@ -1,1 +1,103 @@
 @import "tailwindcss";
+@import "stream-chat-react/dist/css/v2/index.css";
+
+/* Hide ONLY the three dots (menu) on each participant tile */
+.str-video__participant-context-menu,
+.str-video__menu-button,
+.str-video__icon--ellipsis {
+    display: none !important;
+}
+
+/* Hide ONLY the participant name label (keeps mic icon visible) */
+.str-video__participant-details__name {
+    display: none !important;
+}
+
+/* Always hide the Cancel button */
+.str-chat__edit-message-cancel {
+    display: none !important;
+}
+
+/* Hide "quoted message remove" only when editing */
+.str-chat__edit-message-form .str-chat__quoted-message-remove {
+    display: none !important;
+}
+
+
+/* 🔹 Hide Stream Chat file icons and fallback previews — all screens */
+.rfu-file-fallback,
+.str-chat__file-icon {
+    display: none !important;
+}
+
+/* 🔹 Make the message layout a vertical stack */
+.str-chat__message-inner {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    position: relative !important;
+}
+
+/* 🔹 Move top buttons (3-dots + reaction button) to top-left */
+.str-chat__message-simple__actions {
+    top: -24px !important;
+    left: 0 !important;
+    display: flex !important;
+    gap: 6px !important;
+    justify-content: flex-start !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.25s ease, visibility 0.25s ease !important;
+}
+
+/* 🔹 Show actions only when hovering over the message */
+.str-chat__message-inner:hover .str-chat__message-simple__actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* 🔹 Ensure message bubble stays in normal flow */
+.str-chat__message-bubble {
+    order: 1 !important;
+    align-self: flex-end !important;
+    /* keep bubble on right side */
+}
+
+/* 🔹 Move reactions BELOW and align to right */
+.str-chat__message-reactions-host {
+    order: 2 !important;
+    align-self: flex-end !important;
+    margin-top: 6px !important;
+    position: relative !important;
+    cursor: pointer !important;
+}
+
+.str-chat__message-reactions-host * {
+    cursor: pointer !important;
+}
+
+/* 🔹 Tweak reactions container alignment */
+.str-chat__message-reactions-container,
+.str-chat__reaction-list {
+    justify-content: flex-end !important;
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+}
+
+
+/* Optional: Reduce size of emoji reaction display */
+/* .str-chat__message-reaction-emoji {
+    transform: scale(0.9);
+    cursor: pointer !important;
+} */
+
+
+/* 🔹 Hide participant name ONLY on mobile screens */
+/* @media (max-width: 768px) {
+    .str-video__participant-details__name {
+        display: none !important;
+    }
+} */

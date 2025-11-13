@@ -140,11 +140,11 @@ const ChatPage = () => {
       const fullUrl = `${window.location.origin}${relativeUrl}`;
 
       await channel.sendMessage({
-        text: `🔗[Join Now](${fullUrl})`,
+        text: `📞[**Join Call Now**](${fullUrl})`,
         attachments: [
           {
             type: "video_call",
-            title: "👥 Incoming Video Call",
+            title: "🎥 Incoming Video Call",
             description: "Tap below to join the live video session",
             actions: [
               {
