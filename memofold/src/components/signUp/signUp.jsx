@@ -17,7 +17,6 @@ const SignUp = () => {
     const { register, loading, error, token } = useAuth();
     const navigate = useNavigate();
 
-
     useEffect(() => {
         if (token) {
             navigate("/feed");
@@ -59,7 +58,8 @@ const SignUp = () => {
         } else if (formData.username.length < 3) {
             errors.username = "Username must be at least 3 characters";
         } else if (!usernameRegex.test(formData.username)) {
-            errors.username = "Username can only contain letters, numbers, and underscores";
+            errors.username =
+                "Username can only contain letters, numbers, and underscores";
         }
 
         if (!formData.email.trim()) {
@@ -73,7 +73,8 @@ const SignUp = () => {
         } else if (formData.password.length < 6) {
             errors.password = "Password must be at least 6 characters";
         } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-            errors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number";
+            errors.password =
+                "Password must contain at least one uppercase letter, one lowercase letter, and one number";
         }
 
         if (!formData.confirmPassword) {
@@ -228,7 +229,7 @@ const SignUp = () => {
                         <button
                             type="button"
                             onClick={togglePasswordVisibility}
-                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
                             aria-label={
                                 showPassword ? "Hide password" : "Show password"
                             }
@@ -270,7 +271,7 @@ const SignUp = () => {
                         <button
                             type="button"
                             onClick={toggleConfirmPasswordVisibility}
-                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700"
+                            className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
                             aria-label={
                                 showConfirmPassword
                                     ? "Hide password"
@@ -293,7 +294,7 @@ const SignUp = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-gradient-to-r from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full bg-gradient-to-r from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 cursor-pointer disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <span className="flex items-center justify-center">
