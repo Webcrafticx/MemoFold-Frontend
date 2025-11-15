@@ -71,7 +71,7 @@ const LoginPage = () => {
                                     ? "-left-8 -rotate-3"
                                     : index === 1
                                     ? "z-20"
-                                    : "left-8 rotate-3"
+                                    : "left-16 rotate-6"
                             } ${
                                 isHovering === index
                                     ? "scale-105 -translate-y-2 z-30"
