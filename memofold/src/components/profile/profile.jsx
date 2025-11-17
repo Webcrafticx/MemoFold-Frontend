@@ -1057,7 +1057,7 @@ const ProfilePage = () => {
                         ...reply,
                         // Proper user data structure with profilePic
                         userId: {
-                            _id: reply.user?._id || "unknown",
+                            _id: reply.user?.id || "unknown",
                             username: username,
                             realname: realname,
                             profilePic: profilePic,

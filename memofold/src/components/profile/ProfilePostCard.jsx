@@ -587,12 +587,15 @@ const ProfilePostCard = ({
                     >
                         <FaComment />
                         <span className="text-sm">{commentCount}</span>
+                         {isFetchingComments && (
+        <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+    )}
                     </button>
                 </div>
             )}
 
             {/* Comments Section */}
-            {!isEditing && (
+            {!isEditing && !isFetchingComments && activeCommentPostId === post._id && (
                 <ProfileCommentSection
                     post={post}
                     isDarkMode={isDarkMode}

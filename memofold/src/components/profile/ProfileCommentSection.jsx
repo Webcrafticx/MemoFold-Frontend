@@ -17,7 +17,7 @@ const ProfileCommentSection = ({
     activeCommentPostId,
     commentContent,
     isCommenting,
-    isFetchingComments,
+    // isFetchingComments,
     onCommentSubmit,
     onSetCommentContent,
     onDeleteComment,
@@ -125,14 +125,13 @@ const ProfileCommentSection = ({
         }
     };
 
-    if (isFetchingComments) {
-        return (
-            <div className="text-center py-4">
-                <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm mt-2">Loading comments...</p>
-            </div>
-        );
-    }
+//  if (isFetchingComments) {
+//     return (
+//         <div className="text-center py-4">
+//             <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+//         </div>
+//     );
+// }
 
     return (
         <div className="mt-4">
@@ -189,30 +188,22 @@ const ProfileCommentSection = ({
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center space-x-2">
-                                            <span
-                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                onClick={() =>
-                                                    navigateToUserProfile(
-                                                        commentUserId
-                                                    )
-                                                }
-                                            >
-                                                {commentUsername}
-                                            </span>
-                                            <span
-                                                className={`text-xs ${
-                                                    isDarkMode
-                                                        ? "text-gray-400"
-                                                        : "text-gray-500"
-                                                }`}
-                                            >
-                                                {comment.createdAt
-                                                    ? formatDate(
-                                                          comment.createdAt
-                                                      )
-                                                    : "Recently"}
-                                            </span>
-                                        </div>
+                                                            <span
+                                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                                onClick={(e) =>
+                                                                    navigateToUserProfile(comment.userId?._id, e)
+                                                                }
+                                                            >
+                                                                {comment.userId?.username || "Unknown"}
+                                                            </span>
+                                                            <span
+                                                                className={`text-xs ${
+                                                                    isDarkMode ? "text-gray-400" : "text-gray-500"
+                                                                }`}
+                                                            >
+                                                                {formatDate(comment.createdAt)}
+                                                            </span>
+                                                        </div>
                                         <p className="text-sm whitespace-pre-line mt-1">
                                             {comment.content}
                                         </p>
@@ -299,9 +290,11 @@ const ProfileCommentSection = ({
                                                         </span>
                                                         {isFetchingReplies[
                                                             comment._id
-                                                        ] && (
-                                                            <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                        )}
+                                                        ] 
+                                                        // && (
+                                                        //     <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                        // )
+                                                        }
                                                     </button>
                                                 )}
 
