@@ -198,12 +198,23 @@ const PostCard = ({
                         } hover:text-red-500 transition-colors cursor-pointer`}
                     >
                         {isLiking[post._id] ? (
-                            <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                        ) : post.hasUserLiked ? (
-                            <FaHeart className="text-xl text-red-500" />
-                        ) : (
-                            <FaRegHeart className="text-xl text-gray-400" />
-                        )}
+    <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+) : (
+    <motion.div
+        animate={{
+            scale: post.hasUserLiked ? [1, 1.2, 1] : 1,
+        }}
+        transition={{
+            duration: 0.3,
+        }}
+    >
+        {post.hasUserLiked ? (
+            <FaHeart className="text-xl text-red-500" />
+        ) : (
+            <FaRegHeart className="text-xl text-gray-400" />
+        )}
+    </motion.div>
+)}
                         <motion.span
                             key={totalLikes}
                             initial={{ scale: 1 }}

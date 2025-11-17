@@ -1596,13 +1596,23 @@ const UserProfile = () => {
                 setLocalInputValue("");
             };
 
-            // Safe user data access
-            const replyUser = reply?.userId || reply?.user || {};
-            const replyUsername =
-                replyUser?.username || reply?.username || "Unknown";
-            const replyUserProfilePic =
-                replyUser?.profilePic || reply?.profilePic;
-            const replyUserId = replyUser?._id || replyUser?.id || "unknown";
+        // ✅ CORRECTED: Safe user data extraction
+        const replyUser = reply?.userId || reply?.user || {};
+        const replyUsername = replyUser?.username || reply?.username || "Unknown";
+        
+        // ✅ CORRECTED: Get ID from ALL possible fields
+        const replyUserId = 
+            replyUser?.id || 
+            replyUser?._id || 
+            reply?.userId?._id || 
+            reply?.user?.id || 
+            "unknown";
+            
+        const replyUserProfilePic = 
+            replyUser?.profilePic || 
+            replyUser?.profilepic || 
+            reply?.profilePic || 
+            reply?.profilepic;
 
             // Check if current user can delete reply
             const canDeleteReply = () => {
@@ -1642,7 +1652,7 @@ const UserProfile = () => {
                             )}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="flex flex-col xs:flex-row xs:items-center xs:space-x-2 gap-1">
+                            <div className="flex items-center space-x-2">
                                 <span
                                     className="font-semibold text-xs hover:text-blue-500 cursor-pointer truncate"
                                     onClick={(e) => {
@@ -1811,10 +1821,10 @@ const UserProfile = () => {
                                             }}
                                         />
                                         {/* BUTTONS: Post first, then Cancel */}
-                                        <div className="flex space-x-2 self-end sm:self-auto">
+                                        <div className=" cursor-pointer flex space-x-2 self-end sm:self-auto">
                                             <button
                                                 onClick={handleSubmit}
-                                                className={`px-3 py-1 rounded-full text-xs ${
+                                                className={`px-3 py-1 rounded-full text-xs cursor-pointer ${
                                                     !localInputValue.trim() ||
                                                     isReplying[contentKey]
                                                         ? "bg-blue-300 cursor-not-allowed"
@@ -1826,7 +1836,7 @@ const UserProfile = () => {
                                                 }
                                             >
                                                 {isReplying[contentKey] ? (
-                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                    <span className="inline-block h-2 w-2 border-2 border-white border-t-transparent rounded-full cursor-pointer animate-spin"></span>
                                                 ) : (
                                                     "Post"
                                                 )}
@@ -2891,7 +2901,7 @@ const UserProfile = () => {
                                                                                                             e
                                                                                                         )
                                                                                                     }
-                                                                                                    className={`px-3 py-1 rounded-full text-xs ${
+                                                                                                    className={`px-3 py-1 rounded-full text-xs cursor-pointer ${
                                                                                                         !replyContent[
                                                                                                             comment
                                                                                                                 ._id
@@ -3080,7 +3090,7 @@ const UserProfile = () => {
                                                                 {/* POST BUTTON FIRST */}
                                                                 <button
                                                                     type="submit"
-                                                                    className={`px-4 py-2 rounded-full text-sm ${
+                                                                    className={`px-4 py-2 rounded-full text-sm cursor-pointer ${
                                                                         !commentContent[
                                                                             post
                                                                                 ._id

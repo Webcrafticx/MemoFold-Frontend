@@ -183,38 +183,41 @@ const CreatePostSection = ({
                     </div>
                 </div>
 
-                <div className="flex gap-1 sm:gap-2 self-end">
-                    <button
-                        onClick={() => fileInputRef.current.click()}
-                        className="p-1 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                        title="Attach file"
-                    >
-                        <FaPaperclip className="text-xs sm:text-sm" />
-                    </button>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept="image/*"
-                    />
+<div className="flex gap-1 sm:gap-2 self-end items-center">
+    <button
+        onClick={() => fileInputRef.current.click()}
+        className="p-1 sm:p-2 flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+        title="Attach file"
+    >
+        <FaPaperclip className="text-xs sm:text-sm" />
+        <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
+            Add Media
+        </span>
+    </button>
 
-                    <button
-                        onClick={handlePostSubmit}
-                        disabled={
-                            (!postContent.trim() && !filePreview) ||
-                            isCreatingPost
-                        }
-                        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
-                            (postContent.trim() || filePreview) &&
-                            !isCreatingPost
-                                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
-                                : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-                        } transition-colors`}
-                    >
-                        {isCreatingPost ? "Posting..." : "Post"}
-                    </button>
-                </div>
+    <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept="image/*"
+    />
+
+    <button
+        onClick={handlePostSubmit}
+        disabled={
+            (!postContent.trim() && !filePreview) || isCreatingPost
+        }
+        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+            (postContent.trim() || filePreview) && !isCreatingPost
+                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+        } transition-colors`}
+    >
+        {isCreatingPost ? "Posting..." : "Post"}
+    </button>
+</div>
+
             </div>
         </div>
     );

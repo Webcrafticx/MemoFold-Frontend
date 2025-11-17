@@ -17,7 +17,8 @@ const ReplyItem = ({
     isReplying,
     replyContent,
     onSetReplyContent,
-    onAddReply,
+    // onAddReply,
+    onReplySubmit,
     postId,
     activeReplyInputs,
 }) => {
@@ -68,14 +69,30 @@ const ReplyItem = ({
             : false
         : false;
 
-    // Safe user data access
-    const replyUser = reply?.userId || reply?.user || {};
-    const replyUsername = replyUser?.username || reply?.username || "Unknown";
+// Safe user data access
+const replyUser = reply?.user || reply?.userId || {};
 
-    // ✅ FIXED: Only use profilePic if it exists, don't set fallback URL
-    const replyUserProfilePic = replyUser?.profilePic || reply?.profilePic;
+const replyUserId =
+    reply?.user?.id ||        // case: reply.user.id
+    reply?.userId?._id ||     // case: reply.userId._id
+    replyUser?._id ||         // backup
+    "unknown";
 
-    const replyUserId = replyUser?._id || replyUser?.id || "unknown";
+const replyUsername =
+    replyUser?.username ||
+    reply?.username ||
+    "Unknown";
+
+const replyUserProfilePic =
+    replyUser?.profilePic ||
+    replyUser?.profilepic ||
+    reply?.profilePic ||
+    reply?.profilepic ||
+    "";
+
+
+    // console.log(replyUserId)
+    // console.log(reply)
 
     // Check if current user can delete reply
     const canDeleteReply = () => {
@@ -96,10 +113,14 @@ const ReplyItem = ({
             return;
         }
 
-        if (onAddReply && postId && commentId) {
-            // FIXED: Pass the replyInputKey to identify which reply we're replying to
-            onAddReply(postId, commentId, replyInputKey);
-        } else {
+        // if (onAddReply && postId && commentId) {
+        //     // FIXED: Pass the replyInputKey to identify which reply we're replying to
+        //     onAddReply(postId, commentId, replyInputKey);
+        // } 
+         if (onReplySubmit && postId && commentId) {
+            onReplySubmit(postId, commentId, replyInputKey);
+        }
+        else {
             console.error("❌ Missing required parameters for reply:", {
                 onAddReply: !!onAddReply,
                 postId,
@@ -144,8 +165,10 @@ const ReplyItem = ({
     };
 
     const handleNavigateToProfile = () => {
-        if (navigateToUserProfile && replyUserId) {
+        if (navigateToUserProfile && replyUserId && replyUserId !== "unknown") {
             navigateToUserProfile(replyUserId);
+        } else {
+            console.warn("Cannot navigate: Missing user ID", { replyUserId });
         }
     };
 
@@ -175,7 +198,7 @@ const ReplyItem = ({
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="flex flex-col xs:flex-row xs:items-center xs:space-x-2 gap-1">
+                    <div className="flex items-center space-x-2">
                         <span
                             className="font-semibold text-xs hover:text-blue-500 cursor-pointer truncate"
                             onClick={handleNavigateToProfile}
