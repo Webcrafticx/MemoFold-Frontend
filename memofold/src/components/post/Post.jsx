@@ -396,7 +396,7 @@ const Post = () => {
             setPost((prev) => ({
                 ...prev,
                 comments: [
-                    ...(prev.comments || []),
+                    // ✅ NEW COMMENT AT TOP
                     {
                         ...createdComment,
                         isLiked: false,
@@ -418,6 +418,8 @@ const Post = () => {
                         replyCount: 0,
                         showReplyInput: false,
                     },
+                    // ✅ EXISTING COMMENTS BELOW
+                    ...(prev.comments || []),
                 ],
                 commentCount: (prev.commentCount || 0) + 1,
             }));
@@ -672,9 +674,6 @@ const Post = () => {
 
     // Replace the existing handleAddReply with this
     const handleAddReply = async (postId, commentId, replyKey) => {
-        // replyKey may be same as commentId for simple comment->reply flow,
-        // but we use replyKey for reply-content/isReplying keys consistently.
-
         const content = replyContent[replyKey] || "";
 
         if (!content.trim()) {
@@ -728,9 +727,10 @@ const Post = () => {
                                 new Date().toISOString(),
                         };
 
+                        // ✅ NEW REPLY APPEARS AT TOP
                         const updatedReplies = [
-                            ...(comment.replies || []),
                             newReply,
+                            ...(comment.replies || []),
                         ];
 
                         return {
@@ -745,9 +745,13 @@ const Post = () => {
                 commentCount: (prev.commentCount || 0) + 1,
             }));
 
-            // clear the correct reply input
+            // ✅ AUTO OPEN: Show replies section
+            setActiveReplies((prev) => ({
+                ...prev,
+                [commentId]: true,
+            }));
+
             setReplyContent((prev) => ({ ...prev, [replyKey]: "" }));
-            setTimeout(() => setSuccessMessage(null), 3000);
         } catch (err) {
             if (
                 err.message &&
@@ -761,7 +765,6 @@ const Post = () => {
             setIsReplying((prev) => ({ ...prev, [replyKey]: false }));
         }
     };
-
     const handleLikeReply = async (replyId, commentId, e) => {
         if (e) {
             e.preventDefault();

@@ -6,7 +6,7 @@ import {
     FaChevronDown,
     FaChevronRight,
 } from "react-icons/fa";
-import { formatDate } from "../../services/dateUtils";
+import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import ReplyItem from "./ReplyItem";
 
 const CommentItem = ({
@@ -147,7 +147,7 @@ const CommentItem = ({
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                         }`}
                     >
-                        {formatDate(comment.createdAt)}
+                        {getTimeDifference(comment.createdAt)}
                     </span>
                 </div>
                 <p
@@ -300,6 +300,7 @@ const CommentItem = ({
                                     replyContent={replyContent}
                                     onSetReplyContent={onSetReplyContent}
                                     onAddReply={onAddReply}
+                                    onReplySubmit={onAddReply}
                                     navigateToUserProfile={
                                         navigateToUserProfile
                                     }

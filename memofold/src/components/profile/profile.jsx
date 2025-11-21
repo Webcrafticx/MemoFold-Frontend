@@ -693,6 +693,8 @@ const ProfilePage = () => {
             }));
 
             const token = localStorage.getItem("token");
+            const username = localStorage.getItem("username");
+            const currentUserId = localStorage.getItem("userId");
 
             // ✅ UTC time use karo comment ke liye
             const response = await apiService.addComment(
@@ -706,28 +708,54 @@ const ProfilePage = () => {
                 throw new Error(response?.message || "Failed to add comment");
             }
 
-            // Update comment count immediately
+            // ✅ FIXED: Use server-provided createdAt timestamp from response
+            const serverComment = response.comment || response;
+
+            console.log("✅ Server comment received:", serverComment); // Debug ke liye
+
+            // ✅ FIXED: Add new comment at the BEGINNING with proper server data
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
                     post._id === postId
                         ? {
                               ...post,
+                              comments: [
+                                  {
+                                      // ✅ USE ALL SERVER DATA INCLUDING createdAt
+                                      ...serverComment,
+                                      // ✅ OVERRIDE with proper user data structure
+                                      userId: {
+                                          _id: currentUserId,
+                                          username: username,
+                                          realname: profileData.realName,
+                                          profilePic: profileData.profilePic,
+                                      },
+                                      username: username,
+                                      profilePic: profileData.profilePic,
+                                      // ✅ IMPORTANT: Ensure these fields are present
+                                      isLiked: false,
+                                      likes: serverComment.likes || [],
+                                      hasUserLiked: false,
+                                      replies: [],
+                                      replyCount: 0,
+                                      showReplies: false,
+                                  },
+                                  ...(post.comments || []),
+                              ],
+                              // ✅ FIXED: Increment comment count properly
                               commentCount: (post.commentCount || 0) + 1,
                           }
                         : post
                 ),
             }));
 
-            // Refresh comments if comments section is open
-            if (commentState.activeCommentPostId === postId) {
-                await handleToggleCommentDropdown(postId);
-            }
-
             setCommentState((prev) => ({
                 ...prev,
                 commentContent: { ...prev.commentContent, [postId]: "" },
             }));
+
+            toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
             toast.error("Unable to add comment.");
@@ -738,7 +766,6 @@ const ProfilePage = () => {
             }));
         }
     };
-
     const handleSetCommentContent = (content) => {
         setCommentState((prev) => ({ ...prev, commentContent: content }));
     };
@@ -834,16 +861,15 @@ const ProfilePage = () => {
             const currentUserId = localStorage.getItem("userId");
 
             // For ALL replies, we use the main commentId for API call
-            // Reply-to-reply bhi same comment ke replies array mein jayega
             const targetCommentId = commentId;
 
-            // Optimistically add the reply with UTC time
+            // ✅ FIXED: Use server UTC time instead of client time
             const optimisticReply = {
                 _id: `temp-${Date.now()}`,
                 content: content,
                 likes: [],
                 hasUserLiked: false,
-                createdAt: getCurrentUTCTime(),
+                createdAt: new Date().toISOString(), // ✅ Use current UTC time
                 userId: {
                     _id: currentUserId,
                     username: currentUsername,
@@ -854,8 +880,7 @@ const ProfilePage = () => {
                 profilePic: currentProfilePic,
             };
 
-            // Update the UI optimistically
-            // ALL REPLIES (including reply-to-reply) GO TO THE MAIN COMMENT'S REPLIES ARRAY
+            // ✅ CHANGED: New reply added at the BEGINNING
             setProfileData((prev) => ({
                 ...prev,
                 posts: prev.posts.map((post) =>
@@ -867,12 +892,14 @@ const ProfilePage = () => {
                                   comment._id === commentId
                                       ? {
                                             ...comment,
+                                            // ✅ CHANGED: Add new reply at the beginning
                                             replies: [
-                                                ...(comment.replies || []),
                                                 optimisticReply,
+                                                ...(comment.replies || []),
                                             ],
                                             replyCount:
                                                 (comment.replyCount || 0) + 1,
+                                            // ✅ AUTOMATICALLY OPEN REPLIES DROPDOWN
                                             showReplies: true,
                                         }
                                       : comment
@@ -894,8 +921,11 @@ const ProfilePage = () => {
                 throw new Error(response?.message || "Failed to add reply");
             }
 
+            // ✅ FIXED: Use server-provided createdAt timestamp
+            const serverReply = response.comment || response;
+
             // Update with real data from API if available
-            if (response.comment) {
+            if (serverReply) {
                 setProfileData((prev) => ({
                     ...prev,
                     posts: prev.posts.map((post) =>
@@ -909,9 +939,12 @@ const ProfilePage = () => {
                                           ).map((reply) =>
                                               reply._id === optimisticReply._id
                                                   ? {
-                                                        ...response.comment,
-                                                        userId: response.comment
-                                                            .userId || {
+                                                        ...serverReply,
+                                                        // ✅ USE SERVER TIMESTAMP
+                                                        createdAt:
+                                                            serverReply.createdAt ||
+                                                            new Date().toISOString(),
+                                                        userId: serverReply.userId || {
                                                             _id: currentUserId,
                                                             username:
                                                                 currentUsername,
@@ -921,23 +954,23 @@ const ProfilePage = () => {
                                                                 currentProfilePic,
                                                         },
                                                         username:
-                                                            response.comment
-                                                                .username ||
+                                                            serverReply.username ||
                                                             currentUsername,
                                                         profilePic:
-                                                            response.comment
-                                                                .profilePic ||
+                                                            serverReply.profilePic ||
                                                             currentProfilePic,
                                                         hasUserLiked: false,
                                                         likes:
-                                                            response.comment
-                                                                .likes || [],
+                                                            serverReply.likes ||
+                                                            [],
                                                     }
                                                   : reply
                                           );
                                           return {
                                               ...comment,
                                               replies: updatedReplies,
+                                              // ✅ KEEP REPLIES DROPDOWN OPEN
+                                              showReplies: true,
                                           };
                                       }
                                       return comment;

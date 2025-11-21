@@ -909,8 +909,8 @@ const MainFeed = () => {
                     post._id === postId
                         ? {
                               ...post,
+                              // ✅ FIXED: Add new comment at the BEGINNING instead of end
                               comments: [
-                                  ...(post.comments || []),
                                   {
                                       ...createdComment,
                                       isLiked: false,
@@ -932,6 +932,7 @@ const MainFeed = () => {
                                       replyCount: 0,
                                       showReplyInput: false,
                                   },
+                                  ...(post.comments || []), // ✅ New comment comes FIRST
                               ],
                               // ✅ FIXED: Increment comment count properly
                               commentCount: (post.commentCount || 0) + 1,
@@ -1078,6 +1079,7 @@ const MainFeed = () => {
     };
 
     // ✅ PROFILE-MATCHING: Updated handleAddReply function
+    // ✅ PROFILE-MATCHING: Updated handleAddReply function
     const handleAddReply = async (postId, commentId, replyInputKey = null) => {
         // Use replyInputKey to get the specific content
         const content = replyContent[replyInputKey];
@@ -1133,15 +1135,18 @@ const MainFeed = () => {
                                             new Date().toISOString(),
                                     };
 
+                                    // ✅ FIXED: New reply at TOP, auto open replies
                                     const updatedReplies = [
-                                        ...(comment.replies || []),
                                         newReply,
+                                        ...(comment.replies || []),
                                     ];
 
                                     return {
                                         ...comment,
                                         replies: updatedReplies,
                                         replyCount: updatedReplies.length,
+                                        // ✅ AUTO OPEN: Automatically show replies when new reply is added
+                                        showReplies: true,
                                     };
                                 }
                                 return comment;
@@ -1157,6 +1162,12 @@ const MainFeed = () => {
                     return post;
                 })
             );
+
+            // ✅ AUTO OPEN: Set active replies state to show the replies
+            setActiveReplies((prev) => ({
+                ...prev,
+                [commentId]: true,
+            }));
 
             // Clear the input and close it
             setReplyContent((prev) => ({ ...prev, [replyInputKey]: "" }));
@@ -1413,6 +1424,7 @@ const MainFeed = () => {
                             onToggleReplies={toggleReplies}
                             onToggleReplyInput={handleToggleReplyInput} // ✅ PROFILE-MATCHING: Updated function
                             onAddReply={handleAddReply} // ✅ PROFILE-MATCHING: Updated function
+                            onReplySubmit={handleAddReply}
                             onLikeReply={handleLikeReply}
                             onDeleteReply={handleOpenDeleteReplyModal} // ✅ UPDATED: Use modal handler
                             onSetReplyContent={handleSetReplyContent} // ✅ PROFILE-MATCHING: Updated function

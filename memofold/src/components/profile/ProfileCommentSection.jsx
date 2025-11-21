@@ -8,6 +8,7 @@ import {
     FaRegHeart,
 } from "react-icons/fa";
 import ReplyItem from "../mainFeed/ReplyItem";
+import { formatDate, getTimeDifference } from "../../services/dateUtils";
 
 const ProfileCommentSection = ({
     post,
@@ -22,7 +23,7 @@ const ProfileCommentSection = ({
     onSetCommentContent,
     onDeleteComment,
     navigateToUserProfile,
-    formatDate,
+
     // Reply functionality props
     activeReplyInputs,
     replyContent,
@@ -125,13 +126,13 @@ const ProfileCommentSection = ({
         }
     };
 
-//  if (isFetchingComments) {
-//     return (
-//         <div className="text-center py-4">
-//             <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-//         </div>
-//     );
-// }
+    //  if (isFetchingComments) {
+    //     return (
+    //         <div className="text-center py-4">
+    //             <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    //         </div>
+    //     );
+    // }
 
     return (
         <div className="mt-4">
@@ -188,22 +189,30 @@ const ProfileCommentSection = ({
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center space-x-2">
-                                                            <span
-                                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
-                                                                onClick={(e) =>
-                                                                    navigateToUserProfile(comment.userId?._id, e)
-                                                                }
-                                                            >
-                                                                {comment.userId?.username || "Unknown"}
-                                                            </span>
-                                                            <span
-                                                                className={`text-xs ${
-                                                                    isDarkMode ? "text-gray-400" : "text-gray-500"
-                                                                }`}
-                                                            >
-                                                                {formatDate(comment.createdAt)}
-                                                            </span>
-                                                        </div>
+                                            <span
+                                                className="font-semibold text-sm hover:text-blue-500 cursor-pointer"
+                                                onClick={(e) =>
+                                                    navigateToUserProfile(
+                                                        comment.userId?._id,
+                                                        e
+                                                    )
+                                                }
+                                            >
+                                                {comment.userId?.username ||
+                                                    "Unknown"}
+                                            </span>
+                                            <span
+                                                className={`text-xs ${
+                                                    isDarkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-500"
+                                                }`}
+                                            >
+                                                {getTimeDifference(
+                                                    comment.createdAt
+                                                )}
+                                            </span>
+                                        </div>
                                         <p className="text-sm whitespace-pre-line mt-1">
                                             {comment.content}
                                         </p>
@@ -288,12 +297,13 @@ const ProfileCommentSection = ({
                                                         <span className="ml-1">
                                                             {replyCount}
                                                         </span>
-                                                        {isFetchingReplies[
-                                                            comment._id
-                                                        ] 
-                                                        // && (
-                                                        //     <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                        // )
+                                                        {
+                                                            isFetchingReplies[
+                                                                comment._id
+                                                            ]
+                                                            // && (
+                                                            //     <div className="ml-1 inline-block h-2 w-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                            // )
                                                         }
                                                     </button>
                                                 )}
