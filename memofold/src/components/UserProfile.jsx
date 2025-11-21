@@ -1173,8 +1173,8 @@ const UserProfile = () => {
                     post._id === postId
                         ? {
                               ...post,
+                              // ✅ CHANGED: New comment added at the beginning of array
                               comments: [
-                                  ...(post.comments || []),
                                   {
                                       ...createdComment,
                                       hasUserLiked: false,
@@ -1195,6 +1195,7 @@ const UserProfile = () => {
                                       replies: [],
                                       replyCount: 0,
                                   },
+                                  ...(post.comments || []), // ✅ Existing comments come after
                               ],
                               commentCount: (post.commentCount || 0) + 1,
                           }
@@ -1269,9 +1270,10 @@ const UserProfile = () => {
                                             new Date().toISOString(),
                                     };
 
+                                    // ✅ CHANGED: New reply added at the beginning
                                     const updatedReplies = [
-                                        ...(comment.replies || []),
                                         newReply,
+                                        ...(comment.replies || []), // Existing replies come after
                                     ];
 
                                     return {
@@ -1293,6 +1295,11 @@ const UserProfile = () => {
                     return post;
                 })
             );
+            // ✅ AUTOMATICALLY OPEN REPLIES DROPDOWN
+            setActiveReplies((prev) => ({
+                ...prev,
+                [commentId]: true,
+            }));
 
             setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
             setActiveReplyInput(null); // Close the reply input after posting
@@ -1373,9 +1380,10 @@ const UserProfile = () => {
                                             new Date().toISOString(),
                                     };
 
+                                    // ✅ CHANGED: New reply added at the beginning
                                     const updatedReplies = [
-                                        ...(comment.replies || []),
                                         newReply,
+                                        ...(comment.replies || []), // Existing replies come after
                                     ];
 
                                     return {
@@ -1396,6 +1404,11 @@ const UserProfile = () => {
                     return post;
                 })
             );
+            // ✅ AUTOMATICALLY OPEN REPLIES DROPDOWN
+            setActiveReplies((prev) => ({
+                ...prev,
+                [commentId]: true,
+            }));
 
             // Input clear karo
             setReplyContent((prev) => ({
@@ -1596,23 +1609,24 @@ const UserProfile = () => {
                 setLocalInputValue("");
             };
 
-        // ✅ CORRECTED: Safe user data extraction
-        const replyUser = reply?.userId || reply?.user || {};
-        const replyUsername = replyUser?.username || reply?.username || "Unknown";
-        
-        // ✅ CORRECTED: Get ID from ALL possible fields
-        const replyUserId = 
-            replyUser?.id || 
-            replyUser?._id || 
-            reply?.userId?._id || 
-            reply?.user?.id || 
-            "unknown";
-            
-        const replyUserProfilePic = 
-            replyUser?.profilePic || 
-            replyUser?.profilepic || 
-            reply?.profilePic || 
-            reply?.profilepic;
+            // ✅ CORRECTED: Safe user data extraction
+            const replyUser = reply?.userId || reply?.user || {};
+            const replyUsername =
+                replyUser?.username || reply?.username || "Unknown";
+
+            // ✅ CORRECTED: Get ID from ALL possible fields
+            const replyUserId =
+                replyUser?.id ||
+                replyUser?._id ||
+                reply?.userId?._id ||
+                reply?.user?.id ||
+                "unknown";
+
+            const replyUserProfilePic =
+                replyUser?.profilePic ||
+                replyUser?.profilepic ||
+                reply?.profilePic ||
+                reply?.profilepic;
 
             // Check if current user can delete reply
             const canDeleteReply = () => {

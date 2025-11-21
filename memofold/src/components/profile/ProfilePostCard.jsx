@@ -10,7 +10,7 @@ import {
     FaTimes,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
-import { formatDate } from "../../services/dateUtils";
+import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import { useNavigate } from "react-router-dom";
 import ProfileCommentSection from "./ProfileCommentSection";
 
@@ -587,46 +587,48 @@ const ProfilePostCard = ({
                     >
                         <FaComment />
                         <span className="text-sm">{commentCount}</span>
-                         {isFetchingComments && (
-        <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
-    )}
+                        {isFetchingComments && (
+                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+                        )}
                     </button>
                 </div>
             )}
 
             {/* Comments Section */}
-            {!isEditing && !isFetchingComments && activeCommentPostId === post._id && (
-                <ProfileCommentSection
-                    post={post}
-                    isDarkMode={isDarkMode}
-                    username={username}
-                    currentUserProfile={currentUserProfile}
-                    activeCommentPostId={activeCommentPostId}
-                    commentContent={commentContent}
-                    isCommenting={isCommenting}
-                    isFetchingComments={isFetchingComments}
-                    onCommentSubmit={onCommentSubmit}
-                    onSetCommentContent={onSetCommentContent}
-                    onDeleteComment={onDeleteComment}
-                    navigateToUserProfile={navigateToUserProfile}
-                    formatDate={formatDate}
-                    onLikeComment={onLikeComment}
-                    isLikingComment={isLikingComment}
-                    // Reply functionality props
-                    activeReplyInputs={activeReplyInputs}
-                    replyContent={replyContent}
-                    onToggleReplyInput={onToggleReplyInput}
-                    onReplySubmit={onReplySubmit}
-                    onSetReplyContent={onSetReplyContent}
-                    onToggleReplies={onToggleReplies}
-                    onLikeReply={onLikeReply}
-                    onDeleteReply={onDeleteReply}
-                    isReplying={isReplying}
-                    isFetchingReplies={isFetchingReplies}
-                    isLikingReply={isLikingReply}
-                    isDeletingReply={isDeletingReply}
-                />
-            )}
+            {!isEditing &&
+                !isFetchingComments &&
+                activeCommentPostId === post._id && (
+                    <ProfileCommentSection
+                        post={post}
+                        isDarkMode={isDarkMode}
+                        username={username}
+                        currentUserProfile={currentUserProfile}
+                        activeCommentPostId={activeCommentPostId}
+                        commentContent={commentContent}
+                        isCommenting={isCommenting}
+                        isFetchingComments={isFetchingComments}
+                        onCommentSubmit={onCommentSubmit}
+                        onSetCommentContent={onSetCommentContent}
+                        onDeleteComment={onDeleteComment}
+                        navigateToUserProfile={navigateToUserProfile}
+                        formatDate={getTimeDifference}
+                        onLikeComment={onLikeComment}
+                        isLikingComment={isLikingComment}
+                        // Reply functionality props
+                        activeReplyInputs={activeReplyInputs}
+                        replyContent={replyContent}
+                        onToggleReplyInput={onToggleReplyInput}
+                        onReplySubmit={onReplySubmit}
+                        onSetReplyContent={onSetReplyContent}
+                        onToggleReplies={onToggleReplies}
+                        onLikeReply={onLikeReply}
+                        onDeleteReply={onDeleteReply}
+                        isReplying={isReplying}
+                        isFetchingReplies={isFetchingReplies}
+                        isLikingReply={isLikingReply}
+                        isDeletingReply={isDeletingReply}
+                    />
+                )}
         </div>
     );
 };

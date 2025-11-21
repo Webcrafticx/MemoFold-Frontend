@@ -1,6 +1,6 @@
 import React from "react";
 import { FaHeart, FaRegHeart, FaTrashAlt, FaReply } from "react-icons/fa";
-import { formatDate } from "../../services/dateUtils";
+import { formatDate, getTimeDifference } from "../../services/dateUtils";
 
 const ReplyItem = ({
     reply,
@@ -17,8 +17,7 @@ const ReplyItem = ({
     isReplying,
     replyContent,
     onSetReplyContent,
-    // onAddReply,
-    onReplySubmit,
+    onReplySubmit, // ✅ CHANGED: This should be used for nested replies
     postId,
     activeReplyInputs,
 }) => {
@@ -69,30 +68,23 @@ const ReplyItem = ({
             : false
         : false;
 
-// Safe user data access
-const replyUser = reply?.user || reply?.userId || {};
+    // Safe user data access
+    const replyUser = reply?.user || reply?.userId || {};
 
-const replyUserId =
-    reply?.user?.id ||        // case: reply.user.id
-    reply?.userId?._id ||     // case: reply.userId._id
-    replyUser?._id ||         // backup
-    "unknown";
+    const replyUserId =
+        reply?.user?.id || // case: reply.user.id
+        reply?.userId?._id || // case: reply.userId._id
+        replyUser?._id || // backup
+        "unknown";
 
-const replyUsername =
-    replyUser?.username ||
-    reply?.username ||
-    "Unknown";
+    const replyUsername = replyUser?.username || reply?.username || "Unknown";
 
-const replyUserProfilePic =
-    replyUser?.profilePic ||
-    replyUser?.profilepic ||
-    reply?.profilePic ||
-    reply?.profilepic ||
-    "";
-
-
-    // console.log(replyUserId)
-    // console.log(reply)
+    const replyUserProfilePic =
+        replyUser?.profilePic ||
+        replyUser?.profilepic ||
+        reply?.profilePic ||
+        reply?.profilepic ||
+        "";
 
     // Check if current user can delete reply
     const canDeleteReply = () => {
@@ -113,16 +105,12 @@ const replyUserProfilePic =
             return;
         }
 
-        // if (onAddReply && postId && commentId) {
-        //     // FIXED: Pass the replyInputKey to identify which reply we're replying to
-        //     onAddReply(postId, commentId, replyInputKey);
-        // } 
-         if (onReplySubmit && postId && commentId) {
+        // ✅ FIXED: Use onReplySubmit for nested replies
+        if (onReplySubmit && postId && commentId) {
             onReplySubmit(postId, commentId, replyInputKey);
-        }
-        else {
+        } else {
             console.error("❌ Missing required parameters for reply:", {
-                onAddReply: !!onAddReply,
+                onReplySubmit: !!onReplySubmit,
                 postId,
                 commentId,
                 replyInputKey,
@@ -211,7 +199,7 @@ const replyUserProfilePic =
                             } whitespace-nowrap`}
                         >
                             {reply?.createdAt
-                                ? formatDate(reply.createdAt)
+                                ? getTimeDifference(reply.createdAt)
                                 : "Recently"}
                         </span>
                     </div>
@@ -282,7 +270,7 @@ const replyUserProfilePic =
                                     placeholder={`Reply to ${replyUsername}...`}
                                     value={currentReplyContent || ""}
                                     onChange={handleInputChange}
-                                    onKeyDownPress={handleInputKeyPress}
+                                    onKeyDown={handleInputKeyPress} // ✅ FIXED: Changed from onKeyDownPress to onKeyDown
                                 />
                                 <div className="flex space-x-2 self-end sm:self-auto">
                                     <button
