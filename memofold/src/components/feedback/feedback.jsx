@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import config from "../../hooks/config";
+import { apiService } from "../../services/api";
 
 const FeedbackForm = () => {
     const [formData, setFormData] = useState({
@@ -36,20 +36,13 @@ const FeedbackForm = () => {
         setSubmitMessage("");
 
         try {
-            const response = await fetch(`${config.apiUrl}/feedback`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(formData),
+            const data = await apiService.submitContactRequest({
+                name: formData.name,
+                email: formData.email,
+                message: formData.message,
+                requestType: formData.type,
             });
-
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log("Feedback submitted successfully:", data);
+            // console.log("Feedback submitted successfully:", data);
 
             setSubmitMessage("Thank you for your feedback!");
             setFormData({
