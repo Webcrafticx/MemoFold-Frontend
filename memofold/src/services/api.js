@@ -71,17 +71,20 @@ export const apiService = {
         return response.json();
     },
 
-    createPost: async (token, postData) => {
-        const response = await fetch(`${config.apiUrl}/posts`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(postData),
-        });
-        return response.json();
-    },
+createPost: async (token, data) => {
+    // Check if data is FormData or JSON
+    const isFormData = data instanceof FormData;
+    
+    const response = await fetch(`${config.apiUrl}/posts`, {
+        method: "POST",
+        headers: {
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
+            Authorization: `Bearer ${token}`,
+        },
+        body: isFormData ? data : JSON.stringify(data),
+    });
+    return response.json();
+},
 
     updatePost: async (token, postId, postData) => {
         const response = await fetch(
