@@ -3,7 +3,7 @@ import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom"; // ✅ ADD THIS IMPORT
+import { useNavigate } from "react-router-dom";
 
 const PostCard = ({
     post,
@@ -39,14 +39,13 @@ const PostCard = ({
     navigateToUserProfile,
     onImagePreview,
     token,
-    onShowLikesModal, // ✅ ADDED: New prop for likes modal
-    activeReplyInputs, // ✅ PROFILE-MATCHING: Add activeReplyInputs prop
+    onShowLikesModal,
+    activeReplyInputs,
 }) => {
     const likeButtonRef = useRef(null);
     const navigate = useNavigate();
 
     const navigateToProfile = (userId) => {
-        // Check if this is the current user
         const isCurrentUser = userId === (currentUserProfile?._id || user?._id);
 
         if (isCurrentUser) {
@@ -55,9 +54,8 @@ const PostCard = ({
             navigate(`/user/${userId}`);
         }
     };
-    // Updated function to get liked users based on API response
+
     const getLikedUsers = () => {
-        // Use likesPreview from API
         if (post.likesPreview && post.likesPreview.length > 0) {
             return post.likesPreview;
         }
@@ -69,13 +67,11 @@ const PostCard = ({
 
     const handleShowAllLikes = (e) => {
         e.stopPropagation();
-        // ✅ CHANGED: Call parent function instead of local state
         if (onShowLikesModal) {
             onShowLikesModal(post._id);
         }
     };
 
-    // ✅ IMPROVED: Better like handler with proper event handling
     const handleLikeClick = (e) => {
         let rect;
 
@@ -94,7 +90,6 @@ const PostCard = ({
         onLike(post._id, e, rect);
     };
 
-    // FIXED: Image error handler without optional chaining issue
     const handleImageError = (e) => {
         e.target.style.display = "none";
         if (e.target.nextSibling) {
@@ -102,7 +97,6 @@ const PostCard = ({
         }
     };
 
-    // FIXED: Profile pic error handler without optional chaining issue
     const handleProfilePicError = (e) => {
         e.target.style.display = "none";
         if (e.target.nextSibling) {
@@ -118,8 +112,6 @@ const PostCard = ({
                     : "bg-white text-gray-900"
             }`}
         >
-            {/* ✅ REMOVED: Internal LikesModal component */}
-
             <div
                 className="flex items-center gap-3 mb-3 cursor-pointer"
                 onClick={(e) => navigateToUserProfile(post.userId._id, e)}
@@ -172,6 +164,7 @@ const PostCard = ({
                 {post.content || ""}
             </p>
 
+            {/* IMAGE SECTION */}
             {post.image && (
                 <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                     <img
@@ -180,6 +173,19 @@ const PostCard = ({
                         className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
                         onClick={() => onImagePreview(post.image)}
                         onError={handleImageError}
+                    />
+                </div>
+            )}
+
+            {/* VIDEO SECTION - SIMPLE FIX */}
+            {post.videoUrl && (
+                <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center bg-black">
+                    <video
+                        src={post.videoUrl}
+                        className="max-h-96 max-w-full rounded-xl"
+                        controls
+                        preload="metadata"
+                        playsInline
                     />
                 </div>
             )}
@@ -198,23 +204,23 @@ const PostCard = ({
                         } hover:text-red-500 transition-colors cursor-pointer`}
                     >
                         {isLiking[post._id] ? (
-    <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-) : (
-    <motion.div
-        animate={{
-            scale: post.hasUserLiked ? [1, 1.2, 1] : 1,
-        }}
-        transition={{
-            duration: 0.3,
-        }}
-    >
-        {post.hasUserLiked ? (
-            <FaHeart className="text-xl text-red-500" />
-        ) : (
-            <FaRegHeart className="text-xl text-gray-400" />
-        )}
-    </motion.div>
-)}
+                            <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            <motion.div
+                                animate={{
+                                    scale: post.hasUserLiked ? [1, 1.2, 1] : 1,
+                                }}
+                                transition={{
+                                    duration: 0.3,
+                                }}
+                            >
+                                {post.hasUserLiked ? (
+                                    <FaHeart className="text-xl text-red-500" />
+                                ) : (
+                                    <FaRegHeart className="text-xl text-gray-400" />
+                                )}
+                            </motion.div>
+                        )}
                         <motion.span
                             key={totalLikes}
                             initial={{ scale: 1 }}
@@ -230,7 +236,6 @@ const PostCard = ({
                         </motion.span>
                     </motion.button>
 
-                    {/* Liked by text - turant update hoga */}
                     {totalLikes > 0 && (
                         <div className="text-sm">
                             <div className="flex items-center flex-wrap">
@@ -248,17 +253,11 @@ const PostCard = ({
                                                     }`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        navigateToProfile(
-                                                            user.id
-                                                        ); // ✅ YAHAN CHANGE
+                                                        navigateToProfile(user.id);
                                                     }}
                                                 >
                                                     {user.username}
-                                                    {index <
-                                                    Math.min(
-                                                        2,
-                                                        likedUsers.length - 1
-                                                    )
+                                                    {index < Math.min(2, likedUsers.length - 1)
                                                         ? ","
                                                         : ""}
                                                 </span>
@@ -314,7 +313,6 @@ const PostCard = ({
                     disabled={loadingComments[post._id]}
                 >
                     <FaComment />
-                    {/* FIXED: Use commentCount from API */}
                     <span className="text-sm">{post.commentCount || 0}</span>
                     {loadingComments[post._id] && (
                         <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
@@ -351,7 +349,7 @@ const PostCard = ({
                 onDeleteReply={onDeleteReply}
                 onSetReplyContent={onSetReplyContent}
                 navigateToUserProfile={navigateToUserProfile}
-                activeReplyInputs={activeReplyInputs} // ✅ PROFILE-MATCHING: Pass activeReplyInputs to CommentSection
+                activeReplyInputs={activeReplyInputs}
             />
         </div>
     );

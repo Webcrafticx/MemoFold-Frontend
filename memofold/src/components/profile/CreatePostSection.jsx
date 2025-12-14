@@ -2,7 +2,6 @@ import React, { useRef, useState } from "react";
 import { FaPaperclip, FaTimes } from "react-icons/fa";
 import {
     getIndianDateString,
-    getCurrentUTCTime,
     getSelectedDateUTC,
 } from "../../services/dateUtils";
 
@@ -23,43 +22,73 @@ const CreatePostSection = ({
     const fileInputRef = useRef(null);
     const [filePreview, setFilePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
+    const [fileType, setFileType] = useState(null);
 
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const validTypes = ["image/jpeg", "image/png", "image/gif"];
-        if (
-            !validTypes.includes(file.type) &&
-            !file.type.startsWith("image/")
-        ) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+        
+        if (!isImage && !isVideo) {
+            alert("Please select an image or video file");
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            return;
-        }
+        if (isImage) {
+            setFileType('image');
+            
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Image must be less than 5MB");
+                return;
+            }
+            
+            setSelectedFile(file);
+            
+            const reader = new FileReader();
+            reader.onload = (event) => setFilePreview(event.target.result);
+            reader.readAsDataURL(file);
+            
+        } else if (isVideo) {
+            setFileType('video');
+            
+            if (file.size > 50 * 1024 * 1024) {
+                alert("Video must be less than 50MB");
+                return;
+            }
 
-        setSelectedFile(file);
-        const reader = new FileReader();
-        reader.onload = (event) => setFilePreview(event.target.result);
-        reader.readAsDataURL(file);
+            const videoElement = document.createElement('video');
+            videoElement.preload = 'metadata';
+            
+            videoElement.onloadedmetadata = function() {
+                window.URL.revokeObjectURL(videoElement.src);
+                
+                if (videoElement.duration > 15) {
+                    alert("Video must be 15 seconds or less");
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    setFileType(null);
+                    return;
+                }
+                
+                setSelectedFile(file);
+                setFilePreview(URL.createObjectURL(file));
+            };
+            
+            videoElement.src = URL.createObjectURL(file);
+        }
     };
 
     const removeFile = () => {
         setSelectedFile(null);
         setFilePreview(null);
+        setFileType(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handlePostSubmit = async () => {
-        // USE UTC TIME FOR SERVER
         const postTimestamp = getSelectedDateUTC(selectedDate);
-
-        console.log("Creating post with UTC time:", postTimestamp);
-        console.log("Selected date:", selectedDate);
-
-        await onCreatePost(postContent, selectedFile, postTimestamp);
+        await onCreatePost(postContent, selectedFile, postTimestamp, fileType);
         setPostContent("");
         removeFile();
         setSelectedDate(getIndianDateString());
@@ -144,11 +173,25 @@ const CreatePostSection = ({
 
             {filePreview && (
                 <div className="relative mb-3">
-                    <img
-                        src={filePreview}
-                        alt="Preview"
-                        className="w-full h-48 object-cover rounded-lg cursor-pointer"
-                    />
+                    {fileType === 'image' ? (
+                        <img
+                            src={filePreview}
+                            alt="Preview"
+                            className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                        />
+                    ) : fileType === 'video' ? (
+                        <div className="relative">
+                            <video
+                                src={filePreview}
+                                className="w-full h-48 object-cover rounded-lg"
+                                controls
+                                preload="metadata"
+                            />
+                            <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                                VIDEO
+                            </div>
+                        </div>
+                    ) : null}
                     <button
                         onClick={removeFile}
                         className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70 cursor-pointer"
@@ -183,41 +226,40 @@ const CreatePostSection = ({
                     </div>
                 </div>
 
-<div className="flex gap-1 sm:gap-2 self-end items-center">
-    <button
-        onClick={() => fileInputRef.current.click()}
-        className="p-1 sm:p-2 flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-        title="Attach file"
-    >
-        <FaPaperclip className="text-xs sm:text-sm" />
-        <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
-            Add Media
-        </span>
-    </button>
+                <div className="flex gap-1 sm:gap-2 self-end items-center">
+                    <button
+                        onClick={() => fileInputRef.current.click()}
+                        className="p-1 sm:p-2 flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+                        title="Attach file"
+                    >
+                        <FaPaperclip className="text-xs sm:text-sm" />
+                        <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
+                            Add Media
+                        </span>
+                    </button>
 
-    <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        accept="image/*"
-    />
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept="image/*,video/*"
+                    />
 
-    <button
-        onClick={handlePostSubmit}
-        disabled={
-            (!postContent.trim() && !filePreview) || isCreatingPost
-        }
-        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
-            (postContent.trim() || filePreview) && !isCreatingPost
-                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
-                : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-        } transition-colors`}
-    >
-        {isCreatingPost ? "Posting..." : "Post"}
-    </button>
-</div>
-
+                    <button
+                        onClick={handlePostSubmit}
+                        disabled={
+                            (!postContent.trim() && !filePreview) || isCreatingPost
+                        }
+                        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+                            (postContent.trim() || filePreview) && !isCreatingPost
+                                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                                : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                        } transition-colors`}
+                    >
+                        {isCreatingPost ? "Posting..." : "Post"}
+                    </button>
+                </div>
             </div>
         </div>
     );
