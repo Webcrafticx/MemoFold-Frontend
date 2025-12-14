@@ -1,46 +1,41 @@
 import React, { useState } from "react";
-import emailjs from "emailjs-com";
+import { apiService } from "../../services/api";
 import logo from "../../assets/logo.png";
 
 const ContactUploading = () => {
     const [formData, setFormData] = useState({
         name: "",
         email: "",
-        request: "",
+        requestType: "",
         message: "",
     });
 
     const [status, setStatus] = useState({ type: "", message: "" });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // handle input
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // handle form submit with EmailJS
-    const handleSubmit = (e) => {
+    // handle form submit with backend API
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
+        setStatus({ type: "", message: "" });
 
-        const serviceId = "service_cp3stto"; 
-        const templateId = "template_lus8ysf"; 
-        const publicKey = "mXPVpyGlN1_awMK1B"; 
+        try {
+            const data = await apiService.submitContactRequest(formData);
+            // console.log("Contact request submitted successfully:", data);
 
-        const templateParams = {
-            from_name: formData.name,
-            from_email: formData.email,
-            request_type: formData.request,
-            message: formData.message,
-        };
-
-        emailjs.send(serviceId, templateId, templateParams, publicKey)
-            .then(() => {
-                setStatus({ type: "success", message: " Request sent successfully!" });
-                setFormData({ name: "", email: "", request: "", message: "" });
-            })
-            .catch((error) => {
-                console.error("EmailJS Error:", error);
-                setStatus({ type: "error", message: " Failed to send request. Try again later." });
-            });
+            setStatus({ type: "success", message: "Request sent successfully!" });
+            setFormData({ name: "", email: "", requestType: "", message: "" });
+        } catch (error) {
+            console.error("Error submitting contact request:", error);
+            setStatus({ type: "error", message: "Failed to send request. Please try again later." });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -221,13 +216,13 @@ const ContactUploading = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="request" className="font-semibold text-gray-800">
+                                <label htmlFor="requestType" className="font-semibold text-gray-800">
                                     Request Type <span className="text-red-500">*</span>
                                 </label>
                                 <select
-                                    id="request"
-                                    name="request"
-                                    value={formData.request}
+                                    id="requestType"
+                                    name="requestType"
+                                    value={formData.requestType}
                                     onChange={handleChange}
                                     required
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -257,9 +252,10 @@ const ContactUploading = () => {
 
                             <button
                                 type="submit"
-                                className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors"
+                                disabled={isSubmitting}
+                                className="w-full cursor-pointer py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold rounded-md hover:from-cyan-500 hover:to-blue-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                             >
-                                Send Request
+                                {isSubmitting ? "Sending..." : "Send Request"}
                             </button>
                         </form>
 

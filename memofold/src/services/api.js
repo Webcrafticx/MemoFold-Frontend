@@ -316,4 +316,26 @@ export const apiService = {
         );
         return response.json();
     },
+
+    // Contact/Feedback endpoint
+    submitContactRequest: async (data) => {
+        const response = await fetch(`${config.apiUrl}/contact`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                name: data.name,
+                email: data.email,
+                message: data.message,
+                requestType: data.requestType,
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        
+        return response.json();
+    },
 };
