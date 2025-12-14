@@ -442,19 +442,6 @@ const ProfilePostCard = ({
                             />
                         </div>
                     )}
-
-                    {/* Post Video - ADDED */}
-                    {post.videoUrl && (
-                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center bg-black">
-                            <video
-                                src={post.videoUrl}
-                                className="max-h-96 max-w-full rounded-xl"
-                                controls
-                                preload="metadata"
-                                playsInline
-                            />
-                        </div>
-                    )}
                 </>
             )}
 

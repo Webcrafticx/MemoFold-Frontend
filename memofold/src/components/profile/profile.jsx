@@ -1365,28 +1365,16 @@ const ProfilePage = () => {
         }
     };
 
-const handleCreatePost = async (content, file, selectedDate, fileType) => {
-    if (!content.trim() && !file) {
-        toast.error("Post content or media cannot be empty");
-        return;
-    }
+    const handleCreatePost = async (content, file, selectedDate) => {
+        if (!content.trim() && !file) {
+            toast.error("Post content or image cannot be empty");
+            return;
+        }
 
-    try {
-        setPostState((prev) => ({ ...prev, isCreatingPost: true }));
-        const token = localStorage.getItem("token");
+        try {
+            setPostState((prev) => ({ ...prev, isCreatingPost: true }));
+            const token = localStorage.getItem("token");
 
-        if (fileType === 'video') {
-            const formData = new FormData();
-            formData.append("content", content);
-            formData.append("date", selectedDate);
-            formData.append("media", file);
-            
-            const response = await apiService.createPost(token, formData);
-            
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to create post");
-            }
-        } else {
             let imageData = null;
             if (file) {
                 imageData = await new Promise((resolve, reject) => {
@@ -1397,10 +1385,12 @@ const handleCreatePost = async (content, file, selectedDate, fileType) => {
                 });
             }
 
+            // ✅ USE UTC TIMESTAMP DIRECTLY (no timezone manipulation)
             const postData = {
                 content,
-                date: selectedDate,
-                image: imageData, // Base64 string
+                createdAt: selectedDate, // This is already UTC from getSelectedDateUTC
+                date: selectedDate, // This is already UTC from getSelectedDateUTC
+                image: imageData,
             };
 
             const response = await apiService.createPost(token, postData);
@@ -1408,20 +1398,19 @@ const handleCreatePost = async (content, file, selectedDate, fileType) => {
             if (!response || response.success === false) {
                 throw new Error(response?.message || "Failed to create post");
             }
-        }
 
-        await Promise.all([
-            fetchUserPosts(token),
-            fetchCurrentUserData(token),
-        ]);
-        
-    } catch (error) {
-        console.error("Post error:", error);
-        toast.error("Unable to create post.");
-    } finally {
-        setPostState((prev) => ({ ...prev, isCreatingPost: false }));
-    }
-};
+            // ✅ REFRESH USER DATA TO UPDATE POST COUNT
+            await Promise.all([
+                fetchUserPosts(token), // Refresh posts
+                fetchCurrentUserData(token), // Refresh user data including postCount
+            ]);
+        } catch (error) {
+            console.error("Post error:", error);
+            toast.error("Unable to create post.");
+        } finally {
+            setPostState((prev) => ({ ...prev, isCreatingPost: false }));
+        }
+    };
 
     const handleLike = async (postId, event) => {
         if (isLiking[postId]) return;
