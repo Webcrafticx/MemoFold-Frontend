@@ -30,7 +30,7 @@ import LikesModal from "./mainFeed/LikesModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 import FriendButton from "../components/FriendButton";
-import ConfirmationModal from "../common/ConfirmationModal"; // ✅ ADDED
+import ConfirmationModal from "../common/ConfirmationModal"; 
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -128,21 +128,28 @@ const UserProfile = () => {
     // Track which comment has reply input open
     const [activeReplyInput, setActiveReplyInput] = useState(null);
 
-    // ✅ Fetch and refresh only one post (used after comment/reply delete)
     const refreshSinglePost = async (postId) => {
-        try {
-            const updatedData = await apiService.fetchSinglePost(token, postId);
-            const updatedPost = updatedData.post || updatedData;
+    try {
+        const updatedData = await apiService.fetchSinglePost(token, postId);
+        const updatedPost = updatedData.post || updatedData;
 
-            setUserPosts((prevPosts) =>
-                prevPosts.map((p) =>
-                    p._id === postId ? { ...updatedPost } : p
-                )
-            );
-        } catch (err) {
-            console.error("Failed to refresh post:", err);
-        }
-    };
+        setUserPosts((prevPosts) =>
+            prevPosts.map((p) => {
+                if (p._id === postId) {
+                    return {
+                        ...p, 
+                        comments: updatedPost.comments || [],
+                        commentCount: updatedPost.commentCount || 0,
+                    
+                    };
+                }
+                return p;
+            })
+        );
+    } catch (err) {
+        console.error("Failed to refresh post:", err);
+    }
+};
 
     // ✅ ADDED: Modal handlers for comment deletion
     const handleOpenDeleteCommentModal = (commentId, postId, e) => {
@@ -175,64 +182,62 @@ const UserProfile = () => {
         });
     };
 
-    const handleConfirmDeleteComment = async () => {
-        const { commentId, postId } = deleteCommentModal;
+const handleConfirmDeleteComment = async () => {
+    const { commentId, postId } = deleteCommentModal;
 
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+    setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
 
-        const originalPosts = [...userPosts];
+    try {
+        const currentPost = userPosts.find((p) => p._id === postId);
+        const comment = currentPost?.comments?.find((c) => c._id === commentId);
+        const replyIds = comment?.replies?.map((reply) => reply._id) || [];
 
-        try {
-            // Find the actual comment object
-            const post = userPosts.find((p) => p._id === postId);
-            const comment = post?.comments?.find((c) => c._id === commentId);
-            const replyIds = comment?.replies?.map((reply) => reply._id) || [];
+        setUserPosts((prev) =>
+            prev.map((post) => {
+                if (post._id === postId) {
+                    const updatedComments = post.comments?.filter(
+                        (c) => c._id !== commentId
+                    ) || [];
+                    
+                    return {
+                        ...post,
+                        comments: updatedComments,
+                        commentCount: Math.max(0, (post.commentCount || 0) - 1),
+                    };
+                }
+                return post;
+            })
+        );
 
-            setUserPosts(
-                userPosts.map((post) => {
-                    if (post._id === postId) {
-                        const updatedComments =
-                            post.comments?.filter(
-                                (comment) => comment._id !== commentId
-                            ) || [];
-                        return {
-                            ...post,
-                            comments: updatedComments,
-                            commentCount: Math.max(
-                                0,
-                                (post.commentCount || 1) - 1
-                            ),
-                        };
-                    }
-                    return post;
-                })
-            );
+        const storedCommentLikes = getStoredCommentLikes();
+        delete storedCommentLikes[commentId];
+        replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
+        localStorage.setItem(
+            "commentLikes",
+            JSON.stringify(storedCommentLikes)
+        );
 
-            const storedCommentLikes = getStoredCommentLikes();
-            delete storedCommentLikes[commentId];
-            replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(storedCommentLikes)
-            );
-
-            await apiService.deleteComment(commentId, postId, token);
-            await refreshSinglePost(postId);
-            setActiveCommentPostId(null);
-        } catch (err) {
-            console.error("Error deleting comment:", err);
-            setError(err.message);
-            setUserPosts(originalPosts);
-        } finally {
-            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-            setDeleteCommentModal({
-                isOpen: false,
-                commentId: null,
-                postId: null,
-                commentData: null,
-            });
-        }
-    };
+        await apiService.deleteComment(commentId, postId, token);
+        
+        await refreshSinglePost(postId);
+        
+        setActiveCommentPostId(null);
+        
+    } catch (err) {
+        console.error("Error deleting comment:", err);
+        setError(err.message);
+        
+        await refreshSinglePost(postId);
+    } finally {
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+        setDeleteCommentModal({
+            isOpen: false,
+            commentId: null,
+            postId: null,
+            commentData: null,
+        });
+    }
+};
 
     const handleCloseDeleteCommentModal = () => {
         setDeleteCommentModal({
