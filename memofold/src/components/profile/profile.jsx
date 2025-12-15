@@ -1365,63 +1365,67 @@ const ProfilePage = () => {
         }
     };
 
-const handleCreatePost = async (content, file, selectedDate, fileType) => {
-    if (!content.trim() && !file) {
-        toast.error("Post content or media cannot be empty");
-        return;
-    }
-
-    try {
-        setPostState((prev) => ({ ...prev, isCreatingPost: true }));
-        const token = localStorage.getItem("token");
-
-        if (fileType === 'video') {
-            const formData = new FormData();
-            formData.append("content", content);
-            formData.append("date", selectedDate);
-            formData.append("media", file);
-            
-            const response = await apiService.createPost(token, formData);
-            
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to create post");
-            }
-        } else {
-            let imageData = null;
-            if (file) {
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = (error) => reject(error);
-                    reader.readAsDataURL(file);
-                });
-            }
-
-            const postData = {
-                content,
-                date: selectedDate,
-                image: imageData, // Base64 string
-            };
-
-            const response = await apiService.createPost(token, postData);
-
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to create post");
-            }
+    const handleCreatePost = async (content, file, selectedDate, fileType) => {
+        if (!content.trim() && !file) {
+            toast.error("Post content or media cannot be empty");
+            return;
         }
 
-        await Promise.all([
-            fetchUserPosts(token),
-            fetchCurrentUserData(token),
-        ]);
-        
-    } catch (error) {
-        console.error("Post error:", error);
-        toast.error("Unable to create post.");
-    } finally {
-        setPostState((prev) => ({ ...prev, isCreatingPost: false }));
-    }
-};
+        try {
+            setPostState((prev) => ({ ...prev, isCreatingPost: true }));
+            const token = localStorage.getItem("token");
+
+            if (fileType === "video") {
+                const formData = new FormData();
+                formData.append("content", content);
+                formData.append("date", selectedDate);
+                formData.append("media", file);
+
+                const response = await apiService.createPost(token, formData);
+
+                if (!response || response.success === false) {
+                    throw new Error(
+                        response?.message || "Failed to create post"
+                    );
+                }
+            } else {
+                let imageData = null;
+                if (file) {
+                    imageData = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = (error) => reject(error);
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                const postData = {
+                    content,
+                    createdAt: selectedDate,
+                    date: selectedDate,
+                    image: imageData,
+                };
+
+                const response = await apiService.createPost(token, postData);
+
+                if (!response || response.success === false) {
+                    throw new Error(
+                        response?.message || "Failed to create post"
+                    );
+                }
+            }
+
+            await Promise.all([
+                fetchUserPosts(token),
+                fetchCurrentUserData(token),
+            ]);
+        } catch (error) {
+            console.error("Post error:", error);
+            toast.error("Unable to create post.");
+        } finally {
+            setPostState((prev) => ({ ...prev, isCreatingPost: false }));
+        }
+    };
 
     const handleLike = async (postId, event) => {
         if (isLiking[postId]) return;

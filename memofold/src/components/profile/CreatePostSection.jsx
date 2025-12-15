@@ -30,51 +30,50 @@ const CreatePostSection = ({
 
         const isImage = file.type.startsWith("image/");
         const isVideo = file.type.startsWith("video/");
-        
+
         if (!isImage && !isVideo) {
             alert("Please select an image or video file");
             return;
         }
 
         if (isImage) {
-            setFileType('image');
-            
+            setFileType("image");
+
             if (file.size > 5 * 1024 * 1024) {
                 alert("Image must be less than 5MB");
                 return;
             }
-            
+
             setSelectedFile(file);
-            
+
             const reader = new FileReader();
             reader.onload = (event) => setFilePreview(event.target.result);
             reader.readAsDataURL(file);
-            
         } else if (isVideo) {
-            setFileType('video');
-            
+            setFileType("video");
+
             if (file.size > 50 * 1024 * 1024) {
                 alert("Video must be less than 50MB");
                 return;
             }
 
-            const videoElement = document.createElement('video');
-            videoElement.preload = 'metadata';
-            
-            videoElement.onloadedmetadata = function() {
+            const videoElement = document.createElement("video");
+            videoElement.preload = "metadata";
+
+            videoElement.onloadedmetadata = function () {
                 window.URL.revokeObjectURL(videoElement.src);
-                
+
                 if (videoElement.duration > 15) {
                     alert("Video must be 15 seconds or less");
                     if (fileInputRef.current) fileInputRef.current.value = "";
                     setFileType(null);
                     return;
                 }
-                
+
                 setSelectedFile(file);
                 setFilePreview(URL.createObjectURL(file));
             };
-            
+
             videoElement.src = URL.createObjectURL(file);
         }
     };
@@ -173,13 +172,13 @@ const CreatePostSection = ({
 
             {filePreview && (
                 <div className="relative mb-3">
-                    {fileType === 'image' ? (
+                    {fileType === "image" ? (
                         <img
                             src={filePreview}
                             alt="Preview"
                             className="w-full h-48 object-cover rounded-lg cursor-pointer"
                         />
-                    ) : fileType === 'video' ? (
+                    ) : fileType === "video" ? (
                         <div className="relative">
                             <video
                                 src={filePreview}
@@ -207,6 +206,7 @@ const CreatePostSection = ({
                         <input
                             type="date"
                             value={selectedDate}
+                            max={getIndianDateString()}
                             onChange={(e) => setSelectedDate(e.target.value)}
                             className={`${
                                 isDarkMode
@@ -249,10 +249,12 @@ const CreatePostSection = ({
                     <button
                         onClick={handlePostSubmit}
                         disabled={
-                            (!postContent.trim() && !filePreview) || isCreatingPost
+                            (!postContent.trim() && !filePreview) ||
+                            isCreatingPost
                         }
                         className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
-                            (postContent.trim() || filePreview) && !isCreatingPost
+                            (postContent.trim() || filePreview) &&
+                            !isCreatingPost
                                 ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
                                 : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
                         } transition-colors`}
