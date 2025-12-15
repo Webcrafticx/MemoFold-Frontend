@@ -848,25 +848,25 @@ const NotificationModal = ({
 
                                         {/* Unread Indicator and Actions */}
                                         <div className="flex items-center space-x-2 flex-shrink-0 cursor-pointer">
+                                            {/* Mark as read button — ONLY if unread */}
                                             {!notification.read && (
-                                                <FaCircle className="text-blue-500 text-xs animate-pulse cursor-pointer" />
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        markAsRead(
+                                                            notification._id
+                                                        );
+                                                    }}
+                                                    className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
+                                                        darkMode
+                                                            ? "text-gray-400 hover:text-cyan-400 hover:bg-gray-700"
+                                                            : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
+                                                    }`}
+                                                    title="Mark as read"
+                                                >
+                                                    <FaCheck className="text-sm cursor-pointer" />
+                                                </button>
                                             )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    markAsRead(
-                                                        notification._id
-                                                    );
-                                                }}
-                                                className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
-                                                    darkMode
-                                                        ? "text-gray-400 hover:text-cyan-400 hover:bg-gray-700"
-                                                        : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
-                                                }`}
-                                                title="Mark as read"
-                                            >
-                                                <FaCheck className="text-sm cursor-pointer" />
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
