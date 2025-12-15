@@ -30,7 +30,7 @@ import LikesModal from "./mainFeed/LikesModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 import FriendButton from "../components/FriendButton";
-import ConfirmationModal from "../common/ConfirmationModal"; 
+import ConfirmationModal from "../common/ConfirmationModal";
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -54,6 +54,44 @@ const UserProfile = () => {
         friendsCount: 0,
     });
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
+    const [friendStatus, setFriendStatus] = useState("loading");
+    useEffect(() => {
+        if (!token || !userId || !user?._id) return;
+
+        fetchUserProfile();
+        fetchFriendStatus(); // 👈 parallel, not chained
+    }, [userId, token]);
+
+    const fetchFriendStatus = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) return setFriendStatus("add");
+
+            const [friendsRes, meRes] = await Promise.all([
+                fetch(`${config.apiUrl}/friends/friends-list?limit=100`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+                fetch(`${config.apiUrl}/user/me`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            ]);
+
+            const friendsData = await friendsRes.json();
+            const meData = await meRes.json();
+
+            const isFriend = friendsData.friends?.some((f) => f._id === userId);
+
+            const isRequestSent = meData.user?.sentrequests?.some(
+                (r) => r.to === userId && r.status === "pending"
+            );
+
+            if (isFriend) setFriendStatus("remove");
+            else if (isRequestSent) setFriendStatus("cancel");
+            else setFriendStatus("add");
+        } catch {
+            setFriendStatus("add");
+        }
+    };
 
     // Likes modal state
     const [likesModal, setLikesModal] = useState({
@@ -129,27 +167,26 @@ const UserProfile = () => {
     const [activeReplyInput, setActiveReplyInput] = useState(null);
 
     const refreshSinglePost = async (postId) => {
-    try {
-        const updatedData = await apiService.fetchSinglePost(token, postId);
-        const updatedPost = updatedData.post || updatedData;
+        try {
+            const updatedData = await apiService.fetchSinglePost(token, postId);
+            const updatedPost = updatedData.post || updatedData;
 
-        setUserPosts((prevPosts) =>
-            prevPosts.map((p) => {
-                if (p._id === postId) {
-                    return {
-                        ...p, 
-                        comments: updatedPost.comments || [],
-                        commentCount: updatedPost.commentCount || 0,
-                    
-                    };
-                }
-                return p;
-            })
-        );
-    } catch (err) {
-        console.error("Failed to refresh post:", err);
-    }
-};
+            setUserPosts((prevPosts) =>
+                prevPosts.map((p) => {
+                    if (p._id === postId) {
+                        return {
+                            ...p,
+                            comments: updatedPost.comments || [],
+                            commentCount: updatedPost.commentCount || 0,
+                        };
+                    }
+                    return p;
+                })
+            );
+        } catch (err) {
+            console.error("Failed to refresh post:", err);
+        }
+    };
 
     // ✅ ADDED: Modal handlers for comment deletion
     const handleOpenDeleteCommentModal = (commentId, postId, e) => {
@@ -182,62 +219,66 @@ const UserProfile = () => {
         });
     };
 
-const handleConfirmDeleteComment = async () => {
-    const { commentId, postId } = deleteCommentModal;
+    const handleConfirmDeleteComment = async () => {
+        const { commentId, postId } = deleteCommentModal;
 
-    setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
+        setIsDeletingComment((prev) => ({ ...prev, [commentId]: true }));
 
-    try {
-        const currentPost = userPosts.find((p) => p._id === postId);
-        const comment = currentPost?.comments?.find((c) => c._id === commentId);
-        const replyIds = comment?.replies?.map((reply) => reply._id) || [];
+        try {
+            const currentPost = userPosts.find((p) => p._id === postId);
+            const comment = currentPost?.comments?.find(
+                (c) => c._id === commentId
+            );
+            const replyIds = comment?.replies?.map((reply) => reply._id) || [];
 
-        setUserPosts((prev) =>
-            prev.map((post) => {
-                if (post._id === postId) {
-                    const updatedComments = post.comments?.filter(
-                        (c) => c._id !== commentId
-                    ) || [];
-                    
-                    return {
-                        ...post,
-                        comments: updatedComments,
-                        commentCount: Math.max(0, (post.commentCount || 0) - 1),
-                    };
-                }
-                return post;
-            })
-        );
+            setUserPosts((prev) =>
+                prev.map((post) => {
+                    if (post._id === postId) {
+                        const updatedComments =
+                            post.comments?.filter((c) => c._id !== commentId) ||
+                            [];
 
-        const storedCommentLikes = getStoredCommentLikes();
-        delete storedCommentLikes[commentId];
-        replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
-        localStorage.setItem(
-            "commentLikes",
-            JSON.stringify(storedCommentLikes)
-        );
+                        return {
+                            ...post,
+                            comments: updatedComments,
+                            commentCount: Math.max(
+                                0,
+                                (post.commentCount || 0) - 1
+                            ),
+                        };
+                    }
+                    return post;
+                })
+            );
 
-        await apiService.deleteComment(commentId, postId, token);
-        
-        await refreshSinglePost(postId);
-        
-        setActiveCommentPostId(null);
-        
-    } catch (err) {
-        console.error("Error deleting comment:", err);
-        setError(err.message);
-        
-        await refreshSinglePost(postId);
-    } finally {
-        setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
-        setDeleteCommentModal({
-            isOpen: false,
-            commentId: null,
-            postId: null,
-            commentData: null,
-        });
-    }
-};
+            const storedCommentLikes = getStoredCommentLikes();
+            delete storedCommentLikes[commentId];
+            replyIds.forEach((replyId) => delete storedCommentLikes[replyId]);
+            localStorage.setItem(
+                "commentLikes",
+                JSON.stringify(storedCommentLikes)
+            );
+
+            await apiService.deleteComment(commentId, postId, token);
+
+            await refreshSinglePost(postId);
+
+            setActiveCommentPostId(null);
+        } catch (err) {
+            console.error("Error deleting comment:", err);
+            setError(err.message);
+
+            await refreshSinglePost(postId);
+        } finally {
+            setIsDeletingComment((prev) => ({ ...prev, [commentId]: false }));
+            setDeleteCommentModal({
+                isOpen: false,
+                commentId: null,
+                postId: null,
+                commentData: null,
+            });
+        }
+    };
 
     const handleCloseDeleteCommentModal = () => {
         setDeleteCommentModal({
@@ -2153,6 +2194,7 @@ const handleConfirmDeleteComment = async () => {
                                         <FriendButton
                                             targetUserId={userData._id}
                                             currentUserId={user._id}
+                                            initialState={friendStatus}
                                         />
                                     )}
                             </div>
