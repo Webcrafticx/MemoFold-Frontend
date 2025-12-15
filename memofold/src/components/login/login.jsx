@@ -43,8 +43,6 @@ const LoginPage = () => {
         }
         if (!formData.password) {
             errors.password = "Password is required";
-        } else if (formData.password.length < 6) {
-            errors.password = "Password must be at least 6 characters";
         }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -201,7 +199,7 @@ const LoginPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex items-center justify-center py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                                className="w-full flex items-center justify-center py-2 bg-blue-600 text-white font-bold rounded-md hover:from-blue-600 hover:to-cyan-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {loading ? (
                                     <>
