@@ -248,6 +248,23 @@ const ProfilePostCard = ({
         );
     };
 
+    // ✅ Handle context menu to prevent download
+    const handleVideoContextMenu = (e) => {
+        e.preventDefault();
+        return false;
+    };
+
+    // ✅ Handle video touch/click for mobile
+    const handleVideoTap = (e) => {
+        e.stopPropagation();
+        const video = e.target;
+        if (video.paused) {
+            video.play();
+        } else {
+            video.pause();
+        }
+    };
+
     const likeCount = getLikeCount();
     const commentCount = getCommentCount();
 
@@ -443,16 +460,36 @@ const ProfilePostCard = ({
                         </div>
                     )}
 
-                    {/* Post Video - ADDED */}
+                    {/* Post Video - UPDATED */}
                     {post.videoUrl && (
-                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center bg-black">
-                            <video
-                                src={post.videoUrl}
-                                className="max-h-96 max-w-full rounded-xl"
-                                controls
-                                preload="metadata"
-                                playsInline
-                            />
+                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
+                            <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
+                                <video
+                                    src={post.videoUrl}
+                                    className="w-full h-auto max-h-96 object-contain rounded-xl"
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                    controls
+                                    controlsList="nodownload nofullscreen noplaybackrate"
+                                    onContextMenu={handleVideoContextMenu}
+                                    style={{
+                                        backgroundColor: 'transparent',
+                                        display: 'block'
+                                    }}
+                                    preload="metadata"
+                                />
+                                {/* Mobile tap indicator */}
+                                <div 
+                                    className="absolute inset-0 pointer-events-none"
+                                    onClick={handleVideoTap}
+                                />
+                                {/* Muted indicator */}
+                                <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                                    🔇
+                                </div>
+                            </div>
                         </div>
                     )}
                 </>
