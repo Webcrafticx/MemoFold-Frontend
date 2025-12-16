@@ -1318,7 +1318,7 @@ const ProfilePage = () => {
             setUploadingProfilePic(true);
             const token = localStorage.getItem("token");
             const formData = new FormData();
-            formData.append("image", file);
+            formData.append("media", file);
 
             const responseData = await apiService.uploadProfilePic(
                 token,
