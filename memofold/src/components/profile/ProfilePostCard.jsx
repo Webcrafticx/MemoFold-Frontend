@@ -485,10 +485,6 @@ const ProfilePostCard = ({
                                     className="absolute inset-0 pointer-events-none"
                                     onClick={handleVideoTap}
                                 />
-                                {/* Muted indicator */}
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                                    🔇
-                                </div>
                             </div>
                         </div>
                     )}

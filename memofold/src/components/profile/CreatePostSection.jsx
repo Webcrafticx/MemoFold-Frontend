@@ -39,7 +39,7 @@ const CreatePostSection = ({
         if (isImage) {
             setFileType("image");
 
-            if (file.size > 5 * 1024 * 1024) {
+            if (file.size > 10 * 1024 * 1024) {
                 alert("Image must be less than 5MB");
                 return;
             }
@@ -52,8 +52,8 @@ const CreatePostSection = ({
         } else if (isVideo) {
             setFileType("video");
 
-            if (file.size > 50 * 1024 * 1024) {
-                alert("Video must be less than 50MB");
+            if (file.size > 20 * 1024 * 1024) {
+                alert("Video must be less than 20MB");
                 return;
             }
 
@@ -167,7 +167,7 @@ const CreatePostSection = ({
                         ? "bg-gray-700 text-white placeholder-gray-400"
                         : "bg-gray-100 text-gray-800 placeholder-gray-500"
                 } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base cursor-text`}
-                rows="3"
+                rows="8"
             ></textarea>
 
             {filePreview && (
