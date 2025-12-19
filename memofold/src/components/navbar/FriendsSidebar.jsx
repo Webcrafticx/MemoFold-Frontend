@@ -95,6 +95,7 @@ const FriendsSidebar = ({
                     const count = channel.countUnread?.() || 0;
                     const lastMessage = channel.state.messages?.slice(-1)[0];
                     const cleanText = lastMessage?.text
+                        ?.replace(/\*\*/g, "") 
                         ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
                         ?.replace(/https?:\/\/\S+/g, "")
                         ?.trim() || "";
