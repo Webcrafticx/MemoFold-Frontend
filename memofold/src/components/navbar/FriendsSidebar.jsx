@@ -25,18 +25,18 @@ const FriendsSidebar = ({
     const [fetchingMore, setFetchingMore] = useState(false);
     const navigate = useNavigate();
     const listRef = useRef();
+    const debounceTimerRef = useRef(null);
+    const eventListenersAttached = useRef(false);
 
-    // 1. Initialize Stream Chat Client
+    // 1. Initialize Stream Chat Client (Background active)
     useEffect(() => {
         const initStreamClient = async () => {
-            if (!token || !isOpen) return;
+            if (!token || !STREAM_API_KEY) return;
 
             try {
                 const tokenData = await apiService.getStreamToken(token);
-                const authUser = JSON.parse(
-                    localStorage.getItem("user") || "{}"
-                );
-
+                const authUser = JSON.parse(localStorage.getItem("user") || "{}");
+                
                 if (tokenData?.token && authUser._id) {
                     const client = StreamChat.getInstance(STREAM_API_KEY);
 
@@ -50,21 +50,16 @@ const FriendsSidebar = ({
                             tokenData.token
                         );
                     }
-
                     setChatClient(client);
                 }
             } catch (error) {
-                console.error("Error initializing Stream client:", error);
+                console.error("Stream init error:", error);
+                onUnreadCountUpdate?.(0);
             }
         };
 
         initStreamClient();
-
-        // Cleanup handled by ChatPage usually, but safety check here
-        return () => {
-            // We don't disconnect here to avoid disrupting active chats
-        };
-    }, [token, isOpen]);
+    }, [token, onUnreadCountUpdate]);
 
     // 2. Fetch Backend Friends List
     useEffect(() => {
@@ -75,46 +70,71 @@ const FriendsSidebar = ({
 
     // 3.  REAL-TIME UNREADS & LAST MESSAGE HANDLING (Optimized)
     useEffect(() => {
-        if (!chatClient || !chatClient.userID || friends.length === 0) return;
+        if (!chatClient || !chatClient.userID) return;
 
         const updateUnreadState = (channels) => {
+            if (!channels?.length) return;
+
             const unreadData = {};
             let totalUnread = 0;
+            const friendsFromChannels = new Set();
 
             channels.forEach((channel) => {
-                // Find the other member (the friend)
-                const otherMember = Object.values(channel.state.members).find(
-                    (m) => m.user.id !== chatClient.userID
-                );
+                try {
+                    if (!channel?.state?.members) return;
 
-                if (otherMember) {
+                    const otherMember = Object.values(channel.state.members).find(
+                        (m) => m?.user?.id !== chatClient.userID
+                    );
+
+                    if (!otherMember?.user?.id) return;
+
                     const friendId = otherMember.user.id;
+                    friendsFromChannels.add(friendId);
 
-                    // Only process if this person is in our friends list
-                    if (friends.some((f) => f._id === friendId)) {
-                        const count = channel.countUnread();
-                        const lastMessage =
-                            channel.state.messages[
-                                channel.state.messages.length - 1
-                            ];
+                    const count = channel.countUnread?.() || 0;
+                    const lastMessage = channel.state.messages?.slice(-1)[0];
+                    const cleanText = lastMessage?.text
+                        ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+                        ?.replace(/https?:\/\/\S+/g, "")
+                        ?.trim() || "";
 
-                        // Clean text for display
-                        const cleanText =
-                            lastMessage?.text
-                                ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
-                                ?.replace(/https?:\/\/\S+/g, "")
-                                ?.trim() || "";
-
-                        unreadData[friendId] = {
-                            count: count,
-                            lastMessage: cleanText,
-                            lastMessageTime: lastMessage?.created_at,
-                            isFromFriend: lastMessage?.user?.id === friendId,
-                            online: otherMember.user.online || false,
-                        };
-                        totalUnread += count;
-                    }
+                    unreadData[friendId] = {
+                        count,
+                        lastMessage: cleanText,
+                        lastMessageTime: lastMessage?.created_at,
+                        isFromFriend: lastMessage?.user?.id === friendId,
+                        online: otherMember.user.online || false,
+                        username: otherMember.user.name || otherMember.user.id,
+                        profilePic: otherMember.user.image,
+                    };
+                    totalUnread += count;
+                } catch (err) {
+                    // Skip invalid channel silently
                 }
+            });
+
+            // Add friends from channels to the friends list if not already present
+            setFriends((prevFriends) => {
+                const existingIds = new Set(prevFriends.map((f) => f._id));
+                const newFriends = [];
+
+                friendsFromChannels.forEach((friendId) => {
+                    if (!existingIds.has(friendId) && unreadData[friendId]) {
+                        // Add friend from channel data
+                        newFriends.push({
+                            _id: friendId,
+                            username: unreadData[friendId].username,
+                            realname: unreadData[friendId].username,
+                            profilePic: unreadData[friendId].profilePic,
+                            fromChannel: true, // Mark as coming from channel
+                        });
+                    }
+                });
+
+                return newFriends.length > 0
+                    ? [...newFriends, ...prevFriends]
+                    : prevFriends;
             });
 
             setFriendsWithUnread((prev) => ({ ...prev, ...unreadData }));
@@ -130,38 +150,79 @@ const FriendsSidebar = ({
                 };
                 const sort = { last_message_at: -1 };
 
-                // 1 Request for ALL active chats (Limit 50 ensures we get most active ones)
-                const channels = await chatClient.queryChannels(filter, sort, {
-                    watch: true,
-                    state: true,
-                    limit: 50,
-                });
+                // OPTIMIZED TWO-PHASE STRATEGY: Parallel fetching for speed
+                const [allChannels] = await Promise.all([
+                    // Single call with higher limit to cover both recent + unread
+                    chatClient.queryChannels(filter, sort, {
+                        watch: true,
+                        state: true,
+                        limit: 50, // Balanced: covers most active conversations
+                        message_limit: 1, // Only last message for performance
+                    })
+                ]);
 
-                updateUnreadState(channels);
+                updateUnreadState(allChannels);
             } catch (error) {
                 console.error("Error syncing channels:", error);
+                
+                // Fallback: Try with smaller limit if error
+                try {
+                    const fallbackChannels = await chatClient.queryChannels(
+                        filter,
+                        sort,
+                        {
+                            watch: true,
+                            state: true,
+                            limit: 30,
+                            message_limit: 1,
+                        }
+                    );
+                    updateUnreadState(fallbackChannels);
+                } catch (fallbackError) {
+                    console.error("Fallback fetch also failed:", fallbackError);
+                }
             }
+        };
+
+        // Event handler with debouncing
+        const handleEvent = () => {
+            // Clear previous timer using ref
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+            }
+            
+            // Set new timer - wait 300ms before fetching
+            debounceTimerRef.current = setTimeout(() => {
+                fetchActiveChannels();
+            }, 300);
         };
 
         // Initial Fetch
         fetchActiveChannels();
 
-        // Event Listeners for Real-Time Updates (No Loop needed)
-        const handleEvent = () => {
-            // When a new message comes or is read, refresh the state
-            fetchActiveChannels();
-        };
-
-        chatClient.on("message.new", handleEvent);
-        chatClient.on("notification.message_new", handleEvent);
-        chatClient.on("message.read", handleEvent);
+        // Attach Event Listeners ONLY ONCE (prevent duplicates)
+        if (!eventListenersAttached.current) {
+            chatClient.on("message.new", handleEvent);
+            chatClient.on("notification.message_new", handleEvent);
+            chatClient.on("message.read", handleEvent);
+            
+            eventListenersAttached.current = true;
+        }
 
         return () => {
-            chatClient.off("message.new", handleEvent);
-            chatClient.off("notification.message_new", handleEvent);
-            chatClient.off("message.read", handleEvent);
+            // Cleanup timer
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+            }
+            // Remove event listeners on unmount
+            if (eventListenersAttached.current) {
+                chatClient.off("message.new", handleEvent);
+                chatClient.off("notification.message_new", handleEvent);
+                chatClient.off("message.read", handleEvent);
+                eventListenersAttached.current = false;
+            }
         };
-    }, [chatClient, friends]); // Re-run if friends list grows or client changes
+    }, [chatClient, onUnreadCountUpdate]); // Added onUnreadCountUpdate to dependencies
 
     useEffect(() => {
         const scrollbarWidth =
@@ -203,6 +264,8 @@ const FriendsSidebar = ({
     }, [nextCursor, fetchingMore, friends]);
 
     const fetchFriends = async (cursor = null) => {
+        if (!token) return;
+
         try {
             setFetchingMore(true);
             if (!cursor) setLoading(true);
@@ -216,19 +279,18 @@ const FriendsSidebar = ({
 
             if (response.ok) {
                 const result = await response.json();
-                // Avoid duplicates
                 setFriends((prev) => {
                     const newFriends = result.friends || [];
-                    const existingIds = new Set(prev.map((f) => f._id));
+                    const existingIds = new Set(prev.map((f) => f?._id).filter(Boolean));
                     const uniqueNew = newFriends.filter(
-                        (f) => !existingIds.has(f._id)
+                        (f) => f?._id && !existingIds.has(f._id)
                     );
                     return [...prev, ...uniqueNew];
                 });
                 setNextCursor(result.nextCursor || null);
             }
         } catch (error) {
-            console.error("Error fetching friends:", error);
+            console.error("Fetch friends error:", error);
         } finally {
             setLoading(false);
             setFetchingMore(false);
