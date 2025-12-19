@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
+
 import {
     FaHeart,
     FaRegHeart,
@@ -68,6 +69,8 @@ const ProfilePostCard = ({
     isLikingReply,
     isDeletingReply,
 }) => {
+    const editTextareaRef = useRef(null);
+
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
     const navigate = useNavigate();
@@ -81,6 +84,14 @@ const ProfilePostCard = ({
     const getCommentCount = () => {
         return post.commentCount || 0;
     };
+
+    useEffect(() => {
+        if (isEditing && editTextareaRef.current) {
+            const textarea = editTextareaRef.current;
+            textarea.style.height = "auto";
+            textarea.style.height = textarea.scrollHeight + "px";
+        }
+    }, [isEditing]);
 
     // Profile picture source properly handle karein - multiple fallbacks
     const getProfilePic = () => {
@@ -366,16 +377,26 @@ const ProfilePostCard = ({
             {isEditing ? (
                 <div className="mb-3 sm:mb-4">
                     <textarea
+                        ref={editTextareaRef}
                         value={editContent}
-                        onChange={(e) => onEditContentChange(e.target.value)}
-                        className={`w-full p-3 rounded-lg border ${
+                        onChange={(e) => {
+                            onEditContentChange(e.target.value);
+
+                            const textarea = editTextareaRef.current;
+                            if (!textarea) return;
+
+                            textarea.style.height = "auto";
+                            textarea.style.height =
+                                textarea.scrollHeight + "px";
+                        }}
+                        rows={3}
+                        placeholder="Edit your post..."
+                        disabled={isUpdatingPost}
+                        className={`w-full p-4 rounded-lg border resize-none max-h-96 overflow-y-auto ${
                             isDarkMode
                                 ? "bg-gray-700 border-gray-600 text-white"
                                 : "bg-white border-gray-300 text-gray-800"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none`}
-                        rows="3"
-                        placeholder="Edit your post..."
-                        disabled={isUpdatingPost}
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     />
 
                     {/* Show existing image with remove option */}
@@ -463,7 +484,10 @@ const ProfilePostCard = ({
                     {/* Post Video - UPDATED */}
                     {post.videoUrl && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
-                            <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
+                            <div
+                                className="relative w-full max-w-full"
+                                style={{ maxHeight: "24rem" }}
+                            >
                                 <video
                                     src={post.videoUrl}
                                     className="w-full h-auto max-h-96 object-contain rounded-xl"
@@ -475,13 +499,13 @@ const ProfilePostCard = ({
                                     controlsList="nodownload nofullscreen noplaybackrate"
                                     onContextMenu={handleVideoContextMenu}
                                     style={{
-                                        backgroundColor: 'transparent',
-                                        display: 'block'
+                                        backgroundColor: "transparent",
+                                        display: "block",
                                     }}
                                     preload="metadata"
                                 />
                                 {/* Mobile tap indicator */}
-                                <div 
+                                <div
                                     className="absolute inset-0 pointer-events-none"
                                     onClick={handleVideoTap}
                                 />

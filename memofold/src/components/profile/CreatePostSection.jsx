@@ -20,6 +20,8 @@ const CreatePostSection = ({
     currentUserProfile,
 }) => {
     const fileInputRef = useRef(null);
+    const textareaRef = useRef(null);
+
     const [filePreview, setFilePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
     const [fileType, setFileType] = useState(null);
@@ -159,16 +161,25 @@ const CreatePostSection = ({
             </div>
 
             <textarea
+                ref={textareaRef}
                 value={postContent}
-                onChange={(e) => setPostContent(e.target.value)}
+                onChange={(e) => {
+                    setPostContent(e.target.value);
+
+                    const textarea = textareaRef.current;
+                    if (!textarea) return;
+
+                    textarea.style.height = "auto";
+                    textarea.style.height = textarea.scrollHeight + "px";
+                }}
                 placeholder="What's on your mind?"
-                className={`w-full p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 ${
+                rows={3}
+                className={`w-full p-4 rounded-lg mb-3 resize-none max-h-96 overflow-y-auto ${
                     isDarkMode
                         ? "bg-gray-700 text-white placeholder-gray-400"
                         : "bg-gray-100 text-gray-800 placeholder-gray-500"
                 } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base cursor-text`}
-                rows="3"
-            ></textarea>
+            />
 
             {filePreview && (
                 <div className="relative mb-3">
