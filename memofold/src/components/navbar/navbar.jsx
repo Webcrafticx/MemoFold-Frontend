@@ -211,75 +211,8 @@ const Navbar = ({ onDarkModeChange }) => {
         return () => clearInterval(intervalId);
     }, [token]);
 
-    // Fetch unread messages count independently (without opening sidebar)
-    useEffect(() => {
-        const fetchUnreadMessagesCount = async () => {
-            if (!token || !currentUserProfile?._id) return;
-
-            try {
-                const { StreamChat } = await import("stream-chat");
-                const apiService = (await import("../../services/api"))
-                    .apiService;
-
-                const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
-                const tokenData = await apiService.getStreamToken(token);
-
-                if (!tokenData?.token) return;
-
-                const client = StreamChat.getInstance(STREAM_API_KEY);
-
-                // Connect only if not already connected
-                if (!client.userID) {
-                    await client.connectUser(
-                        {
-                            id: currentUserProfile._id,
-                            name:
-                                currentUserProfile.realname ||
-                                currentUserProfile.username,
-                            image: currentUserProfile.profilePic,
-                        },
-                        tokenData.token
-                    );
-                }
-
-                // Get all channels for this user
-                const filter = {
-                    type: "messaging",
-                    members: { $in: [currentUserProfile._id] },
-                };
-                const sort = [{ last_message_at: -1 }];
-
-                const channels = await client.queryChannels(filter, sort, {
-                    watch: false,
-                    state: true,
-                });
-
-                // Count total unread messages
-                let totalUnread = 0;
-                for (const channel of channels) {
-                    const unread = channel.countUnread();
-                    totalUnread += unread;
-                }
-
-                setUnreadMessages(totalUnread);
-            } catch (error) {
-                console.error("Error fetching unread messages count:", error);
-            }
-        };
-
-        if (currentUserProfile) {
-            fetchUnreadMessagesCount();
-
-            // Poll every 10 seconds
-            const intervalId = setInterval(fetchUnreadMessagesCount, 5000);
-
-            return () => clearInterval(intervalId);
-        }
-    }, [token, currentUserProfile]);
-
-    // Update unread messages count from FriendsSidebar
+    // Update unread messages count from FriendsSidebar (No duplicate polling!)
     const handleUnreadMessagesUpdate = (count) => {
-        console.log("Unread messages count updated:", count);
         setUnreadMessages(count);
     };
 
