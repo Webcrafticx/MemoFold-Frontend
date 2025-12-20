@@ -13,6 +13,7 @@ import {
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import { useNavigate } from "react-router-dom";
 import ProfileCommentSection from "./ProfileCommentSection";
 import {
@@ -80,8 +81,7 @@ const ProfilePostCard = ({
     isDeletingReply,
 }) => {
     const editTextareaRef = useRef(null);
-    const imageInputRef = useRef(null);
-    const videoInputRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
@@ -93,6 +93,24 @@ const ProfilePostCard = ({
     const [newVideoUrl, setNewVideoUrl] = React.useState(null);
     const [showMediaAlert, setShowMediaAlert] = React.useState(false);
     const [currentExistingVideo, setCurrentExistingVideo] = React.useState(existingVideo);
+    // Custom notification state for edit section
+    const [notification, setNotification] = React.useState({ message: '', visible: false });
+    const notificationTimeoutRef = React.useRef(null);
+    // Notification UI helper
+    const renderNotification = () => (
+        notification.visible && (
+            <div className={`flex items-center justify-between mb-3 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                <span className="text-sm font-medium select-none">{notification.message}</span>
+                <button
+                    onClick={() => setNotification({ message: '', visible: false })}
+                    className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                    title="Close"
+                >
+                    <FaTimes size={16} className="cursor-pointer" />
+                </button>
+            </div>
+        )
+    );
 
     // Properly handle like count
     const getLikeCount = () => {
@@ -237,14 +255,18 @@ const ProfilePostCard = ({
         return editFiles.length > 0 || newVideoUrl;
     };
 
-    // Handle file selection with compression
-    const handleFileSelect = async (e, fileType) => {
+    // Unified Add Media handler
+    const handleFileSelect = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const type = getFileType(file);
-        if (type !== fileType) {
-            alert(`Please select a ${fileType} file`);
+        if (type !== 'image' && type !== 'video') {
+            setNotification({ message: "Please select an image or video file", visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 6000);
             return;
         }
 
@@ -262,7 +284,11 @@ const ProfilePostCard = ({
             if (type === 'video') {
                 const duration = await checkVideoDuration(file);
                 if (duration > 15) {
-                    alert("Video must be 15 seconds or less");
+                    setNotification({ message: "Video must be 15 seconds or less", visible: true });
+                    clearTimeout(notificationTimeoutRef.current);
+                    notificationTimeoutRef.current = setTimeout(() => {
+                        setNotification({ message: '', visible: false });
+                    }, 6000);
                     setIsCompressing(false);
                     setCompressionProgress(0);
                     return;
@@ -270,7 +296,6 @@ const ProfilePostCard = ({
             }
 
             let processedFile = file;
-            
             // Apply compression if needed
             if (shouldCompressFile(file)) {
                 try {
@@ -284,8 +309,11 @@ const ProfilePostCard = ({
                         });
                     }
                 } catch (error) {
-                    console.error('Compression error:', error);
-                    alert('Compression failed. Using original file.');
+                    setNotification({ message: 'Compression failed. Using original file.', visible: true });
+                    clearTimeout(notificationTimeoutRef.current);
+                    notificationTimeoutRef.current = setTimeout(() => {
+                        setNotification({ message: '', visible: false });
+                    }, 3000);
                 }
             }
 
@@ -313,19 +341,29 @@ const ProfilePostCard = ({
             if (onEditFileSelect) {
                 onEditFileSelect(processedFile);
             }
-            
             setTimeout(() => {
                 setIsCompressing(false);
                 setCompressionProgress(0);
             }, 500);
 
         } catch (error) {
-            console.error('File processing error:', error);
-            alert('Error processing file. Please try again.');
+            setNotification({ message: 'Error processing file. Please try again.', visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 3000);
             setIsCompressing(false);
             setCompressionProgress(0);
         }
     };
+    // Cleanup notification timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (notificationTimeoutRef.current) {
+                clearTimeout(notificationTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Remove existing media
     const handleRemoveExistingMedia = () => {
@@ -718,73 +756,38 @@ const ProfilePostCard = ({
                     {/* Show existing media */}
                     {renderExistingMedia()}
 
-                    {/* File Upload Section */}
-                    <div className="mt-3 flex items-center justify-between">
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => {
-                                    if (hasExistingMedia() && !hasNewMedia()) {
-                                        setShowMediaAlert(true);
-                                        return;
-                                    }
-                                    if (imageInputRef.current) {
-                                        imageInputRef.current.click();
-                                    }
-                                }}
-                                disabled={isCompressing || isUpdatingPost || (hasNewMedia() && !editFiles.find(f => getFileType(f) === 'image'))}
-                                className={`p-2 rounded-lg flex items-center gap-2 ${
-                                    isDarkMode
-                                        ? "hover:bg-gray-700 bg-gray-800"
-                                        : "hover:bg-gray-100 bg-gray-50"
-                                } ${isCompressing || isUpdatingPost || (hasNewMedia() && !editFiles.find(f => getFileType(f) === 'image')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                title="Add image"
-                            >
-                                <input
-                                    ref={imageInputRef}
-                                    type="file"
-                                    className="hidden"
-                                    onChange={(e) => handleFileSelect(e, 'image')}
-                                    accept="image/*"
-                                    disabled={isUpdatingPost || isCompressing}
-                                />
-                                <FaPaperclip className="text-gray-500 text-sm" />
-                                <span className="text-xs">Add Image</span>
-                            </button>
-                            
-                            <button
-                                onClick={() => {
-                                    if (hasExistingMedia() && !hasNewMedia()) {
-                                        setShowMediaAlert(true);
-                                        return;
-                                    }
-                                    if (videoInputRef.current) {
-                                        videoInputRef.current.click();
-                                    }
-                                }}
-                                disabled={isCompressing || isUpdatingPost || (hasNewMedia() && !newVideoUrl)}
-                                className={`p-2 rounded-lg flex items-center gap-2 ${
-                                    isDarkMode
-                                        ? "hover:bg-gray-700 bg-gray-800"
-                                        : "hover:bg-gray-100 bg-gray-50"
-                                } ${isCompressing || isUpdatingPost || (hasNewMedia() && !newVideoUrl) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                title="Add video"
-                            >
-                                <input
-                                    ref={videoInputRef}
-                                    type="file"
-                                    className="hidden"
-                                    onChange={(e) => handleFileSelect(e, 'video')}
-                                    accept="video/*"
-                                    disabled={isUpdatingPost || isCompressing}
-                                />
-                                <FaVideo className="text-gray-500 text-sm" />
-                                <span className="text-xs">Add Video</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Save/Cancel Buttons */}
-                    <div className="flex space-x-2 mt-3 justify-end">
+                    {/* File Upload Section - Unified Add Media */}
+                    <div className="mt-3 flex flex-row items-center gap-2 justify-end">
+                        <button
+                            onClick={() => {
+                                if (hasExistingMedia() && !hasNewMedia()) {
+                                    setShowMediaAlert(true);
+                                    return;
+                                }
+                                if (fileInputRef.current) {
+                                    fileInputRef.current.value = "";
+                                    fileInputRef.current.click();
+                                }
+                            }}
+                            disabled={isCompressing || isUpdatingPost}
+                            className={`p-2 rounded-lg flex items-center gap-2 ${
+                                isDarkMode
+                                    ? "hover:bg-gray-700 bg-gray-800"
+                                    : "hover:bg-gray-100 bg-gray-50"
+                            } ${isCompressing || isUpdatingPost ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title="Update Media"
+                        >
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleFileSelect}
+                                accept="image/*,video/*"
+                                disabled={isUpdatingPost || isCompressing}
+                            />
+                            <FaPaperclip className="text-gray-500 text-sm" />
+                            <span className="text-xs">Update Media</span>
+                        </button>
                         <button
                             onClick={handleUpdateClick}
                             disabled={isUpdatingPost || isCompressing}
@@ -804,6 +807,22 @@ const ProfilePostCard = ({
                             Cancel
                         </button>
                     </div>
+            {/* Custom Notification for edit section */}
+            {notification.visible && (
+                <div className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                    <span className="text-sm font-medium">{notification.message}</span>
+                    <button
+                        onClick={() => setNotification({ message: '', visible: false })}
+                        className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                        title="Close"
+                    >
+                        <FaTimes size={16} />
+                    </button>
+                </div>
+            )}
+
+                    {/* Save/Cancel Buttons */}
+                    {/* Save/Cancel Buttons removed, now combined above with Update Media */}
                 </div>
             ) : (
                 /* Normal Post View */
@@ -813,7 +832,7 @@ const ProfilePostCard = ({
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                         } text-sm sm:text-base cursor-default whitespace-pre-line`}
                     >
-                        {post.content}
+                        {highlightMentionsAndHashtags(post.content)}
                     </p>
 
                     {/* Post Image */}

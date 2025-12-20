@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import { FaTimes } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 

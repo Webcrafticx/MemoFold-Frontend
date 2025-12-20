@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import ReplyItem from "../mainFeed/ReplyItem";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const ProfileCommentSection = ({
     post,
@@ -214,7 +215,7 @@ const ProfileCommentSection = ({
                                             </span>
                                         </div>
                                         <p className="text-sm whitespace-pre-line mt-1">
-                                            {comment.content}
+                                            {highlightMentionsAndHashtags(comment.content)}
                                         </p>
                                         <div className="flex items-center justify-between mt-1">
                                             <button

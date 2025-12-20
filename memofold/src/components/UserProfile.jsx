@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { highlightMentionsAndHashtags } from "../utils/highlightMentionsAndHashtags.jsx";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -1746,7 +1747,7 @@ const UserProfile = () => {
                                         : "text-gray-700"
                                 }`}
                             >
-                                {reply.content}
+                                {highlightMentionsAndHashtags(reply.content)}
                             </p>
 
                             <div className="mt-1 flex items-center justify-between flex-wrap gap-2">
@@ -2165,7 +2166,7 @@ const UserProfile = () => {
                                             : "text-gray-700"
                                     }`}
                                 >
-                                    {userDescription}
+                                    {highlightMentionsAndHashtags(userDescription)}
                                 </p>
                             )}
 
@@ -2362,7 +2363,7 @@ const UserProfile = () => {
                                                     : "text-gray-700"
                                             }`}
                                         >
-                                            {post.content}
+                                            {highlightMentionsAndHashtags(post.content)}
                                         </p>
 
                                         {/* Post Image */}
@@ -2764,9 +2765,7 @@ const UserProfile = () => {
                                                                                             : "text-gray-700"
                                                                                     }`}
                                                                                 >
-                                                                                    {
-                                                                                        comment.content
-                                                                                    }
+                                                                                    {highlightMentionsAndHashtags(comment.content)}
                                                                                 </p>
                                                                                 <div className="mt-1 flex items-center justify-between">
                                                                                     <button

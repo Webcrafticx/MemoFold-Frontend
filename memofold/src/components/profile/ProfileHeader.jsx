@@ -13,6 +13,7 @@ import {
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import EditProfileModal from "./EditProfileModal";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const ProfileHeader = ({
     profilePic,
@@ -247,7 +248,7 @@ const ProfileHeader = ({
                                             : "text-gray-600"
                                     } cursor-default`}
                                 >
-                                    {bio || "No bio yet."}
+                                    {bio ? highlightMentionsAndHashtags(bio) : "No bio yet."}
                                 </p>
                             </div>
                         </div>

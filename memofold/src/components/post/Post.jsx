@@ -13,6 +13,7 @@ import MessageBanner from "../mainFeed/MessageBanner";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const Post = () => {
     const { postId } = useParams();
@@ -1169,7 +1170,7 @@ const Post = () => {
                                 darkMode ? "text-gray-200" : "text-gray-700"
                             }`}
                         >
-                            {post.content || ""}
+                            {highlightMentionsAndHashtags(post.content || "")}
                         </p>
 
                         {/* Post Image */}

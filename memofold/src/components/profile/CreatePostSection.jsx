@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { FaPaperclip, FaTimes, FaSpinner } from "react-icons/fa";
 import {
     getIndianDateString,
@@ -11,6 +11,7 @@ import {
     getFileType,
     checkVideoDuration
 } from "../../utils/fileCompression";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const CreatePostSection = ({
     profilePic,
@@ -35,13 +36,21 @@ const CreatePostSection = ({
     const [isCompressing, setIsCompressing] = useState(false);
     const [compressionProgress, setCompressionProgress] = useState(0);
 
+    // Custom notification state
+    const [notification, setNotification] = useState({ message: '', visible: false });
+    const notificationTimeoutRef = useRef(null);
+
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const type = getFileType(file);
         if (type !== 'image' && type !== 'video') {
-            alert("Please select an image or video file");
+            setNotification({ message: "Please select an image or video file", visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 6000);
             return;
         }
 
@@ -52,7 +61,11 @@ const CreatePostSection = ({
             if (type === 'video') {
                 const duration = await checkVideoDuration(file);
                 if (duration > 15) {
-                    alert("Video must be 15 seconds or less");
+                    setNotification({ message: "Video must be 15 seconds or less", visible: true });
+                    clearTimeout(notificationTimeoutRef.current);
+                    notificationTimeoutRef.current = setTimeout(() => {
+                        setNotification({ message: '', visible: false });
+                    }, 6000);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                     setFileType(null);
                     return;
@@ -60,7 +73,6 @@ const CreatePostSection = ({
             }
 
             let processedFile = file;
-            
             // Check if compression is needed
             if (shouldCompressFile(file)) {
                 setIsCompressing(true);
@@ -97,10 +109,22 @@ const CreatePostSection = ({
 
         } catch (error) {
             console.error('File processing error:', error);
-            alert('Error processing file. Please try again.');
+            setNotification({ message: 'Error processing file. Please try again.', visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 3000);
             removeFile();
         }
     };
+    // Cleanup notification timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (notificationTimeoutRef.current) {
+                clearTimeout(notificationTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const removeFile = () => {
         setSelectedFile(null);
@@ -131,6 +155,19 @@ const CreatePostSection = ({
                     : "bg-white border-gray-200 text-gray-800"
             } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md cursor-default`}
         >
+            {/* Custom Notification */}
+            {notification.visible && (
+                <div className={`flex items-center justify-between mb-3 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                    <span className="text-sm font-medium select-none">{notification.message}</span>
+                    <button
+                        onClick={() => setNotification({ message: '', visible: false })}
+                        className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                        title="Close"
+                    >
+                        <FaTimes size={16} className="cursor-pointer" />
+                    </button>
+                </div>
+            )}
             <div className="flex items-center gap-3 mb-3 sm:mb-4">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 cursor-pointer">
                     {profilePic &&
@@ -188,6 +225,7 @@ const CreatePostSection = ({
                 </div>
             </div>
 
+
             <textarea
                 ref={textareaRef}
                 value={postContent}
@@ -200,7 +238,7 @@ const CreatePostSection = ({
                 }}
                 placeholder="What's on your mind?"
                 rows={3}
-                className={`w-full p-4 rounded-lg mb-3 resize-none max-h-96 overflow-y-auto ${
+                className={`w-full p-4 rounded-lg mb-1 resize-none max-h-96 overflow-y-auto ${
                     isDarkMode
                         ? "bg-gray-700 text-white placeholder-gray-400"
                         : "bg-gray-100 text-gray-800 placeholder-gray-500"
@@ -296,7 +334,7 @@ const CreatePostSection = ({
                         title={isCompressing ? "Processing..." : "Attach file"}
                     >
                         <FaPaperclip className="text-sm sm:text-base" />
-                        <span className="hidden sm:inline text-xs sm:text-sm">
+                        <span className="text-xs sm:text-sm">
                             {isCompressing ? "Processing..." : "Add Media"}
                         </span>
                     </button>
