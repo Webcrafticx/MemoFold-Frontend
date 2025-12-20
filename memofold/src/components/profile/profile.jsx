@@ -476,10 +476,10 @@ const ProfilePage = () => {
                     isLoadingMore: true,
                 }));
             }
-            const username = localStorage.getItem("username");
+            const userId = localStorage.getItem("userId");
             const responseData = await apiService.fetchUserPosts(
                 token,
-                username,
+                userId,
                 cursor
             );
 

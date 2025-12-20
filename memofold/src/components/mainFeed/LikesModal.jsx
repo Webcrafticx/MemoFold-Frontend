@@ -24,6 +24,18 @@ const LikesModal = ({
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     useEffect(() => {
+        // Disable background scroll when modal is open
+        if (isOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => {
+            document.body.style.overflow = "";
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
         if (isOpen && postId) {
             fetchAllLikes();
         } else {
@@ -166,7 +178,7 @@ const LikesModal = ({
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className={`w-full max-w-md p-2 max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] rounded-xl sm:rounded-2xl shadow-2xl ${
+                        className={`w-full max-w-md p-2 max-h-[90vh] sm:max-h-[85vh] md:max-h-[80vh] rounded-xl sm:rounded-2xl shadow-2xl flex flex-col ${
                             isDarkMode
                                 ? "bg-gray-800 text-gray-100 border border-gray-700"
                                 : "bg-white text-gray-900 border border-gray-200"
@@ -210,8 +222,8 @@ const LikesModal = ({
 
                         {/* Content */}
                         <div
-                            className="max-h-[calc(90vh-120px)] sm:max-h-[calc(85vh-120px)] md:max-h-[calc(80vh-120px)] overflow-y-auto"
-                            onScroll={handleScroll} // ✅ ADDED SCROLL HANDLER
+                            className="flex-1 overflow-y-auto"
+                            onScroll={handleScroll}
                         >
                             {isLoading ? (
                                 <div className="flex flex-col items-center justify-center py-8 sm:py-10 md:py-12">
