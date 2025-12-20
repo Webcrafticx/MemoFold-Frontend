@@ -152,6 +152,9 @@ const UserProfile = () => {
     });
     const imagePreviewRef = useRef(null);
 
+    const [showVideoPreview, setShowVideoPreview] = useState(false);
+    const [previewVideo, setPreviewVideo] = useState("");
+
     // Dark mode state
     const [isDarkMode, setIsDarkMode] = useState(() => {
         return localStorage.getItem("darkMode") === "true";
@@ -2046,6 +2049,40 @@ const UserProfile = () => {
                     </div>
                 </div>
             )}
+            
+                         {showVideoPreview && (
+                           <div
+                             className="fixed inset-0 backdrop-blur bg-black bg-opacity-90 flex items-center                      justify-center z-50 p-4"
+                             onClick={() => setShowVideoPreview(false)}
+                         >
+                             <div
+                             className="relative max-w-screen max-h-screen flex items-center justify-center"
+                             onClick={(e) => e.stopPropagation()}
+                        >
+                          <video
+                              src={previewVideo}
+                              className="max-w-full max-h-full object-contain rounded-lg"
+                              autoPlay
+                              muted
+                              loop
+                              playsInline
+                              controls
+                              controlsList="nodownload nofullscreen noplaybackrate"
+                              style={{ backgroundColor: 'transparent' }}
+                              onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                              className="absolute top-4 right-4 bg-red-500 text-white rounded-full p-3               hover:bg-red-600 transition-colors cursor-pointer"
+                              onClick={() => setShowVideoPreview(false)}
+                          >
+                              <FaTimes />
+                          </button>
+                          <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2               rounded-lg text-lg">
+                              @{userData.username}
+                          </div>
+                      </div>
+                  </div>
+              )}
             <Navbar onDarkModeChange={handleDarkModeChange} />
             <FriendsSidebar
                 isOpen={showFriendsSidebar}
@@ -2352,7 +2389,39 @@ const UserProfile = () => {
                                                     }}
                                                 />
                                             </div>
-                                        )}
+                                        )}{/* ✅ YEH VIDEO SECTION ADD KARO: */}
+{post.videoUrl && (
+    <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+        <div className="relative w-full" style={{ maxHeight: '24rem' }}>
+            <video
+                src={post.videoUrl}
+                className="w-full h-auto max-h-96 object-contain rounded-xl"
+                autoPlay
+                muted
+                loop
+                playsInline
+                controls
+                controlsList="nodownload nofullscreen noplaybackrate"
+                onContextMenu={(e) => e.preventDefault()}
+                style={{
+                    backgroundColor: 'transparent',
+                    display: 'block'
+                }}
+                preload="metadata"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    const video = e.target;
+                    if (video.paused) {
+                        video.play();
+                    } else {
+                        video.pause();
+                    }
+                }}
+            />
+        </div>
+    </div>
+)}
+                                        
 
                                         <div
                                             className={`flex items-center justify-between border-t pt-3 ${

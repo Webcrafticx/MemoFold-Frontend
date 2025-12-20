@@ -593,13 +593,12 @@ const ProfilePage = () => {
     }, [loadMorePosts]);
 
     // File upload handlers for edit mode
-    const handleEditFileSelect = (e) => {
-        const files = Array.from(e.target.files);
-        setEditState((prev) => ({
-            ...prev,
-            editFiles: [...prev.editFiles, ...files],
-        }));
-    };
+const handleEditFileSelect = (file) => {
+    setEditState((prev) => ({
+        ...prev,
+        editFiles: [...prev.editFiles, file],
+    }));
+};
 
     const handleRemoveEditFile = (index) => {
         setEditState((prev) => ({
@@ -1644,6 +1643,18 @@ const ProfilePage = () => {
             existingImage: null,
         }));
     };
+    const handleRemoveExistingVideo = () => {
+    if (editState.editingPostId) {
+        setProfileData(prev => ({
+            ...prev,
+            posts: prev.posts.map(post => 
+                post._id === editState.editingPostId 
+                    ? { ...post, videoUrl: null }
+                    : post
+            )
+        }));
+    }
+};
 
     // ✅ UPDATED: Delete post with confirmation modal
     const handleDeletePostClick = (postId) => {
@@ -1980,9 +1991,14 @@ const ProfilePage = () => {
                                         onRemoveEditFile={handleRemoveEditFile}
                                         // Existing image props
                                         existingImage={editState.existingImage}
-                                        onRemoveExistingImage={
-                                            handleRemoveExistingImage
-                                        }
+                                        existingVideo={post.videoUrl || null}
+                                          onRemoveExistingMedia={() => {
+        if (post.videoUrl) {
+            handleRemoveExistingVideo();
+        } else {
+            handleRemoveExistingImage();
+        }
+    }}
                                         // Reply functionality props
                                         activeReplyInputs={
                                             commentState.activeReplyInputs

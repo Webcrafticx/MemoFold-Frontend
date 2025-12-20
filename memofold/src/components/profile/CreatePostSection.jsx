@@ -1,9 +1,16 @@
 import React, { useRef, useState } from "react";
-import { FaPaperclip, FaTimes } from "react-icons/fa";
+import { FaPaperclip, FaTimes, FaSpinner } from "react-icons/fa";
 import {
     getIndianDateString,
     getSelectedDateUTC,
 } from "../../services/dateUtils";
+import {
+    compressImage,
+    compressVideo,
+    shouldCompressFile,
+    getFileType,
+    checkVideoDuration
+} from "../../utils/fileCompression";
 
 const CreatePostSection = ({
     profilePic,
@@ -25,58 +32,73 @@ const CreatePostSection = ({
     const [filePreview, setFilePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
     const [fileType, setFileType] = useState(null);
+    const [isCompressing, setIsCompressing] = useState(false);
+    const [compressionProgress, setCompressionProgress] = useState(0);
 
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const isImage = file.type.startsWith("image/");
-        const isVideo = file.type.startsWith("video/");
-
-        if (!isImage && !isVideo) {
+        const type = getFileType(file);
+        if (type !== 'image' && type !== 'video') {
             alert("Please select an image or video file");
             return;
         }
 
-        if (isImage) {
-            setFileType("image");
+        try {
+            setFileType(type);
 
-            if (file.size > 5 * 1024 * 1024) {
-                alert("Image must be less than 5MB");
-                return;
-            }
-
-            setSelectedFile(file);
-
-            const reader = new FileReader();
-            reader.onload = (event) => setFilePreview(event.target.result);
-            reader.readAsDataURL(file);
-        } else if (isVideo) {
-            setFileType("video");
-
-            if (file.size > 50 * 1024 * 1024) {
-                alert("Video must be less than 50MB");
-                return;
-            }
-
-            const videoElement = document.createElement("video");
-            videoElement.preload = "metadata";
-
-            videoElement.onloadedmetadata = function () {
-                window.URL.revokeObjectURL(videoElement.src);
-
-                if (videoElement.duration > 15) {
+            // Validate video duration
+            if (type === 'video') {
+                const duration = await checkVideoDuration(file);
+                if (duration > 15) {
                     alert("Video must be 15 seconds or less");
                     if (fileInputRef.current) fileInputRef.current.value = "";
                     setFileType(null);
                     return;
                 }
+            }
 
-                setSelectedFile(file);
-                setFilePreview(URL.createObjectURL(file));
-            };
+            let processedFile = file;
+            
+            // Check if compression is needed
+            if (shouldCompressFile(file)) {
+                setIsCompressing(true);
+                setCompressionProgress(0);
 
-            videoElement.src = URL.createObjectURL(file);
+                try {
+                    if (type === 'image') {
+                        processedFile = await compressImage(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    } else if (type === 'video') {
+                        processedFile = await compressVideo(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    }
+                } finally {
+                    setTimeout(() => {
+                        setIsCompressing(false);
+                        setCompressionProgress(0);
+                    }, 500);
+                }
+            }
+
+            setSelectedFile(processedFile);
+
+            // Create preview
+            if (type === 'image') {
+                const reader = new FileReader();
+                reader.onload = (event) => setFilePreview(event.target.result);
+                reader.readAsDataURL(processedFile);
+            } else if (type === 'video') {
+                setFilePreview(URL.createObjectURL(processedFile));
+            }
+
+        } catch (error) {
+            console.error('File processing error:', error);
+            alert('Error processing file. Please try again.');
+            removeFile();
         }
     };
 
@@ -84,10 +106,16 @@ const CreatePostSection = ({
         setSelectedFile(null);
         setFilePreview(null);
         setFileType(null);
+        setIsCompressing(false);
+        setCompressionProgress(0);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handlePostSubmit = async () => {
+        if ((!postContent.trim() && !filePreview) || isCreatingPost || isCompressing) {
+            return;
+        }
+
         const postTimestamp = getSelectedDateUTC(selectedDate);
         await onCreatePost(postContent, selectedFile, postTimestamp, fileType);
         setPostContent("");
@@ -165,10 +193,8 @@ const CreatePostSection = ({
                 value={postContent}
                 onChange={(e) => {
                     setPostContent(e.target.value);
-
                     const textarea = textareaRef.current;
                     if (!textarea) return;
-
                     textarea.style.height = "auto";
                     textarea.style.height = textarea.scrollHeight + "px";
                 }}
@@ -181,19 +207,39 @@ const CreatePostSection = ({
                 } focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base cursor-text`}
             />
 
-            {filePreview && (
+            {isCompressing && ( 
+                <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                        <FaSpinner className="animate-spin" />
+                        <span className="text-sm">
+                            {fileType === 'video' ? 'Processing video...' : 'Processing image...'}
+                        </span>
+                    </div>
+                    <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2">
+                        <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${compressionProgress}%` }}
+                        ></div>
+                    </div>
+                    <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                        Progress: {compressionProgress}%
+                    </div>
+                </div>
+            )}
+
+            {filePreview && !isCompressing && (
                 <div className="relative mb-3">
                     {fileType === "image" ? (
                         <img
                             src={filePreview}
                             alt="Preview"
-                            className="w-full h-48 object-cover rounded-lg cursor-pointer"
+                            className="w-full max-h-96 object-contain rounded-lg cursor-pointer bg-gray-100"
                         />
                     ) : fileType === "video" ? (
                         <div className="relative">
                             <video
                                 src={filePreview}
-                                className="w-full h-48 object-cover rounded-lg"
+                                className="w-full max-h-96 object-contain rounded-lg cursor-pointer bg-gray-100"
                                 controls
                                 preload="metadata"
                             />
@@ -205,8 +251,9 @@ const CreatePostSection = ({
                     <button
                         onClick={removeFile}
                         className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70 cursor-pointer"
+                        title="Remove file"
                     >
-                        <FaTimes />
+                        <FaTimes size={14} />
                     </button>
                 </div>
             )}
@@ -223,7 +270,7 @@ const CreatePostSection = ({
                                 isDarkMode
                                     ? "bg-gray-700 text-white border-gray-600"
                                     : "bg-gray-100 text-gray-800 border-gray-300"
-                            } p-1 rounded border cursor-pointer text-xs sm:text-sm`}
+                            } p-1 sm:p-2 rounded border cursor-pointer text-xs sm:text-sm`}
                         />
                         {selectedDate &&
                             selectedDate !== getIndianDateString() && (
@@ -231,7 +278,7 @@ const CreatePostSection = ({
                                     Posting for:{" "}
                                     {new Date(
                                         selectedDate
-                                    ).toLocaleDateString()}
+                                    ).toLocaleDateString('en-IN')}
                                 </span>
                             )}
                     </div>
@@ -240,12 +287,17 @@ const CreatePostSection = ({
                 <div className="flex gap-1 sm:gap-2 self-end items-center">
                     <button
                         onClick={() => fileInputRef.current.click()}
-                        className="p-1 sm:p-2 flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
-                        title="Attach file"
+                        disabled={isCompressing}
+                        className={`p-2 sm:p-3 flex items-center gap-1 rounded-lg ${
+                            isCompressing 
+                                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed' 
+                                : 'text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+                        }`}
+                        title={isCompressing ? "Processing..." : "Attach file"}
                     >
-                        <FaPaperclip className="text-xs sm:text-sm" />
-                        <span className="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">
-                            Add Media
+                        <FaPaperclip className="text-sm sm:text-base" />
+                        <span className="hidden sm:inline text-xs sm:text-sm">
+                            {isCompressing ? "Processing..." : "Add Media"}
                         </span>
                     </button>
 
@@ -255,22 +307,26 @@ const CreatePostSection = ({
                         onChange={handleFileChange}
                         className="hidden"
                         accept="image/*,video/*"
+                        disabled={isCompressing}
                     />
 
                     <button
                         onClick={handlePostSubmit}
                         disabled={
                             (!postContent.trim() && !filePreview) ||
-                            isCreatingPost
+                            isCreatingPost ||
+                            isCompressing
                         }
-                        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium ${
+                        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium text-sm sm:text-base ${
                             (postContent.trim() || filePreview) &&
-                            !isCreatingPost
-                                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                            !isCreatingPost &&
+                            !isCompressing
+                                ? "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer shadow-sm"
                                 : "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
                         } transition-colors`}
                     >
-                        {isCreatingPost ? "Posting..." : "Post"}
+                        {isCreatingPost ? "Posting..." : 
+                         isCompressing ? "Processing..." : "Post"}
                     </button>
                 </div>
             </div>

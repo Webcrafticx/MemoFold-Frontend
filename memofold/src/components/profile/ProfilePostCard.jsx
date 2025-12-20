@@ -9,11 +9,20 @@ import {
     FaPaperclip,
     FaCheck,
     FaTimes,
+    FaVideo,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import { useNavigate } from "react-router-dom";
 import ProfileCommentSection from "./ProfileCommentSection";
+import {
+    compressImage,
+    compressVideo,
+    shouldCompressFile,
+    getFileType,
+    checkVideoDuration,
+    formatFileSize
+} from "../../utils/fileCompression";
 
 const ProfilePostCard = ({
     post,
@@ -52,9 +61,10 @@ const ProfilePostCard = ({
     editFiles = [],
     onEditFileSelect,
     onRemoveEditFile,
-    // Existing image prop
+    // Existing media props
     existingImage,
-    onRemoveExistingImage,
+    existingVideo,
+    onRemoveExistingMedia,
     // Reply functionality props
     activeReplyInputs,
     replyContent,
@@ -70,10 +80,19 @@ const ProfilePostCard = ({
     isDeletingReply,
 }) => {
     const editTextareaRef = useRef(null);
+    const imageInputRef = useRef(null);
+    const videoInputRef = useRef(null);
 
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
     const navigate = useNavigate();
+
+    // Compression states
+    const [isCompressing, setIsCompressing] = React.useState(false);
+    const [compressionProgress, setCompressionProgress] = React.useState(0);
+    const [newVideoUrl, setNewVideoUrl] = React.useState(null);
+    const [showMediaAlert, setShowMediaAlert] = React.useState(false);
+    const [currentExistingVideo, setCurrentExistingVideo] = React.useState(existingVideo);
 
     // Properly handle like count
     const getLikeCount = () => {
@@ -92,6 +111,20 @@ const ProfilePostCard = ({
             textarea.style.height = textarea.scrollHeight + "px";
         }
     }, [isEditing]);
+
+    // Cleanup video URL on unmount
+    useEffect(() => {
+        return () => {
+            if (newVideoUrl) {
+                URL.revokeObjectURL(newVideoUrl);
+            }
+        };
+    }, [newVideoUrl]);
+
+    // Update existing video when prop changes
+    useEffect(() => {
+        setCurrentExistingVideo(existingVideo);
+    }, [existingVideo]);
 
     // Profile picture source properly handle karein - multiple fallbacks
     const getProfilePic = () => {
@@ -165,6 +198,13 @@ const ProfilePostCard = ({
     };
 
     const handleCancelClick = () => {
+        // Cleanup video URL
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
+        setIsCompressing(false);
+        setCompressionProgress(0);
         onCancelEdit();
     };
 
@@ -175,6 +215,7 @@ const ProfilePostCard = ({
             onShowLikesModal(post._id);
         }
     };
+    
     const navigateToProfile = (userId) => {
         // Check if this is the current user
         const isCurrentUser = userId === getUserId();
@@ -185,9 +226,143 @@ const ProfilePostCard = ({
             navigate(`/user/${userId}`);
         }
     };
+
+    // Check if existing media is present
+    const hasExistingMedia = () => {
+        return existingImage || currentExistingVideo;
+    };
+
+    // Check if new media is present
+    const hasNewMedia = () => {
+        return editFiles.length > 0 || newVideoUrl;
+    };
+
+    // Handle file selection with compression
+    const handleFileSelect = async (e, fileType) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const type = getFileType(file);
+        if (type !== fileType) {
+            alert(`Please select a ${fileType} file`);
+            return;
+        }
+
+        // Check if existing media needs to be removed first
+        if (hasExistingMedia()) {
+            setShowMediaAlert(true);
+            return;
+        }
+
+        try {
+            setIsCompressing(true);
+            setCompressionProgress(10);
+
+            // Validate video duration
+            if (type === 'video') {
+                const duration = await checkVideoDuration(file);
+                if (duration > 15) {
+                    alert("Video must be 15 seconds or less");
+                    setIsCompressing(false);
+                    setCompressionProgress(0);
+                    return;
+                }
+            }
+
+            let processedFile = file;
+            
+            // Apply compression if needed
+            if (shouldCompressFile(file)) {
+                try {
+                    if (type === 'image') {
+                        processedFile = await compressImage(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    } else if (type === 'video') {
+                        processedFile = await compressVideo(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Compression error:', error);
+                    alert('Compression failed. Using original file.');
+                }
+            }
+
+            // Cleanup previous video URL
+            if (newVideoUrl) {
+                URL.revokeObjectURL(newVideoUrl);
+            }
+
+            // Create preview for video
+            if (type === 'video') {
+                const videoUrl = URL.createObjectURL(processedFile);
+                setNewVideoUrl(videoUrl);
+                // Clear any existing edit files (video replaces everything)
+                editFiles.forEach((file, index) => {
+                    onRemoveEditFile(index);
+                });
+            } else {
+                // For image, clear any video
+                if (newVideoUrl) {
+                    URL.revokeObjectURL(newVideoUrl);
+                    setNewVideoUrl(null);
+                }
+            }
+
+            if (onEditFileSelect) {
+                onEditFileSelect(processedFile);
+            }
+            
+            setTimeout(() => {
+                setIsCompressing(false);
+                setCompressionProgress(0);
+            }, 500);
+
+        } catch (error) {
+            console.error('File processing error:', error);
+            alert('Error processing file. Please try again.');
+            setIsCompressing(false);
+            setCompressionProgress(0);
+        }
+    };
+
+    // Remove existing media
+    const handleRemoveExistingMedia = () => {
+        if (onRemoveExistingMedia) {
+            onRemoveExistingMedia();
+        }
+        // Also clear any new media
+        editFiles.forEach((file, index) => {
+            if (onRemoveEditFile) {
+                onRemoveEditFile(index);
+            }
+        });
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
+        // Clear local existing video state
+        setCurrentExistingVideo(null);
+        setShowMediaAlert(false);
+    };
+
+    // Remove new media
+    const handleRemoveNewMedia = () => {
+        editFiles.forEach((file, index) => {
+            if (onRemoveEditFile) {
+                onRemoveEditFile(index);
+            }
+        });
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
+    };
+
     // File preview rendering function
     const renderFilePreview = (file) => {
-        if (file.type.startsWith("image/")) {
+        if (file && file.type && file.type.startsWith("image/")) {
             return (
                 <div className="relative">
                     <img
@@ -216,7 +391,7 @@ const ProfilePostCard = ({
                 }`}
             >
                 <span className="mr-2">📁</span>
-                <span className="text-sm truncate max-w-xs">{file.name}</span>
+                <span className="text-sm truncate max-w-xs">{file?.name || "File"}</span>
                 <button
                     onClick={() => onRemoveEditFile(editFiles.indexOf(file))}
                     className="ml-2 text-red-500 hover:text-red-700 cursor-pointer"
@@ -227,9 +402,12 @@ const ProfilePostCard = ({
         );
     };
 
-    // Render existing image in edit mode
-    const renderExistingImage = () => {
-        if (!existingImage) return null;
+    // Render existing media in edit mode
+    const renderExistingMedia = () => {
+        const hasMedia = hasExistingMedia();
+        const hasNew = hasNewMedia();
+        
+        if (!hasMedia && !hasNew) return null;
 
         return (
             <div className="relative mb-3">
@@ -238,23 +416,120 @@ const ProfilePostCard = ({
                         isDarkMode ? "text-gray-400" : "text-gray-600"
                     }`}
                 >
-                    Current Image:
+                    {hasMedia ? "Current Media:" : "New Media:"}
                 </p>
-                <div className="relative inline-block">
-                    <img
-                        src={existingImage}
-                        alt="Current post"
-                        className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
-                        onClick={() => onImagePreview(existingImage)}
-                    />
-                    <button
-                        onClick={onRemoveExistingImage}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
-                        title="Remove image"
-                    >
-                        <FaTimes />
-                    </button>
-                </div>
+                
+                {/* Existing Media */}
+                {hasMedia && (
+                    <div className="relative inline-block mb-2">
+                        {existingImage ? (
+                            <>
+                                <img
+                                    src={existingImage}
+                                    alt="Current post"
+                                    className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
+                                    onClick={() => onImagePreview(existingImage)}
+                                />
+                                <button
+                                    onClick={handleRemoveExistingMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove current media"
+                                >
+                                    <FaTimes />
+                                </button>
+                                <div className="mt-1 text-xs text-gray-500">
+                                    Click ✕ to remove before adding new
+                                </div>
+                            </>
+                        ) : currentExistingVideo ? (
+                            <>
+                                <div className="relative w-full max-w-full">
+                                    <video
+                                        src={currentExistingVideo}
+                                        className="max-h-48 max-w-full object-contain rounded-lg"
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        controls
+                                        controlsList="nodownload nofullscreen noplaybackrate"
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            return false;
+                                        }}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            display: "block",
+                                        }}
+                                        preload="metadata"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleRemoveExistingMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove current video"
+                                >
+                                    <FaTimes />
+                                </button>
+                                <div className="mt-1 text-xs text-gray-500">
+                                    Click ✕ to remove before adding new
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                )}
+                
+                {/* New Media */}
+                {hasNew && (
+                    <div className="mt-3">
+                        {newVideoUrl ? (
+                            <div className="relative inline-block mb-2">
+                                <div className="relative w-full max-w-full">
+                                    <video
+                                        src={newVideoUrl}
+                                        className="max-h-48 max-w-full object-contain rounded-lg"
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        controls
+                                        controlsList="nodownload nofullscreen noplaybackrate"
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            return false;
+                                        }}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            display: "block",
+                                        }}
+                                        preload="metadata"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleRemoveNewMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove new video"
+                                >
+                                    <FaTimes />
+                                </button>
+                                <div className="mt-1 text-xs text-green-500">
+                                    New video ready to upload
+                                </div>
+                            </div>
+                        ) : editFiles.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {editFiles.map((file, index) => (
+                                    <div key={index}>
+                                        {renderFilePreview(file)}
+                                    </div>
+                                ))}
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Remove ✕ to add different media
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                )}
             </div>
         );
     };
@@ -391,7 +666,7 @@ const ProfilePostCard = ({
                         }}
                         rows={3}
                         placeholder="Edit your post..."
-                        disabled={isUpdatingPost}
+                        disabled={isUpdatingPost || isCompressing}
                         className={`w-full p-4 rounded-lg border resize-none max-h-96 overflow-y-auto ${
                             isDarkMode
                                 ? "bg-gray-700 border-gray-600 text-white"
@@ -399,47 +674,122 @@ const ProfilePostCard = ({
                         } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     />
 
-                    {/* Show existing image with remove option */}
-                    {renderExistingImage()}
+                    {/* Media Alert */}
+                    {showMediaAlert && (
+                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-yellow-900 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className={`text-sm font-medium ${isDarkMode ? 'text-yellow-200' : 'text-yellow-800'}`}>
+                                    ⚠️ Remove current media first
+                                </p>
+                                <button
+                                    onClick={() => setShowMediaAlert(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <FaTimes size={12} />
+                                </button>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                                You can only have one media file at a time. Please remove the current media before adding a new one.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Compression Progress */}
+                    {isCompressing && (
+                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="inline-block h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm">
+                                    Processing...
+                                </span>
+                            </div>
+                            <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2">
+                                <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${compressionProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                                Progress: {compressionProgress}%
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Show existing media */}
+                    {renderExistingMedia()}
 
                     {/* File Upload Section */}
                     <div className="mt-3 flex items-center justify-between">
-                        <label
-                            className={`p-2 rounded-full ${
-                                isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-100"
-                            } cursor-pointer`}
-                        >
-                            <input
-                                type="file"
-                                className="hidden"
-                                onChange={onEditFileSelect}
-                                accept="image/*"
-                                disabled={isUpdatingPost}
-                            />
-                            <FaPaperclip className="text-gray-500 text-sm" />
-                        </label>
-
-                        {/* New File Previews */}
-                        {editFiles.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {editFiles.map((file, index) => (
-                                    <div key={index}>
-                                        {renderFilePreview(file)}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    if (hasExistingMedia() && !hasNewMedia()) {
+                                        setShowMediaAlert(true);
+                                        return;
+                                    }
+                                    if (imageInputRef.current) {
+                                        imageInputRef.current.click();
+                                    }
+                                }}
+                                disabled={isCompressing || isUpdatingPost || (hasNewMedia() && !editFiles.find(f => getFileType(f) === 'image'))}
+                                className={`p-2 rounded-lg flex items-center gap-2 ${
+                                    isDarkMode
+                                        ? "hover:bg-gray-700 bg-gray-800"
+                                        : "hover:bg-gray-100 bg-gray-50"
+                                } ${isCompressing || isUpdatingPost || (hasNewMedia() && !editFiles.find(f => getFileType(f) === 'image')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                title="Add image"
+                            >
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, 'image')}
+                                    accept="image/*"
+                                    disabled={isUpdatingPost || isCompressing}
+                                />
+                                <FaPaperclip className="text-gray-500 text-sm" />
+                                <span className="text-xs">Add Image</span>
+                            </button>
+                            
+                            <button
+                                onClick={() => {
+                                    if (hasExistingMedia() && !hasNewMedia()) {
+                                        setShowMediaAlert(true);
+                                        return;
+                                    }
+                                    if (videoInputRef.current) {
+                                        videoInputRef.current.click();
+                                    }
+                                }}
+                                disabled={isCompressing || isUpdatingPost || (hasNewMedia() && !newVideoUrl)}
+                                className={`p-2 rounded-lg flex items-center gap-2 ${
+                                    isDarkMode
+                                        ? "hover:bg-gray-700 bg-gray-800"
+                                        : "hover:bg-gray-100 bg-gray-50"
+                                } ${isCompressing || isUpdatingPost || (hasNewMedia() && !newVideoUrl) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                title="Add video"
+                            >
+                                <input
+                                    ref={videoInputRef}
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, 'video')}
+                                    accept="video/*"
+                                    disabled={isUpdatingPost || isCompressing}
+                                />
+                                <FaVideo className="text-gray-500 text-sm" />
+                                <span className="text-xs">Add Video</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Save/Cancel Buttons - Niche wala */}
+                    {/* Save/Cancel Buttons */}
                     <div className="flex space-x-2 mt-3 justify-end">
                         <button
                             onClick={handleUpdateClick}
-                            disabled={isUpdatingPost}
+                            disabled={isUpdatingPost || isCompressing}
                             className={`px-4 py-2 rounded-lg font-medium ${
-                                isUpdatingPost
+                                isUpdatingPost || isCompressing
                                     ? "bg-gray-400 cursor-not-allowed"
                                     : "bg-green-500 hover:bg-green-600 text-white cursor-pointer"
                             }`}
@@ -448,7 +798,7 @@ const ProfilePostCard = ({
                         </button>
                         <button
                             onClick={handleCancelClick}
-                            disabled={isUpdatingPost}
+                            disabled={isUpdatingPost || isCompressing}
                             className="px-4 py-2 rounded-lg font-medium bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
                         >
                             Cancel
@@ -481,7 +831,7 @@ const ProfilePostCard = ({
                         </div>
                     )}
 
-                    {/* Post Video - UPDATED */}
+                    {/* Post Video */}
                     {post.videoUrl && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
                             <div
@@ -509,10 +859,6 @@ const ProfilePostCard = ({
                                     className="absolute inset-0 pointer-events-none"
                                     onClick={handleVideoTap}
                                 />
-                                {/* Muted indicator */}
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                                    🔇
-                                </div>
                             </div>
                         </div>
                     )}
@@ -526,7 +872,7 @@ const ProfilePostCard = ({
                         <motion.button
                             whileTap={{ scale: 0.9 }}
                             onClick={(e) => {
-                                e.stopPropagation(); // ✅ ADD THIS LINE
+                                e.stopPropagation();
                                 onLike(post._id, e);
                             }}
                             disabled={isLiking}
