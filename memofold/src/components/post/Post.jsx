@@ -1207,7 +1207,7 @@ const Post = () => {
                                 >
                                     {isLiking[post._id] ? (
                                         <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                                    ) : post.hasUserLiked ? (
+                                    ) : post.isLikedByMe ? (
                                         <FaHeart className="text-xl text-red-500" />
                                     ) : (
                                         <FaRegHeart className="text-xl text-gray-400" />
@@ -1218,7 +1218,7 @@ const Post = () => {
                                         animate={{ scale: [1.2, 1] }}
                                         transition={{ duration: 0.2 }}
                                         className={`text-sm font-medium cursor-pointer ${
-                                            post.hasUserLiked
+                                            post.isLikedByMe
                                                 ? "text-red-500"
                                                 : "text-gray-400"
                                         }`}

@@ -205,7 +205,7 @@ const ProfilePostCard = ({
 
     const likedUsers = getLikedUsers();
     const totalLikes = getLikeCount();
-    const isPostLiked = post.isLiked || false;
+    const isPostLiked = post.isLikedByMe || false;
 
     const handleEditClick = () => {
         onEditPost(post._id);
@@ -919,7 +919,7 @@ const ProfilePostCard = ({
                                     {isPostLiked ? (
                                         <FaHeart className="text-red-500" />
                                     ) : (
-                                        <FaRegHeart />
+                                        <FaRegHeart className="text-gray-400" />
                                     )}
                                 </motion.div>
                             )}

@@ -248,13 +248,13 @@ const PostCard = ({
                         ) : (
                             <motion.div
                                 animate={{
-                                    scale: post.hasUserLiked ? [1, 1.2, 1] : 1,
+                                    scale: post.isLikedByMe ? [1, 1.2, 1] : 1,
                                 }}
                                 transition={{
                                     duration: 0.3,
                                 }}
                             >
-                                {post.hasUserLiked ? (
+                                {post.isLikedByMe ? (
                                     <FaHeart className="text-xl text-red-500" />
                                 ) : (
                                     <FaRegHeart className="text-xl text-gray-400" />
@@ -267,7 +267,7 @@ const PostCard = ({
                             animate={{ scale: [1.2, 1] }}
                             transition={{ duration: 0.2 }}
                             className={`text-sm font-medium ${
-                                post.hasUserLiked
+                                post.isLikedByMe
                                     ? "text-red-500"
                                     : "text-gray-400"
                             }`}
