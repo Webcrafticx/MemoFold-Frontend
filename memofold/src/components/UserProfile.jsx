@@ -2277,7 +2277,7 @@ const UserProfile = () => {
                             {userPosts.map((post) => {
                                 const likedUsers = getLikedUsers(post);
                                 const totalLikes = post.likeCount || 0;
-                                const isPostLiked = post.isLiked || false;
+                                const isPostLiked = post.isLikedByMe || false;
 
                                 return (
                                     <div
