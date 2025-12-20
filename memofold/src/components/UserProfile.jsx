@@ -57,8 +57,6 @@ const UserProfile = () => {
     const [friendStatus, setFriendStatus] = useState("loading");
     useEffect(() => {
         if (!token || !userId || !user?._id) return;
-
-        fetchUserProfile();
         fetchFriendStatus(); // 👈 parallel, not chained
     }, [userId, token]);
 
@@ -473,7 +471,6 @@ const UserProfile = () => {
 
     useEffect(() => {
         if (token) {
-            fetchCurrentUserProfile();
             fetchUserProfile();
         } else {
             navigate("/login");
@@ -525,9 +522,9 @@ const UserProfile = () => {
                 });
             }
 
-            if (userDataFromApi.username) {
-                // Initial load without cursor
-                await fetchUserPosts(userDataFromApi.username);
+            if (userDataFromApi._id) {
+                // Initial load without cursor, use userId
+                await fetchUserPosts(userDataFromApi._id);
             }
         } catch (err) {
             console.error("Error fetching user profile:", err);
@@ -537,7 +534,7 @@ const UserProfile = () => {
     };
 
     const fetchUserPosts = async (
-        username,
+        userId,
         cursor = null,
         isLoadMore = false
     ) => {
@@ -553,7 +550,7 @@ const UserProfile = () => {
 
             const data = await apiService.fetchUserPosts(
                 token,
-                username,
+                userId,
                 cursor
             );
             const postsData = Array.isArray(data) ? data : data.posts || [];
@@ -654,7 +651,7 @@ const UserProfile = () => {
         }
 
         try {
-            await fetchUserPosts(userData.username, nextCursor, true);
+            await fetchUserPosts(userData._id, nextCursor, true);
         } catch (error) {
             console.error("Error loading more posts:", error);
             setError("Unable to load more posts.");

@@ -28,20 +28,21 @@ export const apiService = {
     },
 
     // Profile-specific endpoints
-    fetchUserPosts: async (token, username, cursor = null) => {
-    const url = cursor 
-        ? `${config.apiUrl}/posts/user/${username}?cursor=${cursor}`
-        : `${config.apiUrl}/posts/user/${username}`;
+    fetchUserPosts: async (token, userId, cursor = null) => {
+        // Use userId instead of username
+        const url = cursor
+            ? `${config.apiUrl}/posts/user/${userId}?cursor=${cursor}`
+            : `${config.apiUrl}/posts/user/${userId}`;
 
-    const response = await fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        }
-    });
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
 
-    return await response.json();
-},
+        return await response.json();
+    },
 
     
 
