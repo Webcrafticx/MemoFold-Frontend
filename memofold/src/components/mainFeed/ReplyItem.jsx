@@ -1,6 +1,7 @@
 import React from "react";
 import { FaHeart, FaRegHeart, FaTrashAlt, FaReply } from "react-icons/fa";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const ReplyItem = ({
     reply,
@@ -208,7 +209,7 @@ const ReplyItem = ({
                             isDarkMode ? "text-gray-200" : "text-gray-700"
                         }`}
                     >
-                        {reply?.content || ""}
+                        {highlightMentionsAndHashtags(reply?.content || "")}
                     </p>
 
                     <div className="mt-1 flex items-center justify-between flex-wrap gap-2">

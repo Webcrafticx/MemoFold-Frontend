@@ -8,6 +8,7 @@ import {
 } from "react-icons/fa";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import ReplyItem from "./ReplyItem";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const CommentItem = ({
     comment,
@@ -155,7 +156,7 @@ const CommentItem = ({
                         isDarkMode ? "text-gray-200" : "text-gray-700"
                     }`}
                 >
-                    {comment.content}
+                    {highlightMentionsAndHashtags(comment.content)}
                 </p>
 
                 <div className="mt-1 flex items-center justify-between">

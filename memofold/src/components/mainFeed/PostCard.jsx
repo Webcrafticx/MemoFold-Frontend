@@ -4,6 +4,7 @@ import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const PostCard = ({
     post,
@@ -124,6 +125,8 @@ const PostCard = ({
         }
     };
 
+
+
     return (
         <div
             className={`w-full max-w-2xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
@@ -181,7 +184,7 @@ const PostCard = ({
                     isDarkMode ? "text-gray-200" : "text-gray-700"
                 }`}
             >
-                {post.content || ""}
+                {highlightMentionsAndHashtags(post.content)}
             </p>
 
             {/* IMAGE SECTION */}

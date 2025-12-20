@@ -116,25 +116,25 @@ const FriendButton = ({
                 return {
                     icon: <FaUserPlus size={14} />,
                     text: "Add Friend",
-                    className: "bg-blue-500 hover:bg-blue-600 text-white",
+                    className: "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer",
                 };
             case "cancel":
                 return {
                     icon: <FaUserClock size={14} />,
                     text: "Cancel Request",
-                    className: "bg-amber-500 hover:bg-amber-600 text-white",
+                    className: "bg-amber-500 hover:bg-amber-600 text-white cursor-pointer",
                 };
             case "remove":
                 return {
                     icon: <FaUserCheck size={14} />,
                     text: "Remove Friend",
-                    className: "bg-green-500 hover:bg-green-600 text-white",
+                    className: "bg-green-500 hover:bg-green-600 text-white cursor-pointer",
                 };
             default:
                 return {
                     icon: <FaSpinner size={14} className="animate-spin" />,
                     text: "Loading",
-                    className: "bg-gray-400 cursor-not-allowed",
+                    className: "bg-gray-400 cursor-pointer" ,
                 };
         }
     };
