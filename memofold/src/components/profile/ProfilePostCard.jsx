@@ -545,9 +545,9 @@ const ProfilePostCard = ({
                                 >
                                     <FaTimes />
                                 </button>
-                                <div className="mt-1 text-xs text-green-500">
+                                {/* <div className="mt-1 text-xs text-green-500">
                                     New video ready to upload
-                                </div>
+                                </div> */}
                             </div>
                         ) : editFiles.length > 0 ? (
                             <div className="flex flex-wrap gap-2">

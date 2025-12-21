@@ -187,23 +187,23 @@ const DropdownButton = ({ icon: Icon, label, darkMode, onClick }) => (
 
 const DarkModeToggle = ({ darkMode, onToggle }) => (
     <div
-        className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+        className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer ${
             darkMode ? "bg-gray-700" : "bg-gray-100"
         } mb-4`}
+        onClick={onToggle}
     >
         <span className="text-sm">{darkMode ? "Light Mode" : "Dark Mode"}</span>
-        <button
-            onClick={onToggle}
+        <div
             className={`p-2 rounded-full ${
                 darkMode ? "bg-cyan-500" : "bg-gray-300"
-            } transition-colors cursor-pointer`}
+            } transition-colors`}
         >
             {darkMode ? (
                 <FaSun className="text-sm text-yellow-400" />
             ) : (
                 <FaMoon className="text-sm text-gray-600" />
             )}
-        </button>
+        </div>
     </div>
 );
 

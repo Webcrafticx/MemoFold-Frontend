@@ -1847,6 +1847,9 @@ const handleUpdatePost = async (postId) => {
             }
         }
 
+        // Refresh the post to ensure updated data from server
+        await refreshSinglePost(postId);
+
         setEditState({
             editingPostId: null,
             editContent: "",
