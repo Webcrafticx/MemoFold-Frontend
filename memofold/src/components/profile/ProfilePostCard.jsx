@@ -92,7 +92,6 @@ const ProfilePostCard = ({
     const [compressionProgress, setCompressionProgress] = React.useState(0);
     const [newVideoUrl, setNewVideoUrl] = React.useState(null);
     const [showMediaAlert, setShowMediaAlert] = React.useState(false);
-    const [currentExistingVideo, setCurrentExistingVideo] = React.useState(existingVideo);
     // Custom notification state for edit section
     const [notification, setNotification] = React.useState({ message: '', visible: false });
     const notificationTimeoutRef = React.useRef(null);
@@ -122,6 +121,8 @@ const ProfilePostCard = ({
         return post.commentCount || 0;
     };
 
+    
+
     useEffect(() => {
         if (isEditing && editTextareaRef.current) {
             const textarea = editTextareaRef.current;
@@ -139,10 +140,14 @@ const ProfilePostCard = ({
         };
     }, [newVideoUrl]);
 
-    // Update existing video when prop changes
+    // Cleanup notification timeout on unmount
     useEffect(() => {
-        setCurrentExistingVideo(existingVideo);
-    }, [existingVideo]);
+        return () => {
+            if (notificationTimeoutRef.current) {
+                clearTimeout(notificationTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Profile picture source properly handle karein - multiple fallbacks
     const getProfilePic = () => {
@@ -247,7 +252,7 @@ const ProfilePostCard = ({
 
     // Check if existing media is present
     const hasExistingMedia = () => {
-        return existingImage || currentExistingVideo;
+        return existingImage || existingVideo;
     };
 
     // Check if new media is present
@@ -356,14 +361,6 @@ const ProfilePostCard = ({
             setCompressionProgress(0);
         }
     };
-    // Cleanup notification timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (notificationTimeoutRef.current) {
-                clearTimeout(notificationTimeoutRef.current);
-            }
-        };
-    }, []);
 
     // Remove existing media
     const handleRemoveExistingMedia = () => {
@@ -380,8 +377,6 @@ const ProfilePostCard = ({
             URL.revokeObjectURL(newVideoUrl);
             setNewVideoUrl(null);
         }
-        // Clear local existing video state
-        setCurrentExistingVideo(null);
         setShowMediaAlert(false);
     };
 
@@ -457,8 +452,8 @@ const ProfilePostCard = ({
                     {hasMedia ? "Current Media:" : "New Media:"}
                 </p>
                 
-                {/* Existing Media */}
-                {hasMedia && (
+                {/* Existing Media - Only show in edit mode */}
+                {hasMedia && isEditing && (
                     <div className="relative inline-block mb-2">
                         {existingImage ? (
                             <>
@@ -479,11 +474,11 @@ const ProfilePostCard = ({
                                     Click ✕ to remove before adding new
                                 </div>
                             </>
-                        ) : currentExistingVideo ? (
+                        ) : existingVideo ? (
                             <>
                                 <div className="relative w-full max-w-full">
                                     <video
-                                        src={currentExistingVideo}
+                                        src={existingVideo}
                                         className="max-h-48 max-w-full object-contain rounded-lg"
                                         autoPlay
                                         muted
@@ -756,6 +751,20 @@ const ProfilePostCard = ({
                     {/* Show existing media */}
                     {renderExistingMedia()}
 
+                    {/* Custom Notification for edit section */}
+                    {notification.visible && (
+                        <div className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                            <span className="text-sm font-medium">{notification.message}</span>
+                            <button
+                                onClick={() => setNotification({ message: '', visible: false })}
+                                className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                                title="Close"
+                            >
+                                <FaTimes size={16} />
+                            </button>
+                        </div>
+                    )}
+
                     {/* File Upload Section - Unified Add Media */}
                     <div className="mt-3 flex flex-row items-center gap-2 justify-end">
                         <button
@@ -807,22 +816,6 @@ const ProfilePostCard = ({
                             Cancel
                         </button>
                     </div>
-            {/* Custom Notification for edit section */}
-            {notification.visible && (
-                <div className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
-                    <span className="text-sm font-medium">{notification.message}</span>
-                    <button
-                        onClick={() => setNotification({ message: '', visible: false })}
-                        className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
-                        title="Close"
-                    >
-                        <FaTimes size={16} />
-                    </button>
-                </div>
-            )}
-
-                    {/* Save/Cancel Buttons */}
-                    {/* Save/Cancel Buttons removed, now combined above with Update Media */}
                 </div>
             ) : (
                 /* Normal Post View */
@@ -836,7 +829,7 @@ const ProfilePostCard = ({
                     </p>
 
                     {/* Post Image */}
-                    {post.image && (
+                    {post.image && !isEditing && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                             <img
                                 src={post.image}
@@ -850,8 +843,8 @@ const ProfilePostCard = ({
                         </div>
                     )}
 
-                    {/* Post Video */}
-                    {post.videoUrl && (
+                    {/* Post Video - Only show when NOT editing */}
+                    {post.videoUrl && !isEditing && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
                             <div
                                 className="relative w-full max-w-full"
