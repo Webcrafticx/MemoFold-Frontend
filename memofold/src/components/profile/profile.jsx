@@ -35,6 +35,7 @@ import {
     getCurrentUTCTime,
     convertUTCToIST,
 } from "../../services/dateUtils";
+import { useAuth } from "../../hooks/useAuth";
 
 // Utility function for better error handling
 const handleApiError = (error, defaultMessage = "Something went wrong") => {
@@ -140,10 +141,16 @@ const ProfilePage = () => {
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [isLiking, setIsLiking] = useState({});
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
+    const { token } = useAuth();
 
     const navigate = useNavigate();
     const mobileMenuRef = useRef(null);
 
+    useEffect(() => {
+        if (!token) {
+            navigate("/login");
+        }
+    }, [token, navigate]);
     // Initialize app
     useEffect(() => {
         initializeApp();
@@ -593,12 +600,12 @@ const ProfilePage = () => {
     }, [loadMorePosts]);
 
     // File upload handlers for edit mode
-const handleEditFileSelect = (file) => {
-    setEditState((prev) => ({
-        ...prev,
-        editFiles: [...prev.editFiles, file],
-    }));
-};
+    const handleEditFileSelect = (file) => {
+        setEditState((prev) => ({
+            ...prev,
+            editFiles: [...prev.editFiles, file],
+        }));
+    };
 
     const handleRemoveEditFile = (index) => {
         setEditState((prev) => ({
@@ -1644,17 +1651,17 @@ const handleEditFileSelect = (file) => {
         }));
     };
     const handleRemoveExistingVideo = () => {
-    if (editState.editingPostId) {
-        setProfileData(prev => ({
-            ...prev,
-            posts: prev.posts.map(post => 
-                post._id === editState.editingPostId 
-                    ? { ...post, videoUrl: null }
-                    : post
-            )
-        }));
-    }
-};
+        if (editState.editingPostId) {
+            setProfileData((prev) => ({
+                ...prev,
+                posts: prev.posts.map((post) =>
+                    post._id === editState.editingPostId
+                        ? { ...post, videoUrl: null }
+                        : post
+                ),
+            }));
+        }
+    };
 
     // ✅ UPDATED: Delete post with confirmation modal
     const handleDeletePostClick = (postId) => {
@@ -1992,13 +1999,13 @@ const handleEditFileSelect = (file) => {
                                         // Existing image props
                                         existingImage={editState.existingImage}
                                         existingVideo={post.videoUrl || null}
-                                          onRemoveExistingMedia={() => {
-        if (post.videoUrl) {
-            handleRemoveExistingVideo();
-        } else {
-            handleRemoveExistingImage();
-        }
-    }}
+                                        onRemoveExistingMedia={() => {
+                                            if (post.videoUrl) {
+                                                handleRemoveExistingVideo();
+                                            } else {
+                                                handleRemoveExistingImage();
+                                            }
+                                        }}
                                         // Reply functionality props
                                         activeReplyInputs={
                                             commentState.activeReplyInputs
