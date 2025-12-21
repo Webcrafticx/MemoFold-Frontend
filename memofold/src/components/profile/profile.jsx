@@ -1592,76 +1592,10 @@ const handleUpdatePost = async (postId) => {
         const token = localStorage.getItem("token");
 
         const originalPost = profileData.posts.find(p => p._id === postId);
-        const hasOriginalVideo = originalPost?.videoUrl;
-        const hasOriginalImage = originalPost?.image;
+        const hadOriginalVideo = originalPost?.videoUrl;
+        const hadOriginalImage = originalPost?.image;
 
-        if (editState.existingImage === null && editState.existingVideo === null) {
-            
-            if (hasOriginalVideo) {
-              
-                const formData = new FormData();
-                formData.append("content", editState.editContent);
-                formData.append("media", ""); 
-                
-                const response = await apiService.updatePost(
-                    token,
-                    postId,
-                    formData,
-                    true // isFormData
-                );
-
-                if (!response || response.success === false) {
-                    throw new Error(response?.message || "Failed to update post");
-                }
-
-                // Update state
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                  ...post,
-                                  content: editState.editContent,
-                                  image: null,
-                                  videoUrl: null,
-                              }
-                            : post
-                    ),
-                }));
-                
-            } else if (hasOriginalImage) {
-                const postData = {
-                    content: editState.editContent,
-                    image: null, 
-                };
-
-                const response = await apiService.updatePost(
-                    token,
-                    postId,
-                    postData
-                );
-
-                if (!response || response.success === false) {
-                    throw new Error(response?.message || "Failed to update post");
-                }
-
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                  ...post,
-                                  content: editState.editContent,
-                                  image: null,
-                                  videoUrl: null,
-                              }
-                            : post
-                    ),
-                }));
-            }
-            
-        } 
-        else if (editState.editFiles.length > 0) {
+        if (editState.editFiles.length > 0) {
             const file = editState.editFiles[0];
             
             let fileType = null;
@@ -1740,30 +1674,132 @@ const handleUpdatePost = async (postId) => {
                                   ...post,
                                   content: editState.editContent,
                                   videoUrl: response.videoUrl || response.mediaUrl,
-                                  image: null, 
+                                  image: null,
                               }
                             : post
                     ),
                 }));
             }
-        } 
-        else {
-            const postData = {
-                content: editState.editContent,
-            };
+        } else {
             
-            if (editState.existingImage) {
-                postData.image = editState.existingImage;
-            }
-            else if (editState.existingVideo) {
-                const formData = new FormData();
-                formData.append("content", editState.editContent);
+            if (editState.existingImage === null && editState.existingVideo === null) {
                 
+                if (hadOriginalVideo) {
+                    const formData = new FormData();
+                    formData.append("content", editState.editContent);
+                    formData.append("media", ""); 
+                    
+                    const response = await apiService.updatePost(
+                        token,
+                        postId,
+                        formData,
+                        true // isFormData
+                    );
+
+                    if (!response || response.success === false) {
+                        throw new Error(response?.message || "Failed to update post");
+                    }
+
+                    // Update state
+                    setProfileData((prev) => ({
+                        ...prev,
+                        posts: prev.posts.map((post) =>
+                            post._id === postId
+                                ? {
+                                      ...post,
+                                      content: editState.editContent,
+                                      videoUrl: null,
+                                      image: null,
+                                  }
+                                : post
+                        ),
+                    }));
+                    
+                } else if (hadOriginalImage) {
+                    const postData = {
+                        content: editState.editContent,
+                        image: null, 
+                    };
+
+                    const response = await apiService.updatePost(
+                        token,
+                        postId,
+                        postData
+                    );
+
+                    if (!response || response.success === false) {
+                        throw new Error(response?.message || "Failed to update post");
+                    }
+
+                    // Update state
+                    setProfileData((prev) => ({
+                        ...prev,
+                        posts: prev.posts.map((post) =>
+                            post._id === postId
+                                ? {
+                                      ...post,
+                                      content: editState.editContent,
+                                      image: null,
+                                      videoUrl: null,
+                                  }
+                                : post
+                        ),
+                    }));
+                }
+                
+            } 
+            else if (editState.existingImage || editState.existingVideo) {
+                const postData = {
+                    content: editState.editContent,
+                };
+
+                if (editState.existingImage) {
+                    postData.image = editState.existingImage;
+                } else if (editState.existingVideo) {
+                    const formData = new FormData();
+                    formData.append("content", editState.editContent);
+                    
+                    const response = await apiService.updatePost(
+                        token,
+                        postId,
+                        formData,
+                        true
+                    );
+
+                    if (!response || response.success === false) {
+                        throw new Error(response?.message || "Failed to update post");
+                    }
+
+                    setProfileData((prev) => ({
+                        ...prev,
+                        posts: prev.posts.map((post) =>
+                            post._id === postId
+                                ? {
+                                      ...post,
+                                      content: editState.editContent,
+                                  }
+                                : post
+                        ),
+                    }));
+                    
+                    // Early return for video case
+                    setEditState({
+                        editingPostId: null,
+                        editContent: "",
+                        editFiles: [],
+                        existingImage: null,
+                        existingVideo: null,
+                        isUpdatingPost: false,
+                        isDeletingPost: false,
+                    });
+                    toast.success("Post updated successfully!");
+                    return;
+                }
+
                 const response = await apiService.updatePost(
                     token,
                     postId,
-                    formData,
-                    true
+                    postData
                 );
 
                 if (!response || response.success === false) {
@@ -1777,47 +1813,38 @@ const handleUpdatePost = async (postId) => {
                             ? {
                                   ...post,
                                   content: editState.editContent,
-                                  videoUrl: post.videoUrl,
-                                  image: null,
                               }
                             : post
                     ),
                 }));
-                
-                // Early return
-                setEditState({
-                    editingPostId: null,
-                    editContent: "",
-                    editFiles: [],
-                    existingImage: null,
-                    existingVideo: null,
-                    isUpdatingPost: false,
-                    isDeletingPost: false,
-                });
-                return;
             }
+            else {
+                const postData = {
+                    content: editState.editContent,
+                };
 
-            const response = await apiService.updatePost(
-                token,
-                postId,
-                postData
-            );
+                const response = await apiService.updatePost(
+                    token,
+                    postId,
+                    postData
+                );
 
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to update post");
+                if (!response || response.success === false) {
+                    throw new Error(response?.message || "Failed to update post");
+                }
+
+                setProfileData((prev) => ({
+                    ...prev,
+                    posts: prev.posts.map((post) =>
+                        post._id === postId
+                            ? {
+                                  ...post,
+                                  content: editState.editContent,
+                              }
+                            : post
+                    ),
+                }));
             }
-
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              content: editState.editContent,
-                          }
-                        : post
-                ),
-            }));
         }
 
         setEditState({
