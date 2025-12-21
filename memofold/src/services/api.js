@@ -87,20 +87,35 @@ createPost: async (token, data) => {
     return response.json();
 },
 
-    updatePost: async (token, postId, postData) => {
-        const response = await fetch(
-            `${config.apiUrl}/posts/update/${postId}`,
-            {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(postData),
-            }
-        );
-        return response.json();
-    },
+updatePost: async (token, postId, postData, isFormData = false) => {
+    // Headers setup
+    const headers = {
+        'Authorization': `Bearer ${token}`
+    };
+    
+    // If it's not FormData (i.e., JSON data), set Content-Type
+    if (!isFormData && !(postData instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+    
+    // Determine body based on data type
+    let body;
+    if (postData instanceof FormData) {
+        body = postData;
+    } else {
+        body = JSON.stringify(postData);
+    }
+    
+    const response = await fetch(
+        `${config.apiUrl}/posts/update/${postId}`,
+        {
+            method: "PUT",
+            headers: headers,
+            body: body,
+        }
+    );
+    return response.json();
+},
 
     deletePost: async (token, postId) => {
         const response = await fetch(
