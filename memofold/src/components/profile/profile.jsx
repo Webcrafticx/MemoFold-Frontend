@@ -1351,7 +1351,26 @@ const handleEditFileSelect = (file) => {
 
             if (responseData.profilePicUrl) {
                 const imageUrl = responseData.profilePicUrl;
-                setProfileData((prev) => ({ ...prev, profilePic: imageUrl }));
+                setProfileData((prev) => ({
+                    ...prev,
+                    profilePic: imageUrl,
+                    posts: prev.posts.map((post) => {
+                        // Update for both author and userId keys
+                        let updatedPost = { ...post };
+                        if (post.author?._id === currentUserProfile?._id) {
+                            updatedPost.author = { ...post.author, profilePic: imageUrl };
+                        }
+                        if (post.userId?._id === currentUserProfile?._id) {
+                            updatedPost.userId = { ...post.userId, profilePic: imageUrl };
+                        }
+                        return updatedPost;
+                    }),
+                }));
+                setCurrentUserProfile((prev) => prev ? { ...prev, profilePic: imageUrl } : prev);
+                // Update localStorage for navbar and other components
+                localStorage.setItem("profilePic", imageUrl);
+                // Dispatch event for instant navbar/profile sync
+                window.dispatchEvent(new Event("profilePicUpdated"));
             }
         } catch (error) {
             console.error("Upload error:", error);
@@ -1510,32 +1529,9 @@ const handleEditFileSelect = (file) => {
             }
 
             // API call
-            const response = await apiService.likePost(
-                postId,
-                currentUserId,
-                token
-            );
-
-            // Check if API call was actually successful
-            if (!response || response.success === false) {
-                throw new Error(response?.message || "Failed to toggle like");
-            }
-
-            // Final update with server data if needed
-            if (response.likes !== undefined) {
-                setProfileData((prev) => ({
-                    ...prev,
-                    posts: prev.posts.map((post) =>
-                        post._id === postId
-                            ? {
-                                  ...post,
-                                  isLiked: !isCurrentlyLiked,
-                                  likeCount: response.likes.length,
-                              }
-                            : post
-                    ),
-                }));
-            }
+            const response = await apiService.likePost(postId, currentUserId, token);
+            // Refresh the post after like/dislike for real-time update
+            await refreshSinglePost(postId);
         } catch (error) {
             console.error("Error toggling like:", error);
 
@@ -2101,12 +2097,46 @@ const handleUpdatePost = async (postId) => {
                         toast={toast}
                         onFriendsClick={handleFriendsClick}
                         onProfileUpdate={async (result) => {
-                            setProfileData((prev) => ({
-                                ...prev,
-                                username: result.username || prev.username,
-                                email: result.email || prev.email,
-                                bio: result.description || prev.bio,
-                            }));
+                            // Update username everywhere in posts/comments/replies for instant UI update
+                            setProfileData((prev) => {
+                                const newUsername = result.username || prev.username;
+                                // Deep clone posts to avoid mutating state directly
+                                const updatedPosts = prev.posts.map((post) => {
+                                    // Update post userId.username
+                                    let updatedPost = { ...post };
+                                    if (updatedPost.userId && typeof updatedPost.userId === 'object') {
+                                        updatedPost.userId = { ...updatedPost.userId, username: newUsername };
+                                    }
+                                    // Update comments
+                                    if (Array.isArray(updatedPost.comments)) {
+                                        updatedPost.comments = updatedPost.comments.map((comment) => {
+                                            let updatedComment = { ...comment };
+                                            if (updatedComment.userId && typeof updatedComment.userId === 'object') {
+                                                updatedComment.userId = { ...updatedComment.userId, username: newUsername };
+                                            }
+                                            // Update replies
+                                            if (Array.isArray(updatedComment.replies)) {
+                                                updatedComment.replies = updatedComment.replies.map((reply) => {
+                                                    let updatedReply = { ...reply };
+                                                    if (updatedReply.userId && typeof updatedReply.userId === 'object') {
+                                                        updatedReply.userId = { ...updatedReply.userId, username: newUsername };
+                                                    }
+                                                    return updatedReply;
+                                                });
+                                            }
+                                            return updatedComment;
+                                        });
+                                    }
+                                    return updatedPost;
+                                });
+                                return {
+                                    ...prev,
+                                    username: newUsername,
+                                    email: result.email || prev.email,
+                                    bio: result.description || prev.bio,
+                                    posts: updatedPosts,
+                                };
+                            });
                             await refreshUserData();
                         }}
                     />

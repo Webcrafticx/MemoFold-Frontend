@@ -20,7 +20,18 @@ const Navbar = ({ onDarkModeChange }) => {
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
 
-    const { token, username, realname, logout } = useAuth();
+    const { token, realname, logout } = useAuth();
+    const [username, setUsername] = useState(localStorage.getItem("username") || "");
+    // Listen for username updates (event-driven sync, like profilePic)
+    useEffect(() => {
+        const handleProfileInfoUpdate = () => {
+            setUsername(localStorage.getItem("username") || "");
+        };
+        window.addEventListener("profileInfoUpdated", handleProfileInfoUpdate);
+        return () => {
+            window.removeEventListener("profileInfoUpdated", handleProfileInfoUpdate);
+        };
+    }, []);
     const [profilePic, setProfilePic] = useState(
         localStorage.getItem("profilePic") || ""
     );
@@ -53,6 +64,19 @@ const Navbar = ({ onDarkModeChange }) => {
             }
         }
     }, [token, navigate]);
+
+
+            useEffect(() => {
+            const handleProfilePicUpdate = () => {
+                setProfilePic(localStorage.getItem("profilePic") || "");
+            };
+            window.addEventListener("profilePicUpdated", handleProfilePicUpdate);
+            return () => {
+                window.removeEventListener("profilePicUpdated", handleProfilePicUpdate);
+            };
+        }, []);
+
+        
 
     // Handle dark mode
     useEffect(() => {
@@ -139,6 +163,7 @@ const Navbar = ({ onDarkModeChange }) => {
                 console.error("Error fetching user data:", error);
             }
         };
+        
 
         if (token) {
             fetchUserData();
@@ -147,6 +172,7 @@ const Navbar = ({ onDarkModeChange }) => {
             navigate("/login");
         }
     }, [token, navigate]);
+    
     const toggleDarkMode = () => {
         const newMode = !darkMode;
         setDarkMode(newMode);

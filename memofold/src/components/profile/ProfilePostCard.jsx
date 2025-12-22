@@ -184,15 +184,19 @@ const ProfilePostCard = ({
     };
 
     const getUsername = () => {
+        // Always use the latest username prop for the current user's posts
+        if (isOwner) {
+            return username || post.userId?.username || post.username || "User";
+        }
         return post.userId?.username || post.username || username || "User";
     };
 
     const getRealName = () => {
-        return (
-            post.userId?.realname ||
-            currentUserProfile?.realname ||
-            getUsername()
-        );
+        // Always use the latest realName for the current user's posts
+        if (isOwner) {
+            return currentUserProfile?.realname || post.userId?.realname || getUsername();
+        }
+        return post.userId?.realname || currentUserProfile?.realname || getUsername();
     };
 
     const getUserId = () => {
