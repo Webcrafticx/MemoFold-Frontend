@@ -56,6 +56,10 @@ const UserProfile = () => {
     });
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
     const [friendStatus, setFriendStatus] = useState("loading");
+        // Always scroll to top when page loads or userId changes
+        useEffect(() => {
+            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        }, [userId]);
     useEffect(() => {
         if (!token || !userId || !user?._id) return;
         fetchFriendStatus(); // 👈 parallel, not chained
@@ -2037,14 +2041,14 @@ const UserProfile = () => {
                             style={getImagePreviewStyle()}
                         />
                         <button
-                            className="absolute top-4 right-4 cursor-pointer bg-red-500 text-white rounded-full p-3 hover:bg-red-600 transition-colors"
+                            className="absolute top-4 right-4 cursor-pointer bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                             onClick={() => setShowImagePreview(false)}
                         >
                             <FaTimes />
                         </button>
-                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg text-lg">
+                        {/* <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg text-lg">
                             @{userData.username}
-                        </div>
+                        </div> */}
                     </div>
                 </div>
             )}
@@ -2306,30 +2310,22 @@ const UserProfile = () => {
                                                     }
                                                 }}
                                             >
-                                                {userData.profilePic ? (
-                                                    <img
-                                                        src={
-                                                            userData.profilePic
-                                                        }
-                                                        alt={userData.username}
-                                                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                                                        onError={(e) => {
-                                                            e.target.style.display =
-                                                                "none";
-                                                        }}
-                                                    />
-                                                ) : null}
-                                                <div
-                                                    className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm cursor-pointer${
-                                                        userData.profilePic
-                                                            ? "hidden"
-                                                            : "flex"
-                                                    }`}
-                                                >
-                                                    {userData.username
-                                                        ?.charAt(0)
-                                                        .toUpperCase() || "U"}
-                                                </div>
+<div className="relative w-full h-full overflow-hidden rounded-full">
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm">
+        {userData.username?.charAt(0).toUpperCase() || "U"}
+    </div>
+
+    {userData.profilePic && (
+        <img
+            src={userData.profilePic}
+            alt={userData.username}
+            className="absolute inset-0 w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+            onError={(e) => {
+                e.currentTarget.style.display = "none"; 
+            }}
+        />
+    )}
+</div>
                                             </div>
 
                                             <div>

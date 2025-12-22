@@ -103,7 +103,7 @@ const ImagePreviewModal = ({ image, onClose }) => {
         />
         
         <button
-          className="absolute top-2 right-2 bg-red-500 cursor-pointer text-white rounded-full p-2 hover:bg-red-600 transition-colors z-20"
+          className="absolute top-4 right-4 bg-red-500 cursor-pointer text-white rounded-full p-1 hover:bg-red-600 transition-colors z-20"
           onClick={onClose}
         >
           <FaTimes />

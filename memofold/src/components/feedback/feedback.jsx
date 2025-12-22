@@ -224,7 +224,7 @@ const FeedbackForm = () => {
                     </button>
                 </div>
 
-                <div className="mt-8 text-center">
+                {/* <div className="mt-8 text-center">
                     <a
                         href="/survey"
                         className={`cursor-pointer inline-block px-6 py-2 font-semibold rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all text-sm ${
@@ -235,7 +235,7 @@ const FeedbackForm = () => {
                     >
                         📋 Take Our Quick Survey
                     </a>
-                </div>
+                </div> */}
             </div>
         </div>
     );

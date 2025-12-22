@@ -97,6 +97,18 @@ const MainFeed = () => {
         document.body.classList.toggle("dark", darkMode);
     }, [darkMode]);
 
+            // Prevent body scroll when ProfileDropDown is open
+            useEffect(() => {
+                if (showImagePreview) {
+                    document.body.style.overflow = "hidden";
+                } else {
+                    document.body.style.overflow = "";
+                }
+                return () => {
+                    document.body.style.overflow = "";
+                };
+            }, [showImagePreview]);
+
     // ✅ ADDED: Likes modal handler
     const handleShowLikesModal = (postId) => {
         setSelectedPostIdForLikes(postId);

@@ -175,6 +175,19 @@ const ProfilePage = () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
+                // Prevent body scroll when ProfileDropDown is open
+                useEffect(() => {
+                    if (uiState.showImagePreview) {
+                        document.body.style.overflow = "hidden";
+                    } else {
+                        document.body.style.overflow = "";
+                    }
+                    return () => {
+                        document.body.style.overflow = "";
+                    };
+                }, [uiState.showImagePreview]);
+
     // ✅ Refresh a single post by ID (for accurate comment counts)
     const refreshSinglePost = async (postId) => {
         try {
@@ -1418,6 +1431,7 @@ const handleEditFileSelect = (file) => {
             if (fileType === "video") {
                 const formData = new FormData();
                 formData.append("content", content);
+                formData.append("createdAt", selectedDate);
                 formData.append("date", selectedDate);
                 formData.append("media", file);
 
