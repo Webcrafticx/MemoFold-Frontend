@@ -116,6 +116,18 @@ const Navbar = ({ onDarkModeChange }) => {
         };
     }, [showMobileSearch, showProfileDropdown]);
 
+        // Prevent body scroll when ProfileDropDown is open
+        useEffect(() => {
+            if (showProfileDropdown) {
+                document.body.style.overflow = "hidden";
+            } else {
+                document.body.style.overflow = "";
+            }
+            return () => {
+                document.body.style.overflow = "";
+            };
+        }, [showProfileDropdown]);
+
     // Fetch user data
     useEffect(() => {
         const fetchUserData = async () => {
