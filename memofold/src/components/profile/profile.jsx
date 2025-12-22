@@ -147,6 +147,9 @@ const ProfilePage = () => {
         postId: null,
     });
 
+    // Video handling state
+    const [activeVideoId, setActiveVideoId] = useState(null);
+
     const [floatingHearts, setFloatingHearts] = useState([]);
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
@@ -1482,22 +1485,6 @@ const handleEditFileSelect = (file) => {
 
             const isCurrentlyLiked = currentPost.isLiked;
 
-            // Optimistic update - SAME AS MAIN FEED
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              isLiked: !isCurrentlyLiked,
-                              likeCount: isCurrentlyLiked
-                                  ? Math.max(0, (post.likeCount || 0) - 1)
-                                  : (post.likeCount || 0) + 1,
-                          }
-                        : post
-                ),
-            }));
-
             if (!isCurrentlyLiked) {
                 let rect;
 
@@ -1534,21 +1521,6 @@ const handleEditFileSelect = (file) => {
             await refreshSinglePost(postId);
         } catch (error) {
             console.error("Error toggling like:", error);
-
-            // Revert optimistic update on error
-            setProfileData((prev) => ({
-                ...prev,
-                posts: prev.posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              isLiked: currentPost.isLiked,
-                              likeCount: currentPost.likeCount,
-                          }
-                        : post
-                ),
-            }));
-
             toast.error("Unable to toggle like.");
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
@@ -2292,6 +2264,9 @@ const handleUpdatePost = async (postId) => {
                                         isDeletingReply={
                                             commentState.isDeletingReply
                                         }
+                                        // Video handling props
+                                        activeVideoId={activeVideoId}
+                                        setActiveVideoId={setActiveVideoId}
                                     />
                                 ))}
                             </div>

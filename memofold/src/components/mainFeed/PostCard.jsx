@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
-import { useState, useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
@@ -42,6 +42,8 @@ const PostCard = ({
     token,
     onShowLikesModal,
     activeReplyInputs,
+    activeVideoId,
+    setActiveVideoId,
 }) => {
     const likeButtonRef = useRef(null);
     const videoRefs = useRef({});
@@ -106,13 +108,14 @@ const PostCard = ({
         }
     };
 
-    // ✅ Handle context menu to prevent download
+
+    // Handle context menu to prevent download
     const handleVideoContextMenu = (e) => {
         e.preventDefault();
         return false;
     };
 
-    // ✅ Handle video touch/click for mobile
+    // Handle video touch/click for mobile
     const handleVideoTap = (postId, e) => {
         e.stopPropagation();
         const video = videoRefs.current[postId];
@@ -124,6 +127,65 @@ const PostCard = ({
             }
         }
     };
+
+    // Intersection Observer logic for video autoplay and mute control
+    useEffect(() => {
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
+
+        let observer;
+        if ('IntersectionObserver' in window && typeof setActiveVideoId === 'function') {
+            observer = new window.IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                            setActiveVideoId(post._id);
+                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
+                            setActiveVideoId(null);
+                        }
+                    });
+                },
+                { threshold: 0.5 }
+            );
+            observer.observe(videoEl);
+        }
+        return () => {
+            if (observer && videoEl) observer.unobserve(videoEl);
+        };
+    }, [post._id, post.videoUrl, setActiveVideoId, activeVideoId]);
+
+
+    // Handle tab visibility: pause and mute video if tab is not active
+    useEffect(() => {
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
+
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                videoEl.pause();
+                videoEl.muted = true;
+            } else {
+                // Only play and unmute if this post is the active video
+                if (activeVideoId === post._id) {
+                    videoEl.muted = false;
+                    videoEl.play().catch(() => {});
+                } else {
+                    videoEl.pause();
+                    videoEl.muted = true;
+                }
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibility);
+        // Initial check
+        handleVisibility();
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [activeVideoId, post._id, post.videoUrl]);
 
 
 
@@ -208,8 +270,6 @@ const PostCard = ({
                             ref={(el) => videoRefs.current[post._id] = el}
                             src={post.videoUrl}
                             className="w-full h-auto max-h-96 object-contain rounded-xl"
-                            autoPlay
-                            muted
                             loop
                             playsInline
                             controls
