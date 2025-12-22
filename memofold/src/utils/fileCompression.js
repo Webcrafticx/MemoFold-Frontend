@@ -27,7 +27,7 @@ export const shouldCompressFile = (file) => {
     }
     
     if (type === 'video') {
-        return file.size > 10 * 1024 * 1024; // > 10MB
+        return true; // Always compress videos to target size
     }
     
     return false;
@@ -106,16 +106,26 @@ export const compressImage = async (file, onProgress = null) => {
 
 // Video compression using MediaRecorder API
 export const compressVideo = async (file, onProgress = null) => {
-    return new Promise((resolve) => {
-        // If no compression needed or not a video
-        if (!shouldCompressFile(file) || getFileType(file) !== 'video') {
+    return new Promise(async (resolve) => {
+        // If not a video
+        if (getFileType(file) !== 'video') {
             resolve(file);
             return;
         }
 
+        // Get video duration
+        const duration = await checkVideoDuration(file);
+        if (duration === 0) {
+            resolve(file);
+            return;
+        }
+
+        // Calculate target bitrate for ~19MB
+        const targetSize = 19 * 1024 * 1024; // 19MB
+        const bitrate = Math.min(5000000, Math.max(500000, (targetSize * 8) / duration));
+
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
-        video.muted = true;
         video.playsInline = true;
 
         video.onloadedmetadata = async () => {
@@ -125,9 +135,9 @@ export const compressVideo = async (file, onProgress = null) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Set canvas size (max 720p)
-            const maxWidth = 1280;
-            const maxHeight = 720;
+            // Set canvas size (max 1080p)
+            const maxWidth = 1920;
+            const maxHeight = 1080;
             let width = video.videoWidth;
             let height = video.videoHeight;
             
@@ -140,11 +150,21 @@ export const compressVideo = async (file, onProgress = null) => {
             canvas.width = width;
             canvas.height = height;
 
-            // Create stream from canvas
-            const stream = canvas.captureStream(30);
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'video/webm;codecs=vp9',
-                videoBitsPerSecond: 1000000, // 1 Mbps
+            // Setup audio context for audio capture
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            await audioContext.resume();
+            const source = audioContext.createMediaElementSource(video);
+            const destination = audioContext.createMediaStreamDestination();
+            source.connect(destination);
+
+            // Create combined stream
+            const videoStream = canvas.captureStream(30);
+            const audioStream = destination.stream;
+            const combinedStream = new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+
+            const mediaRecorder = new MediaRecorder(combinedStream, {
+                mimeType: 'video/webm;codecs=vp9,opus',
+                videoBitsPerSecond: bitrate,
             });
 
             const chunks = [];
@@ -167,14 +187,16 @@ export const compressVideo = async (file, onProgress = null) => {
                     );
                     
                     // Cleanup
-                    stream.getTracks().forEach(track => track.stop());
+                    combinedStream.getTracks().forEach(track => track.stop());
+                    audioContext.close();
                     URL.revokeObjectURL(video.src);
                     
                     if (onProgress) onProgress(100);
                     setTimeout(() => resolve(compressedFile), 100);
                 } else {
+                    combinedStream.getTracks().forEach(track => track.stop());
+                    audioContext.close();
                     URL.revokeObjectURL(video.src);
-                    stream.getTracks().forEach(track => track.stop());
                     
                     if (onProgress) onProgress(100);
                     setTimeout(() => resolve(file), 100);
@@ -183,8 +205,9 @@ export const compressVideo = async (file, onProgress = null) => {
 
             mediaRecorder.onerror = () => {
                 console.log('MediaRecorder error, using original file');
+                combinedStream.getTracks().forEach(track => track.stop());
+                audioContext.close();
                 URL.revokeObjectURL(video.src);
-                stream.getTracks().forEach(track => track.stop());
                 
                 if (onProgress) onProgress(100);
                 setTimeout(() => resolve(file), 100);

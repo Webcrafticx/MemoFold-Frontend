@@ -834,112 +834,30 @@ const UserProfile = () => {
     // ✅ REMOVED: Old handleDeleteReply function
 
     const handleLike = async (postId, e) => {
-        if (e) {
-            e.stopPropagation();
-        }
-
-        if (!username || !user?._id) {
-            console.error("User information not available");
-            setError("You must be logged in to like posts");
-            return;
-        }
-
-        if (isLiking[postId]) return;
-
-        setIsLiking((prev) => ({ ...prev, [postId]: true }));
-
         try {
-            const currentPost = userPosts.find((post) => post._id === postId);
-            if (!currentPost) return;
+            await apiService.likePost(postId, user._id, token);
 
-            const isCurrentlyLiked = currentPost.isLiked;
-
-            setUserPosts((posts) =>
-                posts.map((post) => {
-                    if (post._id === postId) {
-                        const newLikeCount = isCurrentlyLiked
-                            ? Math.max(0, (post.likeCount || 1) - 1)
-                            : (post.likeCount || 0) + 1;
-
-                        let newLikesPreview = [...(post.likesPreview || [])];
-
-                        if (isCurrentlyLiked) {
-                            newLikesPreview = newLikesPreview.filter(
-                                (like) => like.username !== username
-                            );
-                        } else {
-                            newLikesPreview.unshift({
-                                username: username,
-                                realname:
-                                    currentUserProfile?.realname ||
-                                    user?.realname ||
-                                    username,
-                                profilePic:
-                                    currentUserProfile?.profilePic ||
-                                    user?.profilePic,
-                            });
-                        }
-
-                        return {
-                            ...post,
-                            isLiked: !isCurrentlyLiked,
-                            likeCount: newLikeCount,
-                            likesPreview: newLikesPreview,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            if (!isCurrentlyLiked) {
-                let rect;
-
-                if (event && event.target) {
-                    const likeButton =
-                        event.target.closest("button") || event.currentTarget;
-                    rect = likeButton.getBoundingClientRect();
-                } else {
-                    rect = {
-                        left: window.innerWidth / 2,
-                        top: window.innerHeight / 2,
-                        width: 0,
-                        height: 0,
-                    };
-                }
-
-                setFloatingHearts((hearts) => {
-                    const newHearts = [
-                        ...hearts,
-                        {
-                            id: Date.now() + Math.random(),
-                            x: rect.left + rect.width / 2,
-                            y: rect.top + rect.height / 2,
-                        },
-                    ];
-
-                    return newHearts;
-                });
+            // Floating heart animation (only on like, not dislike)
+            if (e && e.target) {
+                const likeButton = e.target.closest("button") || e.currentTarget;
+                const rect = likeButton.getBoundingClientRect();
+                setFloatingHearts((hearts) => [
+                    ...hearts,
+                    {
+                        id: Date.now() + Math.random(),
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2,
+                    },
+                ]);
             }
 
-            await apiService.likePost(postId, user._id, token);
+            // Refetch all user posts to get updated like status
+            const postsRes = await apiService.fetchUserPosts(token, userId);
+            if (postsRes && postsRes.posts) {
+                setUserPosts(postsRes.posts);
+            }
         } catch (err) {
-            console.error("Error liking post:", err);
-
-            setUserPosts((prevPosts) =>
-                prevPosts.map((post) => {
-                    if (post._id === postId) {
-                        return {
-                            ...post,
-                            isLiked: currentPost.isLiked,
-                            likeCount: currentPost.likeCount,
-                            likesPreview: currentPost.likesPreview,
-                        };
-                    }
-                    return post;
-                })
-            );
-
-            setError(err.message);
+            setError(err?.message || "Failed to update like/dislike.");
         } finally {
             setIsLiking((prev) => ({ ...prev, [postId]: false }));
         }

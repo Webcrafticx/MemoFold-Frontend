@@ -820,6 +820,8 @@ const MainFeed = () => {
                     },
                 ]);
             }
+                // Refresh the post after like/dislike for real-time update
+                await refreshSinglePost(postId);
         } catch (err) {
             setError(err.message);
 
