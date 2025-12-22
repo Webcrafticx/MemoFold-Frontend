@@ -79,9 +79,13 @@ const ProfilePostCard = ({
     isFetchingReplies,
     isLikingReply,
     isDeletingReply,
+    // Video handling props
+    activeVideoId,
+    setActiveVideoId,
 }) => {
     const editTextareaRef = useRef(null);
     const fileInputRef = useRef(null);
+    const videoRefs = useRef({});
 
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
@@ -148,6 +152,64 @@ const ProfilePostCard = ({
             }
         };
     }, []);
+
+    // Intersection Observer logic for video autoplay and mute control
+    useEffect(() => {
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
+
+        let observer;
+        if ('IntersectionObserver' in window && typeof setActiveVideoId === 'function') {
+            observer = new window.IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                            setActiveVideoId(post._id);
+                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
+                            setActiveVideoId(null);
+                        }
+                    });
+                },
+                { threshold: 0.5 }
+            );
+            observer.observe(videoEl);
+        }
+        return () => {
+            if (observer && videoEl) observer.unobserve(videoEl);
+        };
+    }, [post._id, post.videoUrl, setActiveVideoId, activeVideoId]);
+
+    // Handle tab visibility: pause and mute video if tab is not active
+    useEffect(() => {
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
+
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                videoEl.pause();
+                videoEl.muted = true;
+            } else {
+                // Only play and unmute if this post is the active video
+                if (activeVideoId === post._id) {
+                    videoEl.muted = false;
+                    videoEl.play().catch(() => {});
+                } else {
+                    videoEl.pause();
+                    videoEl.muted = true;
+                }
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibility);
+        // Initial check
+        handleVisibility();
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [activeVideoId, post._id, post.videoUrl]);
 
     // Profile picture source properly handle karein - multiple fallbacks
     const getProfilePic = () => {
@@ -580,11 +642,13 @@ const ProfilePostCard = ({
     // ✅ Handle video touch/click for mobile
     const handleVideoTap = (e) => {
         e.stopPropagation();
-        const video = e.target;
-        if (video.paused) {
-            video.play();
-        } else {
-            video.pause();
+        const video = videoRefs.current[post._id];
+        if (video) {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
         }
     };
 
@@ -850,28 +914,24 @@ const ProfilePostCard = ({
                     {/* Post Video - Only show when NOT editing */}
                     {post.videoUrl && !isEditing && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
-                            <div
-                                className="relative w-full max-w-full"
-                                style={{ maxHeight: "24rem" }}
-                            >
+                            <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
                                 <video
+                                    ref={(el) => videoRefs.current[post._id] = el}
                                     src={post.videoUrl}
                                     className="w-full h-auto max-h-96 object-contain rounded-xl"
-                                    autoPlay
-                                    muted
                                     loop
                                     playsInline
                                     controls
                                     controlsList="nodownload nofullscreen noplaybackrate"
                                     onContextMenu={handleVideoContextMenu}
                                     style={{
-                                        backgroundColor: "transparent",
-                                        display: "block",
+                                        backgroundColor: 'transparent',
+                                        display: 'block'
                                     }}
                                     preload="metadata"
                                 />
                                 {/* Mobile tap indicator */}
-                                <div
+                                <div 
                                     className="absolute inset-0 pointer-events-none"
                                     onClick={handleVideoTap}
                                 />
@@ -931,7 +991,6 @@ const ProfilePostCard = ({
                                         : "text-gray-400"
                                 }`}
                             >
-                                {likeCount}
                             </motion.span>
                         </motion.button>
 

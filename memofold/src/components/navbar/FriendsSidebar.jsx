@@ -19,6 +19,7 @@ const FriendsSidebar = ({
     const [searchQuery, setSearchQuery] = useState("");
     const [chatLoading, setChatLoading] = useState(null);
     const [chatClient, setChatClient] = useState(null);
+    const [streamToken, setStreamToken] = useState(null);
     const [friendsWithUnread, setFriendsWithUnread] = useState({});
     const [totalUnreadCount, setTotalUnreadCount] = useState(0);
     const [nextCursor, setNextCursor] = useState(null);
@@ -51,6 +52,7 @@ const FriendsSidebar = ({
                         );
                     }
                     setChatClient(client);
+                    setStreamToken(tokenData.token); // Store token for reuse
                 }
             } catch (error) {
                 console.error("Stream init error:", error);
@@ -327,13 +329,13 @@ const FriendsSidebar = ({
     const handleChat = async (friendId) => {
         try {
             setChatLoading(friendId);
-            const tokenData = await apiService.getStreamToken(token);
-
-            if (tokenData?.token) {
+            
+            // Use stored token instead of making another API call
+            if (streamToken) {
                 navigate(`/chat/${friendId}`);
                 onClose();
             } else {
-                console.error("Failed to get stream token");
+                console.error("Stream token not available");
             }
         } catch (error) {
             console.error("Error starting chat:", error);

@@ -158,6 +158,10 @@ const UserProfile = () => {
     const [showVideoPreview, setShowVideoPreview] = useState(false);
     const [previewVideo, setPreviewVideo] = useState("");
 
+    // Video feed: Only one video plays with audio at a time
+    const [activeVideoId, setActiveVideoId] = useState(null);
+    const videoRefs = useRef({});
+
     // Dark mode state
     const [isDarkMode, setIsDarkMode] = useState(() => {
         return localStorage.getItem("darkMode") === "true";
@@ -488,6 +492,85 @@ const UserProfile = () => {
     useEffect(() => {
         document.body.classList.toggle("dark", isDarkMode);
     }, [isDarkMode]);
+
+    // Handle context menu to prevent download
+    const handleVideoContextMenu = (e) => {
+        e.preventDefault();
+        return false;
+    };
+
+    // Handle video touch/click for mobile
+    const handleVideoTap = (postId, e) => {
+        e.stopPropagation();
+        const video = videoRefs.current[postId];
+        if (video) {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        }
+    };
+
+    // Intersection Observer logic for video autoplay and mute control
+    useEffect(() => {
+        const observers = {};
+        userPosts.forEach(post => {
+            if (post.videoUrl) {
+                const videoEl = videoRefs.current[post._id];
+                if (videoEl && 'IntersectionObserver' in window) {
+                    observers[post._id] = new window.IntersectionObserver(
+                        (entries) => {
+                            entries.forEach((entry) => {
+                                if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                                    setActiveVideoId(post._id);
+                                } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
+                                    setActiveVideoId(null);
+                                }
+                            });
+                        },
+                        { threshold: 0.5 }
+                    );
+                    observers[post._id].observe(videoEl);
+                }
+            }
+        });
+        return () => {
+            Object.values(observers).forEach(observer => observer && observer.disconnect());
+        };
+    }, [userPosts, activeVideoId]);
+
+    // Handle tab visibility: pause and mute video if tab is not active
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                Object.values(videoRefs.current).forEach(video => {
+                    if (video) {
+                        video.pause();
+                        video.muted = true;
+                    }
+                });
+            } else {
+                Object.keys(videoRefs.current).forEach(postId => {
+                    const video = videoRefs.current[postId];
+                    if (video) {
+                        if (activeVideoId === postId) {
+                            video.muted = false;
+                            video.play().catch(() => {});
+                        } else {
+                            video.pause();
+                            video.muted = true;
+                        }
+                    }
+                });
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibility);
+        handleVisibility();
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [activeVideoId]);
 
     const fetchCurrentUserProfile = async () => {
         try {
@@ -2158,7 +2241,7 @@ const UserProfile = () => {
                 </div>
 
                 {/* Posts */}
-                <div className="w-full max-w-2xl hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default">
+                <div className="w-full max-w-2xl transition-all duration-300 cursor-default">
                     <h3
                         className={`text-xl font-semibold mb-4 ${
                             isDarkMode ? "text-white" : "text-gray-900"
@@ -2193,7 +2276,7 @@ const UserProfile = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="grid gap-4">
+                        <div className="grid gap-4 cursor-pointer">
                             {userPosts.map((post) => {
                                 const likedUsers = getLikedUsers(post);
                                 const totalLikes = post.likeCount || 0;
@@ -2202,7 +2285,7 @@ const UserProfile = () => {
                                 return (
                                     <div
                                         key={post._id}
-                                        className={`rounded-lg p-4 shadow-sm ${
+                                        className={`rounded-lg p-4 shadow-sm hover:-translate-y-1 hover:shadow-lg ${
                                             isDarkMode
                                                 ? "bg-gray-800 text-gray-100"
                                                 : "bg-white text-gray-900"
@@ -2237,7 +2320,7 @@ const UserProfile = () => {
                                                     />
                                                 ) : null}
                                                 <div
-                                                    className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${
+                                                    className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm cursor-pointer${
                                                         userData.profilePic
                                                             ? "hidden"
                                                             : "flex"
@@ -2251,7 +2334,7 @@ const UserProfile = () => {
 
                                             <div>
                                                 <h3
-                                                    className={`text-base hover:text-blue-500 font-semibold ${
+                                                    className={`text-base hover:text-blue-500 font-semibold cursor-pointer ${
                                                         isDarkMode
                                                             ? "text-white"
                                                             : "text-gray-800"
@@ -2312,41 +2395,27 @@ const UserProfile = () => {
                                         )}
                                         {/* ✅ YEH VIDEO SECTION ADD KARO: */}
                                         {post.videoUrl && (
-                                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                                                <div
-                                                    className="relative w-full"
-                                                    style={{
-                                                        maxHeight: "24rem",
-                                                    }}
-                                                >
+                                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
+                                                <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
                                                     <video
+                                                        ref={(el) => videoRefs.current[post._id] = el}
                                                         src={post.videoUrl}
                                                         className="w-full h-auto max-h-96 object-contain rounded-xl"
-                                                        autoPlay
-                                                        muted
                                                         loop
                                                         playsInline
                                                         controls
                                                         controlsList="nodownload nofullscreen noplaybackrate"
-                                                        onContextMenu={(e) =>
-                                                            e.preventDefault()
-                                                        }
+                                                        onContextMenu={handleVideoContextMenu}
                                                         style={{
-                                                            backgroundColor:
-                                                                "transparent",
-                                                            display: "block",
+                                                            backgroundColor: 'transparent',
+                                                            display: 'block'
                                                         }}
                                                         preload="metadata"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const video =
-                                                                e.target;
-                                                            if (video.paused) {
-                                                                video.play();
-                                                            } else {
-                                                                video.pause();
-                                                            }
-                                                        }}
+                                                    />
+                                                    {/* Mobile tap indicator */}
+                                                    <div 
+                                                        className="absolute inset-0 pointer-events-none"
+                                                        onClick={(e) => handleVideoTap(post._id, e)}
                                                     />
                                                 </div>
                                             </div>
@@ -3193,7 +3262,7 @@ const UserProfile = () => {
                     )}
 
                     {/* Loading More Indicator */}
-                    {/* {paginationState.isLoadingMore && (
+                    {paginationState.isLoadingMore && (
                         <div className="flex justify-center items-center py-6">
                             <div
                                 className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
@@ -3212,10 +3281,10 @@ const UserProfile = () => {
                                 Loading more posts...
                             </span>
                         </div>
-                    )} */}
+                    )}
 
                     {/* End of Posts Message */}
-                    {/* {!paginationState.hasMore && userPosts.length > 0 && (
+                    {!paginationState.hasMore && userPosts.length > 0 && (
                         <div
                             className={`text-center py-6 ${
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
@@ -3226,7 +3295,7 @@ const UserProfile = () => {
                                 posts
                             </p>
                         </div>
-                    )} */}
+                    )}
                 </div>
             </section>
         </div>

@@ -36,8 +36,12 @@ const MainFeed = () => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
+
+    // Video feed: Only one video plays with audio at a time
+    const [activeVideoId, setActiveVideoId] = useState(null);
 
     // Image preview states
     const [showImagePreview, setShowImagePreview] = useState(false);
@@ -1422,18 +1426,20 @@ const MainFeed = () => {
                             onCommentSubmit={handleCommentSubmit}
                             onSetCommentContent={setCommentContent}
                             onLikeComment={handleLikeComment}
-                            onDeleteComment={handleOpenDeleteCommentModal} // ✅ UPDATED: Use modal handler
+                            onDeleteComment={handleOpenDeleteCommentModal}
                             onToggleReplies={toggleReplies}
-                            onToggleReplyInput={handleToggleReplyInput} // ✅ PROFILE-MATCHING: Updated function
-                            onAddReply={handleAddReply} // ✅ PROFILE-MATCHING: Updated function
+                            onToggleReplyInput={handleToggleReplyInput}
+                            onAddReply={handleAddReply}
                             onReplySubmit={handleAddReply}
                             onLikeReply={handleLikeReply}
-                            onDeleteReply={handleOpenDeleteReplyModal} // ✅ UPDATED: Use modal handler
-                            onSetReplyContent={handleSetReplyContent} // ✅ PROFILE-MATCHING: Updated function
+                            onDeleteReply={handleOpenDeleteReplyModal}
+                            onSetReplyContent={handleSetReplyContent}
                             navigateToUserProfile={navigateToUserProfile}
                             onImagePreview={handleImagePreview}
                             onShowLikesModal={handleShowLikesModal}
-                            activeReplyInputs={activeReplyInputs} // ✅ PROFILE-MATCHING: Pass activeReplyInputs
+                            activeReplyInputs={activeReplyInputs}
+                            activeVideoId={activeVideoId}
+                            setActiveVideoId={setActiveVideoId}
                         />
                     ))
                 )}

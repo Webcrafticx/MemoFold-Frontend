@@ -1,5 +1,5 @@
 // components/Post/Post.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { motion } from "framer-motion";
@@ -66,6 +66,83 @@ const Post = () => {
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
     const [floatingHearts, setFloatingHearts] = useState([]);
+
+    // Video logic states
+    const [activeVideoId, setActiveVideoId] = useState(null);
+    const videoRefs = useRef({});
+    // Handle video tap for mobile
+    const handleVideoTap = (postId, e) => {
+        e.stopPropagation();
+        const video = videoRefs.current[postId];
+        if (video) {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        }
+    };
+
+    // Prevent video download context menu
+    const handleVideoContextMenu = (e) => {
+        e.preventDefault();
+        return false;
+    };
+
+    // Intersection Observer for video autoplay/mute
+    useEffect(() => {
+        if (!post || !post.videoUrl) return;
+        let observer;
+        const videoEl = videoRefs.current[post._id];
+        if (videoEl && 'IntersectionObserver' in window) {
+            observer = new window.IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                            setActiveVideoId(post._id);
+                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
+                            setActiveVideoId(null);
+                        }
+                    });
+                },
+                { threshold: 0.5 }
+            );
+            observer.observe(videoEl);
+        }
+        return () => {
+            if (observer && videoEl) observer.disconnect();
+        };
+    }, [post, activeVideoId]);
+
+    // Tab visibility: pause/mute all videos if tab not active
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                Object.values(videoRefs.current).forEach(video => {
+                    if (video) {
+                        video.pause();
+                        video.muted = true;
+                    }
+                });
+            } else {
+                const video = videoRefs.current[post?._id];
+                if (video) {
+                    if (activeVideoId === post?._id) {
+                        video.muted = false;
+                        video.play().catch(() => {});
+                    } else {
+                        video.pause();
+                        video.muted = true;
+                    }
+                }
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibility);
+        handleVisibility();
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [activeVideoId, post]);
 
     useEffect(() => {
         if (postId && token) {
@@ -1172,6 +1249,25 @@ const Post = () => {
                         >
                             {highlightMentionsAndHashtags(post.content || "")}
                         </p>
+
+
+                        {/* Post Video */}
+                        {post.videoUrl && (
+                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                                <video
+                                    ref={el => (videoRefs.current[post._id] = el)}
+                                    src={post.videoUrl}
+                                    className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl bg-black"
+                                    muted={activeVideoId !== post._id}
+                                    autoPlay
+                                    playsInline
+                                    onClick={e => handleVideoTap(post._id, e)}
+                                    onContextMenu={handleVideoContextMenu}
+                                    controls={activeVideoId === post._id}
+                                    style={{ backgroundColor: "black" }}
+                                />
+                            </div>
+                        )}
 
                         {/* Post Image */}
                         {post.image && (
