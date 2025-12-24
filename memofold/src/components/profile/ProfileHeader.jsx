@@ -14,6 +14,11 @@ import {
 import { motion } from "framer-motion";
 import EditProfileModal from "./EditProfileModal";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
+import {
+    getFileType,
+    shouldCompressFile,
+    compressImage,
+} from "../../utils/fileCompression";
 
 const ProfileHeader = ({
     profilePic,
@@ -37,6 +42,72 @@ const ProfileHeader = ({
     const [showCameraOptions, setShowCameraOptions] = useState(false);
     const [showProfileView, setShowProfileView] = useState(false);
     const profilePicInputRef = useRef(null);
+
+    // Compression state
+    const [isCompressing, setIsCompressing] = useState(false);
+    const [compressionProgress, setCompressionProgress] = useState(0);
+    const [notification, setNotification] = useState({
+        message: "Nitin",
+        visible: true,
+    });
+    const notificationTimeoutRef = useRef(null);
+    // Compression logic for profile pic upload
+    const handleProfilePicFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const type = getFileType(file);
+        if (type !== "image") {
+            setNotification({
+                message: "Please select an image file",
+                visible: true,
+            });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: "", visible: false });
+            }, 6000);
+            if (profilePicInputRef.current)
+                profilePicInputRef.current.value = "";
+            return;
+        }
+
+        try {
+            let processedFile = file;
+            // Check if compression is needed
+            if (shouldCompressFile(file)) {
+                setIsCompressing(true);
+                setCompressionProgress(0);
+
+                try {
+                    processedFile = await compressImage(file, (progress) => {
+                        setCompressionProgress(progress);
+                    });
+                } finally {
+                    setTimeout(() => {
+                        setIsCompressing(false);
+                        setCompressionProgress(0);
+                    }, 500);
+                }
+            }
+
+            // Call parent handler with processed file
+            onProfilePicUpdate(processedFile);
+            if (profilePicInputRef.current)
+                profilePicInputRef.current.value = "";
+        } catch (error) {
+            console.error("File processing error:", error);
+            setNotification({
+                message: "Error processing file. Please try again.",
+                visible: true,
+            });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: "", visible: false });
+            }, 3000);
+            if (profilePicInputRef.current)
+                profilePicInputRef.current.value = "";
+        }
+    };
 
     const handleProfileSave = (updatedData) => {
         if (onProfileUpdate) {
@@ -111,12 +182,44 @@ const ProfileHeader = ({
                             type="file"
                             id="profilePicUpload"
                             ref={profilePicInputRef}
-                            onChange={(e) =>
-                                onProfilePicUpdate(e.target.files[0])
-                            }
+                            onChange={handleProfilePicFileChange}
                             className="hidden"
                             accept="image/*"
+                            disabled={isCompressing}
                         />
+                        {/* Custom Notification */}
+                        {notification.visible && (
+                            <div
+                                className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center justify-between p-3 rounded-lg border ${
+                                    isDarkMode
+                                        ? "bg-red-900 border-red-700 text-red-200"
+                                        : "bg-red-100 border-red-400 text-red-800"
+                                } transition-all`}
+                            >
+                                <span className="text-sm font-medium select-none">
+                                    {notification.message}
+                                </span>
+                                <button
+                                    onClick={() =>
+                                        setNotification({
+                                            message: "",
+                                            visible: false,
+                                        })
+                                    }
+                                    className={`ml-4 p-1 rounded-full ${
+                                        isDarkMode
+                                            ? "hover:bg-red-800"
+                                            : "hover:bg-red-200"
+                                    } focus:outline-none cursor-pointer`}
+                                    title="Close"
+                                >
+                                    <FaTimes
+                                        size={16}
+                                        className="cursor-pointer"
+                                    />
+                                </button>
+                            </div>
+                        )}
 
                         {/* Camera Options Dropdown - Smaller */}
                         {showCameraOptions && (
@@ -248,7 +351,9 @@ const ProfileHeader = ({
                                             : "text-gray-600"
                                     } cursor-default`}
                                 >
-                                    {bio ? highlightMentionsAndHashtags(bio) : "No bio yet."}
+                                    {bio
+                                        ? highlightMentionsAndHashtags(bio)
+                                        : "No bio yet."}
                                 </p>
                             </div>
                         </div>
