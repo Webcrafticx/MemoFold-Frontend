@@ -47,8 +47,8 @@ const ProfileHeader = ({
     const [isCompressing, setIsCompressing] = useState(false);
     const [compressionProgress, setCompressionProgress] = useState(0);
     const [notification, setNotification] = useState({
-        message: "Nitin",
-        visible: true,
+        message: " ",
+        visible: false,
     });
     const notificationTimeoutRef = useRef(null);
     // Compression logic for profile pic upload
