@@ -49,6 +49,7 @@ const ProfileHeader = ({
     const [notification, setNotification] = useState({
         message: " ",
         visible: false,
+
     });
     const notificationTimeoutRef = useRef(null);
     // Compression logic for profile pic upload
