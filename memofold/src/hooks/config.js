@@ -1,5 +1,7 @@
 const config = {
-    apiUrl: import.meta.env.VITE_API_URL,
+      // apiUrl: "https://memofold1.onrender.com/api", //Production API URL
+    apiUrl: "http://localhost:5000/api", 
+    socketUrl: "http://localhost:5000",
 };
 
 export default config;

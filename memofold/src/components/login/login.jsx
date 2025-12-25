@@ -5,6 +5,7 @@ import snip1 from "../../assets/snip1.jpg";
 import snip2 from "../../assets/snip2.jpg";
 import snip3 from "../../assets/snip3.jpg";
 import logo from "../../assets/logo.png";
+import { enablePushNotifications } from "../../utils/pushNotification";
 
 const LoginPage = () => {
     const [formData, setFormData] = useState({
@@ -20,9 +21,12 @@ const LoginPage = () => {
 
     useEffect(() => {
         if (token) {
+            enablePushNotifications();
             navigate("/feed");
         }
     }, [token, navigate]);
+
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;

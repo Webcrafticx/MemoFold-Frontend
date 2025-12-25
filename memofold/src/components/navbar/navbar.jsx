@@ -9,6 +9,8 @@ import SearchBar from "./SearchBar";
 import ProfileDropdown from "./ProfileDropDown";
 import NotificationBell from "./NotificationBell";
 import Logo from "./Logo";
+import { toast } from "react-toastify";
+import socket from "../../socket";
 
 const Navbar = ({ onDarkModeChange }) => {
     const [darkMode, setDarkMode] = useState(() => {
@@ -87,6 +89,11 @@ const Navbar = ({ onDarkModeChange }) => {
         }
         localStorage.setItem("darkMode", darkMode);
     }, [darkMode]);
+
+    socket.on("newNotification", () => {
+        // toast.info("You have a new notification!");
+  fetchUnreadCount();
+});
 
     // Outside click handling
     useEffect(() => {
@@ -210,7 +217,6 @@ const Navbar = ({ onDarkModeChange }) => {
 
     const handleNotificationModalClose = () => {
         setShowNotificationModal(false);
-        fetchUnreadCount();
     };
 
     const handleFriendsSidebarClose = () => {
@@ -240,14 +246,21 @@ const Navbar = ({ onDarkModeChange }) => {
     };
 
     // Regular polling for notifications
-    useEffect(() => {
-        if (!token) return;
+  useEffect(() => {
+  if (!token) return;
 
-        fetchUnreadCount();
-        const intervalId = setInterval(fetchUnreadCount, 30000);
+  const handleNewNotification = () => {
+    fetchUnreadCount();
+    // toast.info("You have a new notification!");
+  };
 
-        return () => clearInterval(intervalId);
-    }, [token]);
+  socket.on("newNotification", handleNewNotification);
+
+  return () => {
+    socket.off("newNotification", handleNewNotification);
+  };
+}, [token]);
+
 
     // Update unread messages count from FriendsSidebar (No duplicate polling!)
     const handleUnreadMessagesUpdate = (count) => {

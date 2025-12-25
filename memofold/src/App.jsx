@@ -26,6 +26,7 @@ import UserProfile from "./components/UserProfile";
 import Post from "./components/post/Post";
 import ChatPage from "./components/chat/ChatPage";
 import CallPage from "./components/chat/CallPage";
+import socket from "./socket";
 
 
 const queryClient = new QueryClient({
@@ -64,7 +65,7 @@ const PublicRoute = ({ children }) => {
 function App() {
     const [maintenanceMode, setMaintenanceMode] = useState(false);
     const { token } = useAuth();
-
+    const user = JSON.parse(localStorage.getItem("user"));
     // Check maintenance mode (could be from an API call)
     useEffect(() => {
         const maintenanceCheck = async () => {
@@ -78,6 +79,26 @@ function App() {
         maintenanceCheck();
     }, []);
 
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(() => console.log("Service Worker registered"))
+        .catch(err => console.error("SW error", err));
+    }
+  }, []);
+
+  useEffect(() => {
+  if (token && user?._id) {
+    socket.connect();
+    socket.emit("join", user._id);
+    console.log("Socket connected and joined room:", user._id);
+  }
+
+  return () => {
+    socket.disconnect();
+  };
+}, [token, user]);
 
     useEffect(() => {
         const currentPath = window.location.pathname;
@@ -243,6 +264,7 @@ function App() {
                         </Routes>
                     </main>
                 </div>
+                
             </Router>
         </QueryClientProvider>
     );
