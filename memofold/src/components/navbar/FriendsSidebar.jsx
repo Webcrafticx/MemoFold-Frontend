@@ -14,6 +14,7 @@ const FriendsSidebar = ({
     token,
     onUnreadCountUpdate,
 }) => {
+    // State initialization
     const [friends, setFriends] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -24,23 +25,35 @@ const FriendsSidebar = ({
     const [totalUnreadCount, setTotalUnreadCount] = useState(0);
     const [nextCursor, setNextCursor] = useState(null);
     const [fetchingMore, setFetchingMore] = useState(false);
-        // Reset all sidebar state when token (user) changes
-        useEffect(() => {
-            setFriends([]);
-            setFriendsWithUnread({});
-            setTotalUnreadCount(0);
-            setNextCursor(null);
-            setLoading(true);
-        }, [token]);
+    
+    // ✅ New State: Track if Stream Channels are synced
+    const [streamLoaded, setStreamLoaded] = useState(false);
+    
     const navigate = useNavigate();
     const listRef = useRef();
     const debounceTimerRef = useRef(null);
     const eventListenersAttached = useRef(false);
 
-    // 1. Initialize Stream Chat Client (Background active)
+    // ✅ FIX 1: Jab Token change ho (User badle), sab kuch Reset kardo
+    useEffect(() => {
+        setFriends([]);
+        setFriendsWithUnread({});
+        setTotalUnreadCount(0);
+        setNextCursor(null);
+        setChatClient(null); 
+        setStreamToken(null);
+        setLoading(true);
+        setStreamLoaded(false); // Reset stream loading state
+        eventListenersAttached.current = false; 
+    }, [token]);
+
+    // 1. Initialize Stream Chat Client
     useEffect(() => {
         const initStreamClient = async () => {
-            if (!token || !STREAM_API_KEY) return;
+            if (!token || !STREAM_API_KEY) {
+                setStreamLoaded(true); // Don't block if credentials are missing
+                return;
+            }
 
             try {
                 const tokenData = await apiService.getStreamToken(token);
@@ -48,6 +61,10 @@ const FriendsSidebar = ({
                 
                 if (tokenData?.token && authUser._id) {
                     const client = StreamChat.getInstance(STREAM_API_KEY);
+
+                    if (client.userID && client.userID !== authUser._id) {
+                        await client.disconnectUser();
+                    }
 
                     if (!client.userID) {
                         await client.connectUser(
@@ -59,26 +76,33 @@ const FriendsSidebar = ({
                             tokenData.token
                         );
                     }
+                    
                     setChatClient(client);
-                    setStreamToken(tokenData.token); // Store token for reuse
+                    setStreamToken(tokenData.token);
                 }
             } catch (error) {
                 console.error("Stream init error:", error);
                 onUnreadCountUpdate?.(0);
+                setStreamLoaded(true); // Stop loading on error so list still shows
             }
         };
 
-        initStreamClient();
+        const timeoutId = setTimeout(() => {
+            initStreamClient();
+        }, 100);
+
+        return () => clearTimeout(timeoutId);
+
     }, [token, onUnreadCountUpdate]);
 
     // 2. Fetch Backend Friends List
     useEffect(() => {
         if (isOpen && token) {
-            fetchFriends();
+            fetchFriends(null, true); 
         }
     }, [isOpen, token]);
 
-    // 3.  REAL-TIME UNREADS & LAST MESSAGE HANDLING (Optimized)
+    // 3. REAL-TIME UNREADS & LAST MESSAGE HANDLING
     useEffect(() => {
         if (!chatClient || !chatClient.userID) return;
 
@@ -87,25 +111,21 @@ const FriendsSidebar = ({
 
             const unreadData = {};
             let totalUnread = 0;
+            const friendsFromChannels = new Set();
+            const currentUserId = chatClient.userID;
 
             channels.forEach((channel) => {
                 try {
                     if (!channel?.state?.members) return;
 
                     const otherMember = Object.values(channel.state.members).find(
-                        (m) => m?.user?.id !== chatClient.userID
+                        (m) => m?.user?.id !== currentUserId
                     );
 
                     if (!otherMember?.user?.id) return;
 
                     const friendId = otherMember.user.id;
-                    // Only process if friendId is in the backend friends list
-                    setFriends((prevFriends) => {
-                        // No-op, just to ensure we have the latest friends
-                        return prevFriends;
-                    });
-                    const isBackendFriend = friends.some((f) => f._id === friendId);
-                    if (!isBackendFriend) return;
+                    friendsFromChannels.add(friendId);
 
                     const count = channel.countUnread?.() || 0;
                     const lastMessage = channel.state.messages?.slice(-1)[0];
@@ -126,8 +146,28 @@ const FriendsSidebar = ({
                     };
                     totalUnread += count;
                 } catch (err) {
-                    // Skip invalid channel silently
                 }
+            });
+
+            setFriends((prevFriends) => {
+                const existingIds = new Set(prevFriends.map((f) => f._id));
+                const newFriends = [];
+
+                friendsFromChannels.forEach((friendId) => {
+                    if (!existingIds.has(friendId) && unreadData[friendId]) {
+                        newFriends.push({
+                            _id: friendId,
+                            username: unreadData[friendId].username,
+                            realname: unreadData[friendId].username,
+                            profilePic: unreadData[friendId].profilePic,
+                            fromChannel: true,
+                        });
+                    }
+                });
+
+                return newFriends.length > 0
+                    ? [...newFriends, ...prevFriends]
+                    : prevFriends;
             });
 
             setFriendsWithUnread((prev) => ({ ...prev, ...unreadData }));
@@ -143,71 +183,46 @@ const FriendsSidebar = ({
                 };
                 const sort = { last_message_at: -1 };
 
-                // OPTIMIZED TWO-PHASE STRATEGY: Parallel fetching for speed
                 const [allChannels] = await Promise.all([
-                    // Single call with higher limit to cover both recent + unread
                     chatClient.queryChannels(filter, sort, {
                         watch: true,
                         state: true,
-                        limit: 50, // Balanced: covers most active conversations
-                        message_limit: 1, // Only last message for performance
+                        limit: 50,
+                        message_limit: 1,
                     })
                 ]);
 
                 updateUnreadState(allChannels);
             } catch (error) {
                 console.error("Error syncing channels:", error);
-                
-                // Fallback: Try with smaller limit if error
-                try {
-                    const fallbackChannels = await chatClient.queryChannels(
-                        filter,
-                        sort,
-                        {
-                            watch: true,
-                            state: true,
-                            limit: 30,
-                            message_limit: 1,
-                        }
-                    );
-                    updateUnreadState(fallbackChannels);
-                } catch (fallbackError) {
-                    console.error("Fallback fetch also failed:", fallbackError);
-                }
+            } finally {
+                // ✅ Channel Data fetch complete (Success or Fail)
+                setStreamLoaded(true);
             }
         };
 
-        // Event handler with debouncing
         const handleEvent = () => {
-            // Clear previous timer using ref
             if (debounceTimerRef.current) {
                 clearTimeout(debounceTimerRef.current);
             }
-            
-            // Set new timer - wait 300ms before fetching
             debounceTimerRef.current = setTimeout(() => {
                 fetchActiveChannels();
             }, 300);
         };
 
-        // Initial Fetch
         fetchActiveChannels();
 
-        // Attach Event Listeners ONLY ONCE (prevent duplicates)
         if (!eventListenersAttached.current) {
             chatClient.on("message.new", handleEvent);
             chatClient.on("notification.message_new", handleEvent);
             chatClient.on("message.read", handleEvent);
-            
             eventListenersAttached.current = true;
         }
 
         return () => {
-            // Cleanup timer
             if (debounceTimerRef.current) {
                 clearTimeout(debounceTimerRef.current);
             }
-            // Remove event listeners on unmount
             if (eventListenersAttached.current) {
                 chatClient.off("message.new", handleEvent);
                 chatClient.off("notification.message_new", handleEvent);
@@ -215,12 +230,11 @@ const FriendsSidebar = ({
                 eventListenersAttached.current = false;
             }
         };
-    }, [chatClient, onUnreadCountUpdate]); // Added onUnreadCountUpdate to dependencies
+    }, [chatClient, onUnreadCountUpdate]); 
 
+    // Scroll Bar Handling
     useEffect(() => {
-        const scrollbarWidth =
-            window.innerWidth - document.documentElement.clientWidth;
-
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
         if (isOpen) {
             document.body.style.overflow = "hidden";
             document.body.style.paddingRight = `${scrollbarWidth}px`;
@@ -228,14 +242,13 @@ const FriendsSidebar = ({
             document.body.style.overflow = "";
             document.body.style.paddingRight = "";
         }
-
         return () => {
             document.body.style.overflow = "";
             document.body.style.paddingRight = "";
         };
     }, [isOpen]);
 
-    // 4. Scroll Handling for Friend List
+    // 4. Scroll Handling
     useEffect(() => {
         const handleScroll = () => {
             if (!listRef.current || fetchingMore || !nextCursor) return;
@@ -244,24 +257,23 @@ const FriendsSidebar = ({
                 fetchFriends(nextCursor);
             }
         };
-
         const refCurrent = listRef.current;
         if (refCurrent) {
             refCurrent.addEventListener("scroll", handleScroll);
         }
-
         return () => {
-            if (refCurrent)
-                refCurrent.removeEventListener("scroll", handleScroll);
+            if (refCurrent) refCurrent.removeEventListener("scroll", handleScroll);
         };
     }, [nextCursor, fetchingMore, friends]);
 
-    const fetchFriends = async (cursor = null) => {
+    // ✅ FIX 3: Fetch function
+    const fetchFriends = async (cursor = null, isFreshLoad = false) => {
         if (!token) return;
 
         try {
             setFetchingMore(true);
-            if (!cursor) setLoading(true);
+            // Agar fresh load hai ya initial hai, toh spinner dikhao
+            if (!cursor || isFreshLoad) setLoading(true);
 
             const url = new URL(`${config.apiUrl}/friends/friends-list`);
             if (cursor) url.searchParams.append("cursor", cursor);
@@ -272,8 +284,14 @@ const FriendsSidebar = ({
 
             if (response.ok) {
                 const result = await response.json();
+                
                 setFriends((prev) => {
                     const newFriends = result.friends || [];
+                    
+                    if (isFreshLoad) {
+                        return newFriends;
+                    }
+
                     const existingIds = new Set(prev.map((f) => f?._id).filter(Boolean));
                     const uniqueNew = newFriends.filter(
                         (f) => f?._id && !existingIds.has(f._id)
@@ -285,12 +303,11 @@ const FriendsSidebar = ({
         } catch (error) {
             console.error("Fetch friends error:", error);
         } finally {
-            setLoading(false);
+            setLoading(false); // API call khatam, spinner hatao
             setFetchingMore(false);
         }
     };
 
-    // Sorting logic based on time/unread
     const sortedFriends = [...friends].sort((a, b) => {
         const aData = friendsWithUnread[a._id];
         const bData = friendsWithUnread[b._id];
@@ -310,17 +327,13 @@ const FriendsSidebar = ({
 
     const filteredFriends = sortedFriends.filter(
         (friend) =>
-            friend.username
-                ?.toLowerCase()
-                .includes(searchQuery.toLowerCase()) ||
+            friend.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             friend.realname?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const handleChat = async (friendId) => {
         try {
             setChatLoading(friendId);
-            
-            // Use stored token instead of making another API call
             if (streamToken) {
                 navigate(`/chat/${friendId}`);
                 onClose();
@@ -361,7 +374,6 @@ const FriendsSidebar = ({
 
     const UserAvatar = ({ profilePic, username, online }) => {
         const firstLetter = username?.charAt(0).toUpperCase() || "U";
-
         return (
             <div className="relative w-12 h-12">
                 <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
@@ -381,7 +393,6 @@ const FriendsSidebar = ({
                         </span>
                     )}
                 </div>
-
                 {online && (
                     <>
                         <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
@@ -408,7 +419,6 @@ const FriendsSidebar = ({
                     isOpen ? "translate-x-0" : "translate-x-full"
                 }`}
             >
-                {/* Header */}
                 <div
                     className={`flex items-center justify-between p-4 border-b ${
                         darkMode ? "border-gray-700" : "border-gray-200"
@@ -440,7 +450,6 @@ const FriendsSidebar = ({
                     </button>
                 </div>
 
-                {/* Search Bar */}
                 <div className="p-4">
                     <div
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
@@ -466,12 +475,12 @@ const FriendsSidebar = ({
                     </div>
                 </div>
 
-                {/* Friends List */}
                 <div
                     ref={listRef}
                     className="overflow-y-auto h-[calc(100%-140px)] px-4"
                 >
-                    {loading && friends.length === 0 ? (
+                    {/* 👇 MODIFIED CONDITION: loading OR stream not loaded */}
+                    {loading || !streamLoaded ? (
                         <div className="flex justify-center items-center h-32">
                             <div
                                 className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
