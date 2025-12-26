@@ -24,6 +24,14 @@ const FriendsSidebar = ({
     const [totalUnreadCount, setTotalUnreadCount] = useState(0);
     const [nextCursor, setNextCursor] = useState(null);
     const [fetchingMore, setFetchingMore] = useState(false);
+        // Reset all sidebar state when token (user) changes
+        useEffect(() => {
+            setFriends([]);
+            setFriendsWithUnread({});
+            setTotalUnreadCount(0);
+            setNextCursor(null);
+            setLoading(true);
+        }, [token]);
     const navigate = useNavigate();
     const listRef = useRef();
     const debounceTimerRef = useRef(null);
@@ -79,7 +87,6 @@ const FriendsSidebar = ({
 
             const unreadData = {};
             let totalUnread = 0;
-            const friendsFromChannels = new Set();
 
             channels.forEach((channel) => {
                 try {
@@ -92,7 +99,13 @@ const FriendsSidebar = ({
                     if (!otherMember?.user?.id) return;
 
                     const friendId = otherMember.user.id;
-                    friendsFromChannels.add(friendId);
+                    // Only process if friendId is in the backend friends list
+                    setFriends((prevFriends) => {
+                        // No-op, just to ensure we have the latest friends
+                        return prevFriends;
+                    });
+                    const isBackendFriend = friends.some((f) => f._id === friendId);
+                    if (!isBackendFriend) return;
 
                     const count = channel.countUnread?.() || 0;
                     const lastMessage = channel.state.messages?.slice(-1)[0];
@@ -115,29 +128,6 @@ const FriendsSidebar = ({
                 } catch (err) {
                     // Skip invalid channel silently
                 }
-            });
-
-            // Add friends from channels to the friends list if not already present
-            setFriends((prevFriends) => {
-                const existingIds = new Set(prevFriends.map((f) => f._id));
-                const newFriends = [];
-
-                friendsFromChannels.forEach((friendId) => {
-                    if (!existingIds.has(friendId) && unreadData[friendId]) {
-                        // Add friend from channel data
-                        newFriends.push({
-                            _id: friendId,
-                            username: unreadData[friendId].username,
-                            realname: unreadData[friendId].username,
-                            profilePic: unreadData[friendId].profilePic,
-                            fromChannel: true, // Mark as coming from channel
-                        });
-                    }
-                });
-
-                return newFriends.length > 0
-                    ? [...newFriends, ...prevFriends]
-                    : prevFriends;
             });
 
             setFriendsWithUnread((prev) => ({ ...prev, ...unreadData }));
