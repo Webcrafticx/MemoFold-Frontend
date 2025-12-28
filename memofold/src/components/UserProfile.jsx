@@ -74,19 +74,12 @@ const UserProfile = () => {
             const token = localStorage.getItem("token");
             if (!token) return setFriendStatus("add");
 
-            const [friendsRes, meRes] = await Promise.all([
-                fetch(`${config.apiUrl}/friends/friends-list?limit=100`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
-                fetch(`${config.apiUrl}/user/me`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
+            const [isFriendRes, meData] = await Promise.all([
+                apiService.checkIsFriend(token, userId, user?._id),
+                apiService.fetchCurrentUser(token),
             ]);
 
-            const friendsData = await friendsRes.json();
-            const meData = await meRes.json();
-
-            const isFriend = friendsData.friends?.some((f) => f._id === userId);
+            const isFriend = isFriendRes?.isFriend;
 
             const isRequestSent = meData.user?.sentrequests?.some(
                 (r) => r.to === userId && r.status === "pending"
@@ -95,7 +88,7 @@ const UserProfile = () => {
             if (isFriend) setFriendStatus("remove");
             else if (isRequestSent) setFriendStatus("cancel");
             else setFriendStatus("add");
-        } catch {
+        } catch (err) {
             setFriendStatus("add");
         }
     };
