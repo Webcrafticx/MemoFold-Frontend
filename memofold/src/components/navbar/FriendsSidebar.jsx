@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiX, FiSearch } from "react-icons/fi";
+import { FiX, FiSearch, FiMessageSquare, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import config from "../../hooks/config";
 import { apiService } from "../../services/api";
@@ -14,266 +14,268 @@ const FriendsSidebar = ({
     token,
     onUnreadCountUpdate,
 }) => {
-    // State initialization
-    const [friends, setFriends] = useState([]);
-    const [loading, setLoading] = useState(true);
+    // UI State
+    const [activeTab, setActiveTab] = useState("friends"); // 'friends' | 'chats'
     const [searchQuery, setSearchQuery] = useState("");
-    const [chatLoading, setChatLoading] = useState(null);
+
+    // Data State
+    const [chatList, setChatList] = useState([]);       // ONLY active conversations from Stream
+    const [friendsList, setFriendsList] = useState([]); // ONLY friends list from Backend
+
+    // Loading & Pagination State
+    const [chatsLoading, setChatsLoading] = useState(true);
+    const [friendsLoading, setFriendsLoading] = useState(false);
+    const [syncLoading, setSyncLoading] = useState(false); // Profile pic sync loading
+    
+    // Pagination Controls
+    const [nextCursor, setNextCursor] = useState(null); 
+    const [fetchingMoreFriends, setFetchingMoreFriends] = useState(false);
+    
+    // Prevent duplicate API calls
+    const isFetchingRef = useRef(false);
+
+    // Stream Chat client state
     const [chatClient, setChatClient] = useState(null);
     const [streamToken, setStreamToken] = useState(null);
-    const [friendsWithUnread, setFriendsWithUnread] = useState({});
     const [totalUnreadCount, setTotalUnreadCount] = useState(0);
-    const [nextCursor, setNextCursor] = useState(null);
-    const [fetchingMore, setFetchingMore] = useState(false);
-    
-    // ✅ New State: Track if Stream Channels are synced
-    const [streamLoaded, setStreamLoaded] = useState(false);
-    
+
     const navigate = useNavigate();
     const listRef = useRef();
     const debounceTimerRef = useRef(null);
     const eventListenersAttached = useRef(false);
 
-    // ✅ FIX 1: Jab Token change ho (User badle), sab kuch Reset kardo
+    // User avatar component
+    const UserAvatar = ({ image, name, size = "w-12 h-12", isOnline = false }) => {
+        const [imgError, setImgError] = useState(false);
+        const initial = name ? name.charAt(0).toUpperCase() : "?";
+
+        return (
+            <div className={`relative ${size} flex-shrink-0`}>
+                {image && !imgError ? (
+                    <img
+                        src={image}
+                        alt={name}
+                        className="w-full h-full rounded-full object-cover bg-gray-300"
+                        onError={() => setImgError(true)}
+                    />
+                ) : (
+                    <div className={`w-full h-full rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br from-blue-500 to-purple-600 ${size === "w-12 h-12" ? "text-lg" : "text-sm"}`}>
+                        {initial}
+                    </div>
+                )}
+                
+                {isOnline && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+                )}
+            </div>
+        );
+    };
+
+    // Lock scroll when sidebar is open
     useEffect(() => {
-        setFriends([]);
-        setFriendsWithUnread({});
-        setTotalUnreadCount(0);
+        if (isOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "unset";
+        }
+        return () => {
+            document.body.style.overflow = "unset";
+        };
+    }, [isOpen]);
+
+    // Reset state on token change (user isolation)
+    useEffect(() => {
+        setChatList([]);
+        setFriendsList([]);
         setNextCursor(null);
-        setChatClient(null); 
-        setStreamToken(null);
-        setLoading(true);
-        setStreamLoaded(false); // Reset stream loading state
-        eventListenersAttached.current = false; 
+        setTotalUnreadCount(0);
+        setChatsLoading(true);
+        setFriendsLoading(false);
+        setChatClient(null);
+        eventListenersAttached.current = false;
+        isFetchingRef.current = false;
     }, [token]);
 
-    // 1. Initialize Stream Chat Client
+    // Initialize Stream client
     useEffect(() => {
-        const initStreamClient = async () => {
-            if (!token || !STREAM_API_KEY) {
-                setStreamLoaded(true); // Don't block if credentials are missing
-                return;
-            }
+        // Only run when token and STREAM_API_KEY are present
+        if (!token || !STREAM_API_KEY) {
+            setChatsLoading(false);
+            return;
+        }
 
+        let cancelled = false;
+        const initStream = async () => {
             try {
-                const tokenData = await apiService.getStreamToken(token);
-                const authUser = JSON.parse(localStorage.getItem("user") || "{}");
+                // Get user info from localStorage (for Stream)
+                const storedUserObj = JSON.parse(localStorage.getItem("user") || "{}");
                 
-                if (tokenData?.token && authUser._id) {
-                    const client = StreamChat.getInstance(STREAM_API_KEY);
+                const userId = localStorage.getItem("userId") || storedUserObj._id;
+                const username = localStorage.getItem("username") || storedUserObj.username;
+                const realname = localStorage.getItem("realname") || storedUserObj.realname;
+                const profilePic = localStorage.getItem("profilePic") || storedUserObj.profilePic;
 
-                    if (client.userID && client.userID !== authUser._id) {
-                        await client.disconnectUser();
-                    }
+                // If userId not found, exit
+                if (!userId) {
+                    console.log("User ID not found yet, waiting...");
+                    return;
+                }
 
-                    if (!client.userID) {
-                        await client.connectUser(
-                            {
-                                id: authUser._id,
-                                name: authUser.realname || authUser.username,
-                                image: authUser.profilePic,
-                            },
-                            tokenData.token
-                        );
-                    }
-                    
+                const tokenData = await apiService.getStreamToken(token);
+                if (!tokenData?.token) return;
+
+                const client = StreamChat.getInstance(STREAM_API_KEY);
+
+                // Disconnect previous user if not current
+                if (client.userID && client.userID !== userId) {
+                    await client.disconnectUser();
+                }
+
+                if (!client.userID) {
+                    await client.connectUser(
+                        {
+                            id: userId,
+                            name: realname || username,
+                            image: profilePic,
+                        },
+                        tokenData.token
+                    );
+                }
+
+                if (!cancelled) {
                     setChatClient(client);
                     setStreamToken(tokenData.token);
                 }
-            } catch (error) {
-                console.error("Stream init error:", error);
-                onUnreadCountUpdate?.(0);
-                setStreamLoaded(true); // Stop loading on error so list still shows
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("Stream init failed:", err);
+                    setChatsLoading(false);
+                }
             }
         };
 
-        const timeoutId = setTimeout(() => {
-            initStreamClient();
-        }, 100);
+        const timer = setTimeout(initStream, 100); // Slight delay for safety
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [token]);
 
-        return () => clearTimeout(timeoutId);
-
-    }, [token, onUnreadCountUpdate]);
-
-    // 2. Fetch Backend Friends List
-    useEffect(() => {
-        if (isOpen && token) {
-            fetchFriends(null, true); 
-        }
-    }, [isOpen, token]);
-
-    // 3. REAL-TIME UNREADS & LAST MESSAGE HANDLING
+    // Chats tab logic (real-time)
     useEffect(() => {
         if (!chatClient || !chatClient.userID) return;
 
-        const updateUnreadState = (channels) => {
-            if (!channels?.length) return;
-
-            const unreadData = {};
-            let totalUnread = 0;
-            const friendsFromChannels = new Set();
-            const currentUserId = chatClient.userID;
-
-            channels.forEach((channel) => {
-                try {
-                    if (!channel?.state?.members) return;
-
-                    const otherMember = Object.values(channel.state.members).find(
-                        (m) => m?.user?.id !== currentUserId
-                    );
-
-                    if (!otherMember?.user?.id) return;
-
-                    const friendId = otherMember.user.id;
-                    friendsFromChannels.add(friendId);
-
-                    const count = channel.countUnread?.() || 0;
-                    const lastMessage = channel.state.messages?.slice(-1)[0];
-                    const cleanText = lastMessage?.text
-                        ?.replace(/\*\*/g, "") 
-                        ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
-                        ?.replace(/https?:\/\/\S+/g, "")
-                        ?.trim() || "";
-
-                    unreadData[friendId] = {
-                        count,
-                        lastMessage: cleanText,
-                        lastMessageTime: lastMessage?.created_at,
-                        isFromFriend: lastMessage?.user?.id === friendId,
-                        online: otherMember.user.online || false,
-                        username: otherMember.user.name || otherMember.user.id,
-                        profilePic: otherMember.user.image,
-                    };
-                    totalUnread += count;
-                } catch (err) {
-                }
-            });
-
-            setFriends((prevFriends) => {
-                const existingIds = new Set(prevFriends.map((f) => f._id));
-                const newFriends = [];
-
-                friendsFromChannels.forEach((friendId) => {
-                    if (!existingIds.has(friendId) && unreadData[friendId]) {
-                        newFriends.push({
-                            _id: friendId,
-                            username: unreadData[friendId].username,
-                            realname: unreadData[friendId].username,
-                            profilePic: unreadData[friendId].profilePic,
-                            fromChannel: true,
-                        });
-                    }
-                });
-
-                return newFriends.length > 0
-                    ? [...newFriends, ...prevFriends]
-                    : prevFriends;
-            });
-
-            setFriendsWithUnread((prev) => ({ ...prev, ...unreadData }));
-            setTotalUnreadCount(totalUnread);
-            onUnreadCountUpdate?.(totalUnread);
-        };
-
-        const fetchActiveChannels = async () => {
+        const fetchActiveChats = async () => {
+            setSyncLoading(true);
             try {
-                const filter = {
-                    type: "messaging",
-                    members: { $in: [chatClient.userID] },
-                };
+                // Sync all profile pics to Stream whenever channels are fetched
+                await apiService.syncAllProfilePics(token).catch(() => {});
+                setSyncLoading(false);
+
+                const filter = { type: "messaging", members: { $in: [chatClient.userID] } };
                 const sort = { last_message_at: -1 };
 
-                const [allChannels] = await Promise.all([
-                    chatClient.queryChannels(filter, sort, {
-                        watch: true,
-                        state: true,
-                        limit: 50,
-                        message_limit: 1,
-                    })
-                ]);
+                const channels = await chatClient.queryChannels(filter, sort, {
+                    watch: true, // Real-time connection
+                    state: true,
+                    limit: 30,
+                });
 
-                updateUnreadState(allChannels);
+                processChats(channels);
             } catch (error) {
-                console.error("Error syncing channels:", error);
+                setSyncLoading(false);
+                console.error("Error fetching chats:", error);
             } finally {
-                // ✅ Channel Data fetch complete (Success or Fail)
-                setStreamLoaded(true);
+                setChatsLoading(false);
             }
+        };
+
+        const processChats = (channels) => {
+            if (!channels) return;
+            const currentUserId = chatClient.userID;
+            let unread = 0;
+
+            const processed = channels.map((channel) => {
+                const count = channel.countUnread();
+                unread += count;
+
+                const otherMember = Object.values(channel.state.members).find(
+                    (m) => m.user.id !== currentUserId
+                );
+
+                const lastMsg = channel.state.messages[channel.state.messages.length - 1];
+                if (!lastMsg) return null;
+
+                const cleanText = lastMsg.text
+                    ?.replace(/\*\*/g, "")
+                    ?.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+                    ?.replace(/https?:\/\/\S+/g, "Link")
+                    ?.trim();
+
+                return {
+                    channelId: channel.id,
+                    targetUserId: otherMember?.user?.id,
+                    displayName: otherMember?.user?.name || otherMember?.user?.id || "Unknown",
+                    avatar: otherMember?.user?.image,
+                    isOnline: otherMember?.user?.online || false,
+                    lastMessage: cleanText || "Attachment",
+                    lastMessageTime: lastMsg.created_at,
+                    unreadCount: count,
+                };
+            }).filter(Boolean);
+
+            setChatList(processed);
+            setTotalUnreadCount(unread);
+            onUnreadCountUpdate?.(unread);
         };
 
         const handleEvent = () => {
-            if (debounceTimerRef.current) {
-                clearTimeout(debounceTimerRef.current);
-            }
-            debounceTimerRef.current = setTimeout(() => {
-                fetchActiveChannels();
-            }, 300);
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = setTimeout(fetchActiveChats, 500);
         };
 
-        fetchActiveChannels();
-
+        // Attach event listeners
         if (!eventListenersAttached.current) {
             chatClient.on("message.new", handleEvent);
             chatClient.on("notification.message_new", handleEvent);
             chatClient.on("message.read", handleEvent);
+            chatClient.on("user.presence.changed", handleEvent); // Added: Online status updates ke liye
             eventListenersAttached.current = true;
         }
 
+        fetchActiveChats();
+
+        // Cleanup: remove listeners on user change or unmount
         return () => {
-            if (debounceTimerRef.current) {
-                clearTimeout(debounceTimerRef.current);
-            }
-            if (eventListenersAttached.current) {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+            
+            // Remove listeners to prevent data leak or errors
+            if (chatClient) {
                 chatClient.off("message.new", handleEvent);
                 chatClient.off("notification.message_new", handleEvent);
                 chatClient.off("message.read", handleEvent);
+                chatClient.off("user.presence.changed", handleEvent);
                 eventListenersAttached.current = false;
             }
         };
-    }, [chatClient, onUnreadCountUpdate]); 
+    }, [chatClient]);
 
-    // Scroll Bar Handling
+    // Friends tab logic
     useEffect(() => {
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-        if (isOpen) {
-            document.body.style.overflow = "hidden";
-            document.body.style.paddingRight = `${scrollbarWidth}px`;
-        } else {
-            document.body.style.overflow = "";
-            document.body.style.paddingRight = "";
+        if (activeTab === "friends" && friendsList.length === 0 && token) {
+            fetchFriendsBackend(null, true);
         }
-        return () => {
-            document.body.style.overflow = "";
-            document.body.style.paddingRight = "";
-        };
-    }, [isOpen]);
+    }, [activeTab, token]);
 
-    // 4. Scroll Handling
-    useEffect(() => {
-        const handleScroll = () => {
-            if (!listRef.current || fetchingMore || !nextCursor) return;
-            const { scrollTop, scrollHeight, clientHeight } = listRef.current;
-            if (scrollTop + clientHeight >= scrollHeight - 50) {
-                fetchFriends(nextCursor);
-            }
-        };
-        const refCurrent = listRef.current;
-        if (refCurrent) {
-            refCurrent.addEventListener("scroll", handleScroll);
-        }
-        return () => {
-            if (refCurrent) refCurrent.removeEventListener("scroll", handleScroll);
-        };
-    }, [nextCursor, fetchingMore, friends]);
-
-    // ✅ FIX 3: Fetch function
-    const fetchFriends = async (cursor = null, isFreshLoad = false) => {
+    const fetchFriendsBackend = async (cursor = null, isFresh = false) => {
         if (!token) return;
+        if (isFetchingRef.current) return;
 
         try {
-            setFetchingMore(true);
-            // Agar fresh load hai ya initial hai, toh spinner dikhao
-            if (!cursor || isFreshLoad) setLoading(true);
+            isFetchingRef.current = true;
+
+            if (isFresh) setFriendsLoading(true);
+            else setFetchingMoreFriends(true);
 
             const url = new URL(`${config.apiUrl}/friends/friends-list`);
             if (cursor) url.searchParams.append("cursor", cursor);
@@ -281,324 +283,237 @@ const FriendsSidebar = ({
             const response = await fetch(url.toString(), {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            const data = await response.json();
 
-            if (response.ok) {
-                const result = await response.json();
-                
-                setFriends((prev) => {
-                    const newFriends = result.friends || [];
+            if (data.success) {
+                setFriendsList((prev) => {
+                    const newFriends = data.friends || [];
+                    if (isFresh) return newFriends;
                     
-                    if (isFreshLoad) {
-                        return newFriends;
-                    }
-
-                    const existingIds = new Set(prev.map((f) => f?._id).filter(Boolean));
-                    const uniqueNew = newFriends.filter(
-                        (f) => f?._id && !existingIds.has(f._id)
-                    );
+                    const existingIds = new Set(prev.map(f => f.id));
+                    const uniqueNew = newFriends.filter(f => !existingIds.has(f.id));
                     return [...prev, ...uniqueNew];
                 });
-                setNextCursor(result.nextCursor || null);
+                
+                setNextCursor(data.nextCursor || null);
             }
         } catch (error) {
-            console.error("Fetch friends error:", error);
+            console.error("Backend friends fetch error:", error);
         } finally {
-            setLoading(false); // API call khatam, spinner hatao
-            setFetchingMore(false);
+            isFetchingRef.current = false;
+            setFriendsLoading(false);
+            setFetchingMoreFriends(false);
         }
     };
 
-    const sortedFriends = [...friends].sort((a, b) => {
-        const aData = friendsWithUnread[a._id];
-        const bData = friendsWithUnread[b._id];
+    const handleScroll = () => {
+        if (activeTab !== "friends" || !nextCursor || isFetchingRef.current) return;
 
-        const aTime = aData?.lastMessageTime
-            ? new Date(aData.lastMessageTime).getTime()
-            : 0;
-        const bTime = bData?.lastMessageTime
-            ? new Date(bData.lastMessageTime).getTime()
-            : 0;
+        const container = listRef.current;
+        if (container) {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            if (scrollHeight <= clientHeight) return;
 
-        if (aTime !== bTime) return bTime - aTime;
-        if (aData?.count > 0 && bData?.count === 0) return -1;
-        if (bData?.count > 0 && aData?.count === 0) return 1;
-        return 0;
-    });
-
-    const filteredFriends = sortedFriends.filter(
-        (friend) =>
-            friend.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            friend.realname?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const handleChat = async (friendId) => {
-        try {
-            setChatLoading(friendId);
-            if (streamToken) {
-                navigate(`/chat/${friendId}`);
-                onClose();
-            } else {
-                console.error("Stream token not available");
+            if (scrollTop + clientHeight >= scrollHeight - 20) {
+                fetchFriendsBackend(nextCursor);
             }
-        } catch (error) {
-            console.error("Error starting chat:", error);
-        } finally {
-            setChatLoading(null);
         }
     };
 
-    const truncateMessage = (text, maxLength = 30) =>
-        text && text.length > maxLength
-            ? text.substring(0, maxLength) + "..."
-            : text || "";
+    // Helper functions
+    const handleStartChat = (targetId) => {
+        if (!targetId || !streamToken) return;
+        navigate(`/chat/${targetId}`);
+        onClose();
+    };
 
-    const formatTime = (timestamp) => {
-        if (!timestamp) return "";
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
+    const formatTime = (isoString) => {
+        if (!isoString) return "";
+        const date = new Date(isoString);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
-        if (diffMins < 1) return "Just now";
-        if (diffMins < 60) return `${diffMins}m`;
-        if (diffHours < 24) return `${diffHours}h`;
-        if (diffDays < 7) return `${diffDays}d`;
-
-        return date.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
+    const getDisplayList = () => {
+        const list = activeTab === "chats" ? chatList : friendsList;
+        return list.filter(item => {
+            const name = activeTab === "chats" ? item.displayName : (item.realname || item.username);
+            return name?.toLowerCase().includes(searchQuery.toLowerCase());
         });
     };
 
-    const UserAvatar = ({ profilePic, username, online }) => {
-        const firstLetter = username?.charAt(0).toUpperCase() || "U";
-        return (
-            <div className="relative w-12 h-12">
-                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-                    {profilePic ? (
-                        <img
-                            src={profilePic}
-                            alt={username}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.style.display = "none";
-                                e.target.nextSibling.style.display = "flex";
-                            }}
-                        />
-                    ) : (
-                        <span className="flex items-center justify-center w-full h-full text-white font-semibold text-lg">
-                            {firstLetter}
-                        </span>
-                    )}
-                </div>
-                {online && (
-                    <>
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white animate-ping"></span>
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white"></span>
-                    </>
-                )}
-            </div>
-        );
-    };
+    const displayList = getDisplayList();
+    const isLoading = activeTab === "chats" ? (chatsLoading || syncLoading) : friendsLoading;
 
+    // Render
     return (
         <>
             {isOpen && (
-                <div
-                    className="fixed inset-0 backdrop-blur-lg bg-opacity-50 z-40 transition-opacity cursor-pointer"
-                    onClick={onClose}
-                />
+                <div className="fixed inset-0 backdrop-blur-sm bg-black/30 z-40" onClick={onClose} />
             )}
 
-            <div
-                className={`fixed top-0 right-0 h-full w-80 md:w-96 ${
-                    darkMode ? "bg-gray-800" : "bg-white"
-                } shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
-                    isOpen ? "translate-x-0" : "translate-x-full"
-                }`}
-            >
-                <div
-                    className={`flex items-center justify-between p-4 border-b ${
-                        darkMode ? "border-gray-700" : "border-gray-200"
-                    }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <h2
-                            className={`text-xl font-bold ${
-                                darkMode ? "text-white" : "text-gray-800"
-                            }`}
-                        >
-                            Messages
+            <div className={`fixed top-0 right-0 h-full w-80 md:w-96 ${darkMode ? "bg-gray-800" : "bg-white"} shadow-2xl z-50 transform transition-transform duration-300 ${isOpen ? "translate-x-0" : "translate-x-full"}`}>
+                
+                {/* Header */}
+                <div className={`p-4 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className={`text-xl font-bold ${darkMode ? "text-white" : "text-gray-800"}`}>
+                            Messaging
                         </h2>
-                        {totalUnreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                                {totalUnreadCount}
-                            </span>
-                        )}
+                        <button onClick={onClose} className={`p-2 rounded-full cursor-pointer ${darkMode ? "hover:bg-gray-700 text-gray-300" : "hover:bg-gray-100 text-gray-600"}`}>
+                            <FiX size={24} />
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className={`p-2 rounded-full transition-colors cursor-pointer ${
-                            darkMode
-                                ? "hover:bg-gray-700 text-gray-300"
-                                : "hover:bg-gray-100 text-gray-600"
-                        }`}
-                    >
-                        <FiX className="w-6 h-6" />
-                    </button>
-                </div>
 
-                <div className="p-4">
-                    <div
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                            darkMode ? "bg-gray-700" : "bg-gray-100"
-                        }`}
-                    >
-                        <FiSearch
-                            className={`w-5 h-5 ${
-                                darkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
-                        />
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
+                        <FiSearch className={darkMode ? "text-gray-400" : "text-gray-500"} />
                         <input
                             type="text"
-                            placeholder="Search friends..."
+                            placeholder={activeTab === 'chats' ? "Search chats..." : "Search friends..."}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`flex-1 bg-transparent outline-none ${
-                                darkMode
-                                    ? "text-white placeholder-gray-400"
-                                    : "text-gray-800 placeholder-gray-500"
-                            }`}
+                            className={`flex-1 bg-transparent outline-none ${darkMode ? "text-white" : "text-gray-800"}`}
                         />
+                    </div>
+
+                    <div className="flex mt-4 bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
+                        <button
+                            onClick={() => setActiveTab("friends")}
+                            className={`flex-1 flex cursor-pointer items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
+                                activeTab === "friends"
+                                    ? "bg-white text-blue-600 shadow-sm dark:bg-gray-600 dark:text-cyan-400"
+                                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                            }`}
+                        >
+                            <FiUsers /> Friends
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("chats")}
+                            className={`flex-1 cursor-pointer flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${
+                                activeTab === "chats"
+                                    ? "bg-white text-blue-600 shadow-sm dark:bg-gray-600 dark:text-cyan-400"
+                                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
+                            }`}
+                        >
+                            <FiMessageSquare /> Chats
+                            {totalUnreadCount > 0 && (
+                                <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                                    {totalUnreadCount}
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
 
-                <div
-                    ref={listRef}
-                    className="overflow-y-auto h-[calc(100%-140px)] px-4"
+                {/* Content */}
+                <div 
+                    ref={listRef} 
+                    onScroll={handleScroll}
+                    className="overflow-y-auto h-[calc(100%-180px)] px-2 py-2"
                 >
-                    {/* 👇 MODIFIED CONDITION: loading OR stream not loaded */}
-                    {loading || !streamLoaded ? (
-                        <div className="flex justify-center items-center h-32">
-                            <div
-                                className={`animate-spin rounded-full h-8 w-8 border-b-2 ${
-                                    darkMode
-                                        ? "border-cyan-400"
-                                        : "border-blue-600"
-                                }`}
-                            />
+                    {isLoading ? (
+                        <div className="flex flex-col items-center py-10">
+                            <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${darkMode ? "border-cyan-400" : "border-blue-600"}`} />
+                            {syncLoading && (
+                                <span className={`mt-2 text-xs ${darkMode ? "text-cyan-400" : "text-blue-600"}`}>Loading Chats...</span>
+                            )}
                         </div>
-                    ) : filteredFriends.length === 0 ? (
-                        <div
-                            className={`text-center py-8 ${
-                                darkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
-                        >
-                            {searchQuery
-                                ? "No friends found"
-                                : "No friends yet"}
+                    ) : displayList.length === 0 ? (
+                        <div className={`text-center py-10 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                            {activeTab === 'chats' ? "No conversations yet." : "No friends found."}
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            {filteredFriends.map((friend) => {
-                                const unreadData =
-                                    friendsWithUnread[friend._id];
-                                const hasUnread = unreadData?.count > 0;
-                                const lastMessage = unreadData?.lastMessage;
-                                const lastTime = unreadData?.lastMessageTime;
-                                const online = unreadData?.online;
-
-                                return (
-                                    <div
-                                        key={friend._id}
-                                        className={`flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
-                                            hasUnread
-                                                ? darkMode
-                                                    ? "bg-gray-700 border-l-4 border-cyan-400"
-                                                    : "bg-blue-50 border-l-4 border-blue-500"
-                                                : darkMode
-                                                ? "hover:bg-gray-700"
-                                                : "hover:bg-gray-50"
-                                        }`}
-                                        onClick={() => handleChat(friend._id)}
-                                    >
-                                        <div className="relative flex-shrink-0">
-                                            <UserAvatar
-                                                profilePic={friend.profilePic}
-                                                username={friend.username}
-                                                online={online}
+                        <div className="space-y-1">
+                            {displayList.map((item) => {
+                                // --- CHATS RENDER ---
+                                if (activeTab === "chats") {
+                                    return (
+                                        <div
+                                            key={item.channelId}
+                                            onClick={() => handleStartChat(item.targetUserId)}
+                                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                                                darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
+                                            } ${item.unreadCount > 0 ? (darkMode ? "bg-gray-700/50" : "bg-blue-50") : ""}`}
+                                        >
+                                            <UserAvatar 
+                                                image={item.avatar} 
+                                                name={item.displayName} 
+                                                isOnline={item.isOnline} 
                                             />
-                                            {hasUnread && (
-                                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                                                    {unreadData.count > 9
-                                                        ? "9+"
-                                                        : unreadData.count}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <h3
-                                                    className={`font-semibold truncate ${
-                                                        hasUnread
-                                                            ? "font-bold"
-                                                            : ""
-                                                    } ${
-                                                        darkMode
-                                                            ? "text-white"
-                                                            : "text-gray-800"
-                                                    }`}
-                                                >
-                                                    {friend.realname ||
-                                                        friend.username}
-                                                </h3>
-                                                {lastTime && (
-                                                    <span
-                                                        className={`text-xs ml-2 flex-shrink-0 ${
-                                                            darkMode
-                                                                ? "text-gray-400"
-                                                                : "text-gray-500"
-                                                        }`}
-                                                    >
-                                                        {formatTime(lastTime)}
+                                            
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-center">
+                                                    <h4 className={`font-semibold truncate ${darkMode ? "text-white" : "text-gray-800"}`}>
+                                                        {item.displayName}
+                                                    </h4>
+                                                    <span className={`text-xs ${item.unreadCount > 0 ? "text-blue-500 font-bold" : "text-gray-400"}`}>
+                                                        {formatTime(item.lastMessageTime)}
                                                     </span>
-                                                )}
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <p className={`text-sm truncate w-4/5 ${item.unreadCount > 0 ? (darkMode ? "text-gray-200 font-medium" : "text-gray-800 font-medium") : "text-gray-500"}`}>
+                                                        {item.lastMessage}
+                                                    </p>
+                                                    {item.unreadCount > 0 && (
+                                                        <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                                                            {item.unreadCount}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <p
-                                                className={`text-sm truncate ${
-                                                    hasUnread
-                                                        ? darkMode
-                                                            ? "text-cyan-300 font-medium"
-                                                            : "text-blue-600 font-medium"
-                                                        : darkMode
-                                                        ? "text-gray-400"
-                                                        : "text-gray-500"
+                                        </div>
+                                    );
+                                } 
+                                
+                                // --- FRIENDS RENDER ---
+                                else {
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            onClick={() => handleStartChat(item.id)}
+                                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                                                darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
+                                            }`}
+                                        >
+                                            <UserAvatar 
+                                                image={item.profilePic} 
+                                                name={item.realname || item.username} 
+                                            />
+
+                                            <div className="flex-1">
+                                                <h4 className={`font-semibold ${darkMode ? "text-white" : "text-gray-800"}`}>
+                                                    {item.realname || item.username}
+                                                </h4>
+                                                <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                                    @{item.username}
+                                                </p>
+                                            </div>
+                                            
+                                            <button 
+                                                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                                                    darkMode ? "bg-gray-600 text-cyan-400" : "bg-blue-100 text-blue-600"
                                                 }`}
                                             >
-                                                {lastMessage
-                                                    ? truncateMessage(
-                                                          lastMessage
-                                                      )
-                                                    : "Click to start chatting"}
-                                            </p>
+                                                <FiMessageSquare size={18} />
+                                            </button>
                                         </div>
-                                    </div>
-                                );
+                                    );
+                                }
                             })}
-                            {fetchingMore && (
-                                <div className="flex justify-center py-4">
-                                    <div
-                                        className={`animate-spin rounded-full h-6 w-6 border-b-2 ${
-                                            darkMode
-                                                ? "border-cyan-400"
-                                                : "border-blue-600"
-                                        }`}
-                                    />
+
+                            {/* Pagination Loading */}
+                            {activeTab === "friends" && fetchingMoreFriends && (
+                                <div className="py-2 flex justify-center">
+                                    <div className={`animate-spin rounded-full h-5 w-5 border-b-2 ${darkMode ? "border-cyan-400" : "border-blue-600"}`} />
                                 </div>
                             )}
+
+                            {/* End of List Message */}
+                            {activeTab === "friends" && !fetchingMoreFriends && !nextCursor && displayList.length > 0 && (
+                                <div className={`text-center py-4 text-xs italic ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+                                    No more friends
+                                </div>
+                            )}
+
                         </div>
                     )}
                 </div>

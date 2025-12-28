@@ -357,4 +357,16 @@ updatePost: async (token, postId, postData, isFormData = false) => {
         
         return response.json();
     },
+
+        async syncAllProfilePics(token) {
+                const res = await fetch(`${config.apiUrl}/stream/sync-profile-pics`, {
+                        method: "POST",
+                        headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${token}`,
+                        },
+                });
+                if (!res.ok) throw new Error("Failed to sync profile pics");
+                return res.json();
+        },
 };
