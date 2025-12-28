@@ -358,6 +358,20 @@ updatePost: async (token, postId, postData, isFormData = false) => {
         return response.json();
     },
 
+    // Check if two users are friends
+    checkIsFriend: async (token, targetUserId, currentUserId) => {
+        const response = await fetch(
+            `${config.apiUrl}/friends/isFriend/${targetUserId}`,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
+        return response.json();
+    },
+
         async syncAllProfilePics(token) {
                 const res = await fetch(`${config.apiUrl}/stream/sync-profile-pics`, {
                         method: "POST",
