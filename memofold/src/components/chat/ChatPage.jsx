@@ -142,6 +142,8 @@ const ChatPage = () => {
     };
 
     useEffect(() => {
+        // Sync all profile pics to Stream on mount
+        apiService.syncAllProfilePics(token).catch(() => {});
         initChat();
         return () => {
             if (chatClient) {
