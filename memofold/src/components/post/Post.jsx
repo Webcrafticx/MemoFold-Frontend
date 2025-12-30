@@ -37,6 +37,9 @@ const Post = () => {
     const [isCommenting, setIsCommenting] = useState({});
     const [isLikingComment, setIsLikingComment] = useState({});
     const [isDeletingComment, setIsDeletingComment] = useState({});
+    // Infinite scroll states for comments
+    const [commentsNextCursor, setCommentsNextCursor] = useState({});
+    const [hasMoreComments, setHasMoreComments] = useState({});
     const [activeReplies, setActiveReplies] = useState(() => {
         return localStorageService.getActiveReplies() || {};
     });
@@ -357,57 +360,32 @@ const Post = () => {
         }
     };
 
-    const handleToggleCommentDropdown = async (postId, e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
 
-        if (activeCommentPostId !== postId) {
-            await fetchComments(postId);
-        }
-
-        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
-        setCommentContent((prev) => ({
-            ...prev,
-            [postId]: prev[postId] || "",
-        }));
-    };
-
-    const fetchComments = async (postId) => {
+    // Infinite scroll for comments (with cursor)
+    const fetchComments = async (postId, cursor = null, append = false) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
-
         try {
-            const responseData = await apiService.fetchComments(postId, token);
+            const responseData = await apiService.fetchComments(postId, token, cursor);
             const comments = responseData.comments || [];
             const commentCount = responseData.count || comments.length;
+            const nextCursor = responseData.nextCursor || null;
 
-            const storedCommentLikes =
-                localStorageService.getStoredCommentLikes();
-
+            const storedCommentLikes = localStorageService.getStoredCommentLikes();
             const commentsWithLikes = comments.map((comment) => {
-                const commentLikes =
-                    storedCommentLikes[comment._id] || comment.likes || [];
+                const commentLikes = storedCommentLikes[comment._id] || comment.likes || [];
                 const hasUserLiked = commentLikes.includes(user._id);
-
-                const userData = comment.userId ||
-                    comment.user || {
-                        _id: "unknown",
-                        username: "Unknown",
-                        realname: "Unknown User",
-                        profilePic: "",
-                    };
-
+                const userData = comment.userId || comment.user || {
+                    _id: "unknown",
+                    username: "Unknown",
+                    realname: "Unknown User",
+                    profilePic: "",
+                };
                 const finalUserData = {
                     _id: userData._id || "unknown",
                     username: userData.username || "Unknown",
-                    realname:
-                        userData.realname ||
-                        userData.username ||
-                        "Unknown User",
+                    realname: userData.realname || userData.username || "Unknown User",
                     profilePic: userData.profilePic || "",
                 };
-
                 return {
                     ...comment,
                     likes: commentLikes,
@@ -421,27 +399,39 @@ const Post = () => {
 
             setPost((prev) => ({
                 ...prev,
-                comments: commentsWithLikes,
+                comments: append && prev.comments ? [...prev.comments, ...commentsWithLikes] : commentsWithLikes,
                 commentCount: commentCount,
+                commentsNextCursor: nextCursor,
             }));
-
+            setCommentsNextCursor((prev) => ({ ...prev, [postId]: nextCursor }));
+            setHasMoreComments((prev) => ({ ...prev, [postId]: !!nextCursor }));
             setActiveCommentPostId(postId);
 
             const likesByComment = {};
             comments.forEach((comment) => {
-                likesByComment[comment._id] =
-                    storedCommentLikes[comment._id] || comment.likes || [];
+                likesByComment[comment._id] = storedCommentLikes[comment._id] || comment.likes || [];
             });
-
-            localStorage.setItem(
-                "commentLikes",
-                JSON.stringify(likesByComment)
-            );
+            localStorage.setItem("commentLikes", JSON.stringify(likesByComment));
         } catch (err) {
             setError(err.message);
         } finally {
             setLoadingComments((prev) => ({ ...prev, [postId]: false }));
         }
+    };
+
+    const handleToggleCommentDropdown = async (postId, e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        if (activeCommentPostId !== postId) {
+            await fetchComments(postId);
+        }
+        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
+        setCommentContent((prev) => ({
+            ...prev,
+            [postId]: prev[postId] || "",
+        }));
     };
 
     const handleCommentSubmit = async (postId, e) => {
@@ -899,82 +889,87 @@ const Post = () => {
         }
     };
 
-    const toggleReplies = async (commentId, e) => {
+    // Enhanced: Support cursor-based pagination for replies
+    // Accepts: commentId, event, cursor (optional), append (optional)
+    const toggleReplies = async (commentId, e, cursor = null, append = false) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
+        // If loading more (append), always keep replies open
         const newActiveRepliesState = {
             ...activeReplies,
-            [commentId]: !activeReplies[commentId],
+            [commentId]: append ? true : !activeReplies[commentId],
         };
 
-        if (!activeReplies[commentId]) {
+        // Only fetch if opening or loading more
+        if (!activeReplies[commentId] || append) {
             try {
                 const responseData = await apiService.fetchCommentReplies(
                     commentId,
-                    token
+                    token,
+                    cursor
                 );
                 const replies = responseData.replies || [];
+                const nextCursor = responseData.nextCursor || null;
 
                 setPost((prev) => ({
                     ...prev,
                     comments:
-                        prev.comments?.map((comment) =>
-                            comment._id === commentId
-                                ? {
-                                      ...comment,
-                                      replies: replies.map((reply) => {
-                                          // ✅ FIXED: Properly extract user data from reply
-                                          const replyUserData =
-                                              reply.userId || reply.user;
-
-                                          // ✅ DEBUG: Log the reply data to see what's coming from API
-                                          console.log("Reply data:", reply);
-                                          console.log(
-                                              "Reply user data:",
-                                              replyUserData
-                                          );
-
-                                          // ✅ CORRECTED: Ensure all user fields are properly mapped
-                                          const finalReplyUserData = {
-                                              _id:
-                                                  replyUserData?._id ||
-                                                  replyUserData?.id ||
-                                                  "unknown",
-                                              username:
-                                                  replyUserData?.username ||
-                                                  replyUserData?.userName ||
-                                                  "Unknown",
-                                              realname:
-                                                  replyUserData?.realname ||
-                                                  replyUserData?.realName ||
-                                                  replyUserData?.username ||
-                                                  "Unknown User",
-                                              // ✅ Try all possible profile picture field names
-                                              profilePic:
-                                                  replyUserData?.profilePic ||
-                                                  replyUserData?.profilepic ||
-                                                  replyUserData?.avatar ||
-                                                  replyUserData?.image ||
-                                                  "",
-                                          };
-
-                                          return {
-                                              ...reply,
-                                              likes: reply.likes || [],
-                                              hasUserLiked: (
-                                                  reply.likes || []
-                                              ).includes(user._id),
-                                              // ✅ CRITICAL: Make sure userId contains the complete user object
-                                              userId: finalReplyUserData,
-                                          };
-                                      }),
-                                      replyCount: replies.length,
-                                  }
-                                : comment
-                        ) || [],
+                        prev.comments?.map((comment) => {
+                            if (comment._id === commentId) {
+                                // Prepare new replies array
+                                let newReplies = [];
+                                if (append && Array.isArray(comment.replies)) {
+                                    // Append to existing replies
+                                    newReplies = [
+                                        ...comment.replies,
+                                        ...replies.map((reply) => {
+                                            const replyUserData = reply.userId || reply.user || {};
+                                            const finalReplyUserData = {
+                                                _id: replyUserData?._id || replyUserData?.id || "unknown",
+                                                username: replyUserData?.username || replyUserData?.userName || "Unknown",
+                                                realname: replyUserData?.realname || replyUserData?.realName || replyUserData?.username || "Unknown User",
+                                                profilePic: replyUserData?.profilePic || replyUserData?.profilepic || replyUserData?.avatar || replyUserData?.image || "",
+                                            };
+                                            return {
+                                                ...reply,
+                                                likes: reply.likes || [],
+                                                hasUserLiked: (reply.likes || []).includes(user._id),
+                                                userId: finalReplyUserData,
+                                            };
+                                        })
+                                    ];
+                                } else {
+                                    // Replace replies
+                                    newReplies = replies.map((reply) => {
+                                        const replyUserData = reply.userId || reply.user || {};
+                                        const finalReplyUserData = {
+                                            _id: replyUserData?._id || replyUserData?.id || "unknown",
+                                            username: replyUserData?.username || replyUserData?.userName || "Unknown",
+                                            realname: replyUserData?.realname || replyUserData?.realName || replyUserData?.username || "Unknown User",
+                                            profilePic: replyUserData?.profilePic || replyUserData?.profilepic || replyUserData?.avatar || replyUserData?.image || "",
+                                        };
+                                        return {
+                                            ...reply,
+                                            likes: reply.likes || [],
+                                            hasUserLiked: (reply.likes || []).includes(user._id),
+                                            userId: finalReplyUserData,
+                                        };
+                                    });
+                                }
+                                return {
+                                    ...comment,
+                                    replies: newReplies,
+                                    replyCount: append
+                                        ? (comment.replyCount || 0) + replies.length
+                                        : replies.length,
+                                    repliesNextCursor: nextCursor, // <-- Set nextCursor for UI
+                                };
+                            }
+                            return comment;
+                        }) || [],
                 }));
             } catch (err) {
                 setError("Failed to load replies");
@@ -1435,7 +1430,10 @@ const Post = () => {
 
                         {/* Comment Section */}
                         <CommentSection
-                            post={post}
+                            post={{
+                                ...post,
+                                commentsNextCursor: post.commentsNextCursor,
+                            }}
                             username={username}
                             currentUserProfile={currentUserProfile}
                             user={user}
@@ -1451,9 +1449,7 @@ const Post = () => {
                             isReplying={isReplying}
                             isLikingReply={isLikingReply}
                             isDeletingReply={isDeletingReply}
-                            onToggleCommentDropdown={
-                                handleToggleCommentDropdown
-                            }
+                            onToggleCommentDropdown={handleToggleCommentDropdown}
                             onCommentSubmit={handleCommentSubmit}
                             onSetCommentContent={setCommentContent}
                             onLikeComment={handleLikeComment}
@@ -1466,6 +1462,7 @@ const Post = () => {
                             onSetReplyContent={handleSetReplyContent}
                             navigateToUserProfile={navigateToUserProfile}
                             activeReplyInputs={activeReplyInputs}
+                            fetchComments={fetchComments}
                         />
                     </div>
                 )}

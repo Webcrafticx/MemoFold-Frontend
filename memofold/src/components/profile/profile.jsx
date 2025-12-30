@@ -101,6 +101,9 @@ const ProfilePage = () => {
         isFetchingReplies: {},
         isLikingReply: {},
         isDeletingReply: {},
+        // Pagination states
+        commentsNextCursor: {},
+        repliesNextCursor: {},
     });
 
     const [editState, setEditState] = useState({
@@ -643,21 +646,24 @@ const handleEditFileSelect = (file) => {
     };
 
     // Comment handlers
-    const handleToggleCommentDropdown = async (postId) => {
-        if (commentState.activeCommentPostId === postId) {
+    const handleToggleCommentDropdown = async (postId, cursor = null, isLoadMore = false) => {
+        if (!isLoadMore && commentState.activeCommentPostId === postId) {
+            // If already open, close it
             setCommentState((prev) => ({ ...prev, activeCommentPostId: null }));
             return;
         }
 
+        // For first load, don't open dropdown yet - just start fetching
+        // For load more, keep it open
         setCommentState((prev) => ({
             ...prev,
-            activeCommentPostId: postId,
+            activeCommentPostId: isLoadMore ? prev.activeCommentPostId : prev.activeCommentPostId,
             isFetchingComments: true,
         }));
 
         try {
             const token = localStorage.getItem("token");
-            const responseData = await apiService.fetchComments(postId, token);
+            const responseData = await apiService.fetchComments(postId, token, cursor);
 
             if (!responseData || responseData.success === false) {
                 throw new Error(
@@ -696,12 +702,24 @@ const handleEditFileSelect = (file) => {
                     post._id === postId
                         ? {
                               ...post,
-                              comments: commentsWithReplies,
+                              comments: isLoadMore 
+                                  ? [...(post.comments || []), ...commentsWithReplies]
+                                  : commentsWithReplies,
                               // ✅ FIXED: Use the count from API response
                               commentCount: commentCount,
                           }
                         : post
                 ),
+            }));
+
+            // Store next cursor and open dropdown (for first load)
+            setCommentState((prev) => ({
+                ...prev,
+                commentsNextCursor: {
+                    ...prev.commentsNextCursor,
+                    [postId]: responseData.nextCursor || null,
+                },
+                activeCommentPostId: postId, // Open dropdown after successful load
             }));
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -1082,15 +1100,15 @@ const handleEditFileSelect = (file) => {
         }));
     };
 
-    const handleToggleReplies = async (postId, commentId) => {
+    const handleToggleReplies = async (postId, commentId, cursor = null, isLoadMore = false) => {
         // Find the current comment state
         const post = profileData.posts.find((p) => p._id === postId);
         const comment = post?.comments.find((c) => c._id === commentId);
 
         const isRepliesVisible = comment?.showReplies;
 
-        // If replies are NOT visible (chevron UP), fetch replies immediately
-        if (!isRepliesVisible) {
+        // If replies are NOT visible (chevron UP) or loading more, fetch replies
+        if (!isRepliesVisible || isLoadMore) {
             try {
                 setCommentState((prev) => ({
                     ...prev,
@@ -1103,7 +1121,8 @@ const handleEditFileSelect = (file) => {
                 const token = localStorage.getItem("token");
                 const response = await apiService.fetchCommentReplies(
                     commentId,
-                    token
+                    token,
+                    cursor
                 );
 
                 if (!response || response.success === false) {
@@ -1159,8 +1178,12 @@ const handleEditFileSelect = (file) => {
                                       comment._id === commentId
                                           ? {
                                                 ...comment,
-                                                replies,
-                                                replyCount: replies.length,
+                                                replies: isLoadMore 
+                                                    ? [...(comment.replies || []), ...replies]
+                                                    : replies,
+                                                replyCount: isLoadMore 
+                                                    ? (comment.replyCount || 0) + replies.length
+                                                    : replies.length,
                                                 showReplies: true,
                                             }
                                           : comment
@@ -1168,6 +1191,15 @@ const handleEditFileSelect = (file) => {
                               }
                             : post
                     ),
+                }));
+
+                // Store next cursor for replies
+                setCommentState((prev) => ({
+                    ...prev,
+                    repliesNextCursor: {
+                        ...prev.repliesNextCursor,
+                        [commentId]: response.nextCursor || null,
+                    },
                 }));
             } catch (error) {
                 console.error("Error fetching replies:", error);
@@ -2293,6 +2325,13 @@ const handleUpdatePost = async (postId) => {
                                         // Video handling props
                                         activeVideoId={activeVideoId}
                                         setActiveVideoId={setActiveVideoId}
+                                        // Pagination props
+                                        commentsNextCursor={
+                                            commentState.commentsNextCursor
+                                        }
+                                        repliesNextCursor={
+                                            commentState.repliesNextCursor
+                                        }
                                     />
                                 ))}
                             </div>

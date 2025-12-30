@@ -450,6 +450,7 @@ const PostCard = ({
                 onSetReplyContent={onSetReplyContent}
                 navigateToUserProfile={navigateToUserProfile}
                 activeReplyInputs={activeReplyInputs}
+                fetchComments={typeof window !== 'undefined' ? window.__mainFeedFetchComments : undefined}
             />
         </div>
     );

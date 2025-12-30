@@ -82,6 +82,9 @@ const ProfilePostCard = ({
     // Video handling props
     activeVideoId,
     setActiveVideoId,
+    // Pagination props
+    commentsNextCursor,
+    repliesNextCursor,
 }) => {
     const editTextareaRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -1091,8 +1094,8 @@ const ProfilePostCard = ({
 
             {/* Comments Section */}
             {!isEditing &&
-                !isFetchingComments &&
-                activeCommentPostId === post._id && (
+                activeCommentPostId === post._id &&
+                post.comments && (
                     <ProfileCommentSection
                         post={post}
                         isDarkMode={isDarkMode}
@@ -1109,6 +1112,7 @@ const ProfilePostCard = ({
                         formatDate={getTimeDifference}
                         onLikeComment={onLikeComment}
                         isLikingComment={isLikingComment}
+                        onToggleCommentDropdown={onToggleCommentDropdown}
                         // Reply functionality props
                         activeReplyInputs={activeReplyInputs}
                         replyContent={replyContent}
@@ -1122,6 +1126,9 @@ const ProfilePostCard = ({
                         isFetchingReplies={isFetchingReplies}
                         isLikingReply={isLikingReply}
                         isDeletingReply={isDeletingReply}
+                        // Pagination props
+                        commentsNextCursor={commentsNextCursor}
+                        repliesNextCursor={repliesNextCursor}
                     />
                 )}
         </div>

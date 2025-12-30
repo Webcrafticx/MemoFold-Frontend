@@ -173,6 +173,32 @@ const UserProfile = () => {
     // Track which comment has reply input open
     const [activeReplyInput, setActiveReplyInput] = useState(null);
 
+    // Infinite scroll for comments (IntersectionObserver)
+    const observer = useRef();
+    const lastCommentRef = useRef();
+
+    // Attach observer to last comment for infinite scroll
+    useEffect(() => {
+        if (!activeCommentPostId) return;
+        const post = userPosts.find((p) => p._id === activeCommentPostId);
+        if (!post || !post.comments || !post.commentsNextCursor) return;
+
+        if (observer.current) observer.current.disconnect();
+        observer.current = new window.IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && post.commentsNextCursor) {
+                // Load more comments for this post
+                toggleCommentDropdown(activeCommentPostId, null, post.commentsNextCursor, true);
+            }
+        });
+        if (lastCommentRef.current) {
+            observer.current.observe(lastCommentRef.current);
+        }
+        return () => {
+            if (observer.current) observer.current.disconnect();
+        };
+        // eslint-disable-next-line
+    }, [userPosts, activeCommentPostId]);
+
     const refreshSinglePost = async (postId) => {
         try {
             const updatedData = await apiService.fetchSinglePost(token, postId);
@@ -742,13 +768,15 @@ const UserProfile = () => {
         }
     };
 
-    const fetchComments = async (postId) => {
+    // Cursor-based pagination for comments
+    // Accepts: postId, cursor (optional), append (optional)
+    const fetchComments = async (postId, cursor = null, append = false) => {
         setLoadingComments((prev) => ({ ...prev, [postId]: true }));
-
         try {
-            const responseData = await apiService.fetchComments(postId, token);
+            const responseData = await apiService.fetchComments(postId, token, cursor);
             const comments = responseData.comments || [];
             const totalCount = responseData.count || comments.length;
+            const nextCursor = responseData.nextCursor || null;
 
             const storedCommentLikes = getStoredCommentLikes();
             const storedReplyLikes = getStoredReplyLikes();
@@ -786,15 +814,28 @@ const UserProfile = () => {
             });
 
             setUserPosts((posts) =>
-                posts.map((post) =>
-                    post._id === postId
-                        ? {
-                              ...post,
-                              comments: commentsWithLikes,
-                              commentCount: totalCount,
-                          }
-                        : post
-                )
+                posts.map((post) => {
+                    if (post._id === postId) {
+                        let newComments = [];
+                        if (append && Array.isArray(post.comments)) {
+                            // Avoid duplicate comments
+                            const existingIds = new Set(post.comments.map((c) => c._id));
+                            newComments = [
+                                ...post.comments,
+                                ...commentsWithLikes.filter((c) => !existingIds.has(c._id)),
+                            ];
+                        } else {
+                            newComments = commentsWithLikes;
+                        }
+                        return {
+                            ...post,
+                            comments: newComments,
+                            commentCount: totalCount,
+                            commentsNextCursor: nextCursor, // <-- Store nextCursor for UI
+                        };
+                    }
+                    return post;
+                })
             );
             setActiveReplies((prev) => {
                 const newActiveReplies = { ...prev };
@@ -824,13 +865,17 @@ const UserProfile = () => {
         }
     };
 
-    const fetchCommentReplies = async (commentId, postId) => {
+    // Cursor-based pagination for replies (with Load More)
+    // Accepts: commentId, postId, cursor (optional), append (optional)
+    const fetchCommentReplies = async (commentId, postId, cursor = null, append = false) => {
         try {
             const responseData = await apiService.fetchCommentReplies(
                 commentId,
-                token
+                token,
+                cursor
             );
             const replies = responseData.replies || [];
+            const nextCursor = responseData.nextCursor || null;
 
             const storedReplyLikes = getStoredReplyLikes();
 
@@ -863,19 +908,25 @@ const UserProfile = () => {
             setUserPosts((prevPosts) =>
                 prevPosts.map((post) => {
                     if (post._id === postId) {
-                        const updatedComments =
-                            post.comments?.map((comment) =>
-                                comment._id === commentId
-                                    ? {
-                                          ...comment,
-                                          replies: repliesWithLikes,
-                                          replyCount: repliesWithLikes.length,
-                                      }
-                                    : comment
-                            ) || [];
                         return {
                             ...post,
-                            comments: updatedComments,
+                            comments: post.comments?.map((comment) => {
+                                if (comment._id === commentId) {
+                                    let newReplies = [];
+                                    if (append && Array.isArray(comment.replies)) {
+                                        newReplies = [...comment.replies, ...repliesWithLikes];
+                                    } else {
+                                        newReplies = repliesWithLikes;
+                                    }
+                                    return {
+                                        ...comment,
+                                        replies: newReplies,
+                                        replyCount: append ? (comment.replyCount || 0) + repliesWithLikes.length : repliesWithLikes.length,
+                                        repliesNextCursor: nextCursor, // <-- Set nextCursor for UI
+                                    };
+                                }
+                                return comment;
+                            }) || [],
                         };
                     }
                     return post;
@@ -1092,24 +1143,28 @@ const UserProfile = () => {
         }
     };
 
-    const toggleCommentDropdown = async (postId, e) => {
+    // Enhanced: Support cursor-based pagination for comments
+    // Accepts: postId, event, cursor (optional), append (optional)
+    const toggleCommentDropdown = async (postId, e, cursor = null, append = false) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
-        if (activeCommentPostId !== postId) {
-            await fetchComments(postId);
+        if (activeCommentPostId !== postId || append) {
+            await fetchComments(postId, cursor, append);
         }
 
-        setActiveCommentPostId(activeCommentPostId === postId ? null : postId);
+        setActiveCommentPostId(activeCommentPostId === postId && !append ? null : postId);
         setCommentContent((prev) => ({
             ...prev,
             [postId]: prev[postId] || "",
         }));
     };
 
-    const toggleReplies = async (commentId, postId, e) => {
+    // Enhanced: Support cursor-based pagination for replies (with Load More)
+    // Accepts: commentId, postId, event, cursor (optional), append (optional)
+    const toggleReplies = async (commentId, postId, e, cursor = null, append = false) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1117,24 +1172,22 @@ const UserProfile = () => {
 
         const post = userPosts.find((p) => p._id === postId);
         const comment = post?.comments?.find((c) => c._id === commentId);
+        const isRepliesVisible = activeReplies[commentId];
 
-        const repliesAlreadyLoaded =
-            comment?.replies && comment.replies.length > 0;
-
-        // Only fetch if we're opening replies and they're not already loaded
-        if (!activeReplies[commentId] && !repliesAlreadyLoaded) {
+        // Only fetch if opening or loading more
+        if (!isRepliesVisible || append) {
             try {
-                await fetchCommentReplies(commentId, postId);
+                await fetchCommentReplies(commentId, postId, cursor, append);
             } catch (err) {
                 setError("Failed to load replies");
                 return;
             }
         }
 
-        // Toggle the active state
+        // Toggle the active state (keep open if loading more)
         setActiveReplies((prev) => ({
             ...prev,
-            [commentId]: !prev[commentId],
+            [commentId]: append ? true : !prev[commentId],
         }));
     };
 
@@ -2615,41 +2668,26 @@ const UserProfile = () => {
                                         {/* Comment Section */}
                                         {activeCommentPostId === post._id && (
                                             <div className="mt-4">
-                                                {loadingComments[post._id] ? (
-                                                    <div className="text-center py-4">
-                                                        <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                        <p
-                                                            className={`text-sm mt-2 ${
+                                                {/* Comments List and Input */}
+                                                <>
+                                                    {post.comments &&
+                                                    post.comments.length >
+                                                        0 ? (
+                                                        <div
+                                                            className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
                                                                 isDarkMode
-                                                                    ? "text-gray-400"
-                                                                    : "text-gray-600"
+                                                                    ? "bg-gray-700 text-gray-200"
+                                                                    : "bg-gray-100 text-gray-800"
                                                             }`}
                                                         >
-                                                            Loading comments...
-                                                        </p>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        {post.comments &&
-                                                        post.comments.length >
-                                                            0 ? (
-                                                            <div
-                                                                className={`mb-4 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg ${
-                                                                    isDarkMode
-                                                                        ? "bg-gray-700 text-gray-200"
-                                                                        : "bg-gray-100 text-gray-800"
-                                                                }`}
-                                                            >
-                                                                {post.comments.map(
-                                                                    (
-                                                                        comment
-                                                                    ) => (
-                                                                        <div
-                                                                            key={
-                                                                                comment._id
-                                                                            }
-                                                                            className="flex items-start space-x-2"
-                                                                        >
+                                                            {post.comments.map((comment, idx) => {
+                                                                const isLast = idx === post.comments.length - 1;
+                                                                return (
+                                                                    <div
+                                                                        key={comment._id}
+                                                                        className="flex items-start space-x-2"
+                                                                        ref={isLast ? lastCommentRef : null}
+                                                                    >
                                                                             <div
                                                                                 className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
                                                                                 onClick={() => {
@@ -3069,48 +3107,56 @@ const UserProfile = () => {
                                                                                     </div>
                                                                                 )}
 
-                                                                                {/* Display Replies */}
-                                                                                {activeReplies[
-                                                                                    comment
-                                                                                        ._id
-                                                                                ] &&
-                                                                                    comment.replies &&
-                                                                                    comment
-                                                                                        .replies
-                                                                                        .length >
-                                                                                        0 && (
-                                                                                        <div className="mt-2">
-                                                                                            {comment.replies.map(
-                                                                                                (
-                                                                                                    reply
-                                                                                                ) => (
+                                                                                {/* Display Replies with Load More and End-of-Replies */}
+                                                                                {activeReplies[comment._id] && (
+                                                                                    <div className="mt-2">
+                                                                                        {comment.replies && comment.replies.length > 0 && (
+                                                                                            <>
+                                                                                                {comment.replies.map((reply) => (
                                                                                                     <ReplyItem
-                                                                                                        key={
-                                                                                                            reply._id
-                                                                                                        }
-                                                                                                        reply={
-                                                                                                            reply
-                                                                                                        }
-                                                                                                        commentId={
-                                                                                                            comment._id
-                                                                                                        }
-                                                                                                        postId={
-                                                                                                            post._id
-                                                                                                        }
-                                                                                                        commentOwner={
-                                                                                                            comment
-                                                                                                                .userId
-                                                                                                                ?.username
-                                                                                                        }
+                                                                                                        key={reply._id}
+                                                                                                        reply={reply}
+                                                                                                        commentId={comment._id}
+                                                                                                        postId={post._id}
+                                                                                                        commentOwner={comment.userId?.username}
                                                                                                     />
-                                                                                                )
-                                                                                            )}
-                                                                                        </div>
-                                                                                    )}
+                                                                                                ))}
+                                                                                                {/* Load More Replies button */}
+                                                                                                {comment.repliesNextCursor ? (
+                                                                                                    <div className="flex justify-center mt-2 mb-2">
+                                                                                                        <button
+                                                                                                            className="px-3 py-1 rounded-full text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                                                                                                            onClick={(e) => toggleReplies(comment._id, post._id, e, comment.repliesNextCursor, true)}
+                                                                                                            disabled={loadingComments[post._id]}
+                                                                                                        >
+                                                                                                            {loadingComments[post._id] ? (
+                                                                                                                <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                                                                            ) : (
+                                                                                                                'Load More Replies'
+                                                                                                            )}
+                                                                                                        </button>
+                                                                                                    </div>
+                                                                                                ) : comment.replies && comment.replies.length > 0 ? (
+                                                                                                    <div className="text-center text-xs text-gray-400 mt-2">End of replies</div>
+                                                                                                ) : null}
+                                                                                            </>
+                                                                                        )}
+                                                                                        {/* No replies message */}
+                                                                                        {(!comment.replies || comment.replies.length === 0) && (
+                                                                                            <div className="text-center text-xs text-gray-400 mt-2">No replies yet.</div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
                                                                         </div>
-                                                                    )
-                                                                )}
+                                                                    );
+                                                                })}
+                                                            {loadingComments[post._id] && post.commentsNextCursor && (
+                                                                <div className="flex justify-center items-center py-4">
+                                                                    <span className="text-xs text-blue-500">Loading more comments...</span>
+                        </div>
+                                                                
+                                                            )}
                                                             </div>
                                                         ) : (
                                                             <div
@@ -3121,9 +3167,12 @@ const UserProfile = () => {
                                                                 }`}
                                                             >
                                                                 No comments yet.
-                                                                Be the first to
-                                                                comment!
+                                                                Be the first to comment!
                                                             </div>
+                                                        )}
+                                                        {/* End of Comments message */}
+                                                        {post.comments && post.comments.length > 0 && !post.commentsNextCursor && (
+                                                            <div className="text-center text-xs text-gray-400 mt-2 mb-4">End of comments</div>
                                                         )}
 
                                                         {/* Add Comment Input - WITH PROFILE AVATAR and POST BUTTON FIRST */}
@@ -3241,7 +3290,7 @@ const UserProfile = () => {
                                                             </div>
                                                         </form>
                                                     </>
-                                                )}
+                                                {/* No extra spinner below input: mainFeed style */}
                                             </div>
                                         )}
                                     </div>
