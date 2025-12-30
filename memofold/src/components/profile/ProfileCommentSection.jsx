@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
     FaTrashAlt,
     FaReply,
@@ -19,11 +19,12 @@ const ProfileCommentSection = ({
     activeCommentPostId,
     commentContent,
     isCommenting,
-    // isFetchingComments,
+    isFetchingComments,
     onCommentSubmit,
     onSetCommentContent,
     onDeleteComment,
     navigateToUserProfile,
+    onToggleCommentDropdown,
 
     // Reply functionality props
     activeReplyInputs,
@@ -41,11 +42,42 @@ const ProfileCommentSection = ({
     // ✅ ADDED: Comment like functionality props
     onLikeComment,
     isLikingComment,
+    // Pagination props
+    commentsNextCursor,
+    repliesNextCursor,
 }) => {
     if (activeCommentPostId !== post._id) return null;
 
     // ✅ ADDED: State for profile pic errors
     const [profilePicError, setProfilePicError] = React.useState({});
+
+    // Pagination refs
+    const observer = useRef();
+    const loadMoreRef = useRef();
+
+    // Intersection Observer for comments pagination
+    useEffect(() => {
+        const postId = post._id;
+        const nextCursor = commentsNextCursor?.[postId];
+        if (!nextCursor || isFetchingComments) return;
+        if (!loadMoreRef.current) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new window.IntersectionObserver(
+            (entries) => {
+                if (
+                    entries[0].isIntersecting &&
+                    !isFetchingComments &&
+                    nextCursor
+                ) {
+                    // Load more comments
+                    onToggleCommentDropdown(postId, nextCursor, true);
+                }
+            },
+            { threshold: 1 }
+        );
+        observer.current.observe(loadMoreRef.current);
+        return () => observer.current && observer.current.disconnect();
+    }, [post._id, commentsNextCursor, isFetchingComments, onToggleCommentDropdown]);
 
     const handleProfilePicError = (commentId) => (e) => {
         setProfilePicError((prev) => ({ ...prev, [commentId]: true }));
@@ -405,78 +437,43 @@ const ProfileCommentSection = ({
                                         {/* Replies Section */}
                                         {isRepliesVisible && (
                                             <div className="mt-2 space-y-2">
-                                                {isFetchingReplies[
-                                                    comment._id
-                                                ] ? (
-                                                    <div className="text-center py-2">
-                                                        <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                        <p className="text-xs mt-1">
-                                                            Loading replies...
-                                                        </p>
+                                                {comment.replies?.map((reply) => (
+                                                    <ReplyItem
+                                                        key={reply._id}
+                                                        reply={reply}
+                                                        commentId={comment._id}
+                                                        username={username}
+                                                        currentUserProfile={currentUserProfile}
+                                                        commentOwner={commentUser.username}
+                                                        isDarkMode={isDarkMode}
+                                                        onLikeReply={onLikeReply}
+                                                        onDeleteReply={onDeleteReply}
+                                                        isLikingReply={isLikingReply}
+                                                        isDeletingReply={isDeletingReply}
+                                                        navigateToUserProfile={navigateToUserProfile}
+                                                        onToggleReplyInput={onToggleReplyInput}
+                                                        isReplying={isReplying}
+                                                        replyContent={replyContent}
+                                                        onSetReplyContent={onSetReplyContent}
+                                                        onReplySubmit={onReplySubmit}
+                                                        postId={post._id}
+                                                        activeReplyInputs={activeReplyInputs}
+                                                        formatDate={formatDate}
+                                                    />
+                                                ))}
+                                                {/* Load More Replies Button */}
+                                                {repliesNextCursor?.[comment._id] && (
+                                                    <div className="flex justify-center mt-2">
+                                                        <button
+                                                            className="px-3 py-1 rounded-full text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                                                            onClick={(e) => onToggleReplies(post._id, comment._id, repliesNextCursor[comment._id], true)}
+                                                        >
+                                                            Load More Replies
+                                                        </button>
                                                     </div>
-                                                ) : (
-                                                    comment.replies?.map(
-                                                        (reply) => (
-                                                            <ReplyItem
-                                                                key={reply._id}
-                                                                reply={reply}
-                                                                commentId={
-                                                                    comment._id
-                                                                }
-                                                                username={
-                                                                    username
-                                                                }
-                                                                currentUserProfile={
-                                                                    currentUserProfile
-                                                                }
-                                                                commentOwner={
-                                                                    commentUser.username
-                                                                }
-                                                                isDarkMode={
-                                                                    isDarkMode
-                                                                }
-                                                                onLikeReply={
-                                                                    onLikeReply
-                                                                }
-                                                                onDeleteReply={
-                                                                    onDeleteReply
-                                                                }
-                                                                isLikingReply={
-                                                                    isLikingReply
-                                                                }
-                                                                isDeletingReply={
-                                                                    isDeletingReply
-                                                                }
-                                                                navigateToUserProfile={
-                                                                    navigateToUserProfile
-                                                                }
-                                                                onToggleReplyInput={
-                                                                    onToggleReplyInput
-                                                                }
-                                                                isReplying={
-                                                                    isReplying
-                                                                }
-                                                                replyContent={
-                                                                    replyContent
-                                                                }
-                                                                onSetReplyContent={
-                                                                    onSetReplyContent
-                                                                }
-                                                                onReplySubmit={
-                                                                    onReplySubmit
-                                                                }
-                                                                postId={
-                                                                    post._id
-                                                                }
-                                                                activeReplyInputs={
-                                                                    activeReplyInputs
-                                                                }
-                                                                formatDate={
-                                                                    formatDate
-                                                                }
-                                                            />
-                                                        )
-                                                    )
+                                                )}
+                                                {!repliesNextCursor?.[comment._id] && comment.replies && comment.replies.length > 0 && (
+                                                    <div className="text-center text-xs text-gray-400 mt-2">End of replies</div>
                                                 )}
                                             </div>
                                         )}
@@ -485,6 +482,22 @@ const ProfileCommentSection = ({
                             </div>
                         );
                     })}
+                    {/* Infinite scroll loader for comments */}
+                    {commentsNextCursor?.[post._id] && (
+                        <div ref={loadMoreRef} className="flex justify-center py-2">
+                            <span className="text-xs text-blue-500">Loading more comments...</span>
+                        </div>
+                    )}
+                    {!commentsNextCursor?.[post._id] && post.comments.length > 0 && (
+                        <div className="flex justify-center py-2">
+                            <span className="text-xs text-gray-400">End of comments</span>
+                        </div>
+                    )}
+                </div>
+            ) : isFetchingComments ? (
+                <div className="text-center py-4">
+                    <div className="inline-block h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm mt-2">Loading comments...</p>
                 </div>
             ) : (
                 <div className="text-center py-4 text-gray-500 dark:text-gray-400">
@@ -494,70 +507,70 @@ const ProfileCommentSection = ({
 
             {/* Add Comment Input */}
             <div className="flex items-center space-x-2">
-                {/* ✅ FIXED: Current user profile picture with proper error handling */}
-                <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0">
-                    {currentUserProfile?.profilePic ? (
-                        <img
-                            src={currentUserProfile.profilePic}
-                            alt={username}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.style.display = "none";
-                            }}
-                            onClick={() =>
-                                navigateToUserProfile(currentUserProfile?._id)
+                    {/* ✅ FIXED: Current user profile picture with proper error handling */}
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0">
+                        {currentUserProfile?.profilePic ? (
+                            <img
+                                src={currentUserProfile.profilePic}
+                                alt={username}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    e.target.style.display = "none";
+                                }}
+                                onClick={() =>
+                                    navigateToUserProfile(currentUserProfile?._id)
+                                }
+                            />
+                        ) : (
+                            <div
+                                className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm"
+                                onClick={() =>
+                                    navigateToUserProfile(currentUserProfile?._id)
+                                }
+                            >
+                                {username?.charAt(0).toUpperCase() || "U"}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 flex space-x-2">
+                        <input
+                            type="text"
+                            className={`flex-1 px-3 py-2 rounded-full text-sm border ${
+                                isDarkMode
+                                    ? "bg-gray-700 border-gray-600 text-white"
+                                    : "bg-white border-gray-300 text-gray-800"
+                            } focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                            placeholder="Write a comment..."
+                            value={commentContent[post._id] || ""}
+                            onChange={(e) =>
+                                onSetCommentContent({
+                                    ...commentContent,
+                                    [post._id]: e.target.value,
+                                })
                             }
+                            onKeyPress={(e) => {
+                                if (e.key === "Enter") {
+                                    onCommentSubmit(post._id);
+                                }
+                            }}
                         />
-                    ) : (
-                        <div
-                            className="w-full h-full flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-sm"
-                            onClick={() =>
-                                navigateToUserProfile(currentUserProfile?._id)
+                        <button
+                            className={`px-3 py-1 rounded-full text-sm ${
+                                !commentContent[post._id]?.trim() ||
+                                isCommenting[post._id]
+                                    ? "bg-blue-300 cursor-not-allowed"
+                                    : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                            } text-white transition-colors`}
+                            onClick={() => onCommentSubmit(post._id)}
+                            disabled={
+                                !commentContent[post._id]?.trim() ||
+                                isCommenting[post._id]
                             }
                         >
-                            {username?.charAt(0).toUpperCase() || "U"}
-                        </div>
-                    )}
+                            {isCommenting[post._id] ? "Posting..." : "Post"}
+                        </button>
+                    </div>
                 </div>
-                <div className="flex-1 flex space-x-2">
-                    <input
-                        type="text"
-                        className={`flex-1 px-3 py-2 rounded-full text-sm border ${
-                            isDarkMode
-                                ? "bg-gray-700 border-gray-600 text-white"
-                                : "bg-white border-gray-300 text-gray-800"
-                        } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                        placeholder="Write a comment..."
-                        value={commentContent[post._id] || ""}
-                        onChange={(e) =>
-                            onSetCommentContent({
-                                ...commentContent,
-                                [post._id]: e.target.value,
-                            })
-                        }
-                        onKeyPress={(e) => {
-                            if (e.key === "Enter") {
-                                onCommentSubmit(post._id);
-                            }
-                        }}
-                    />
-                    <button
-                        className={`px-3 py-1 rounded-full text-sm ${
-                            !commentContent[post._id]?.trim() ||
-                            isCommenting[post._id]
-                                ? "bg-blue-300 cursor-not-allowed"
-                                : "bg-blue-500 hover:bg-blue-600 cursor-pointer"
-                        } text-white transition-colors`}
-                        onClick={() => onCommentSubmit(post._id)}
-                        disabled={
-                            !commentContent[post._id]?.trim() ||
-                            isCommenting[post._id]
-                        }
-                    >
-                        {isCommenting[post._id] ? "Posting..." : "Post"}
-                    </button>
-                </div>
-            </div>
         </div>
     );
 };

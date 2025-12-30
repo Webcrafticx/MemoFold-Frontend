@@ -280,37 +280,47 @@ const CommentItem = ({
                 )}
 
                 {/* ✅ PROFILE-MATCHING: REPLIES SECTION - USING SAME REPLYITEM COMPONENT AS PROFILE */}
-                {isRepliesVisible &&
-                    comment.replies &&
-                    comment.replies.length > 0 && (
-                        <div className="mt-2 space-y-2">
-                            {comment.replies.map((reply) => (
-                                <ReplyItem
-                                    key={reply._id}
-                                    reply={reply}
-                                    commentId={comment._id}
-                                    username={username}
-                                    commentOwner={comment.userId?.username}
-                                    isDarkMode={isDarkMode}
-                                    onLikeReply={onLikeReply}
-                                    onDeleteReply={onDeleteReply}
-                                    onToggleReplyInput={onToggleReplyInput}
-                                    isLikingReply={isLikingReply}
-                                    isDeletingReply={isDeletingReply}
-                                    isReplying={isReplying}
-                                    replyContent={replyContent}
-                                    onSetReplyContent={onSetReplyContent}
-                                    onAddReply={onAddReply}
-                                    onReplySubmit={onAddReply}
-                                    navigateToUserProfile={
-                                        navigateToUserProfile
-                                    }
-                                    postId={postId}
-                                    activeReplyInputs={activeReplyInputs}
-                                />
-                            ))}
-                        </div>
-                    )}
+                {isRepliesVisible && comment.replies && (
+                    <div className="mt-2 space-y-2">
+                        {comment.replies.length > 0 && comment.replies.map((reply) => (
+                            <ReplyItem
+                                key={reply._id}
+                                reply={reply}
+                                commentId={comment._id}
+                                username={username}
+                                commentOwner={comment.userId?.username}
+                                isDarkMode={isDarkMode}
+                                onLikeReply={onLikeReply}
+                                onDeleteReply={onDeleteReply}
+                                onToggleReplyInput={onToggleReplyInput}
+                                isLikingReply={isLikingReply}
+                                isDeletingReply={isDeletingReply}
+                                isReplying={isReplying}
+                                replyContent={replyContent}
+                                onSetReplyContent={onSetReplyContent}
+                                onAddReply={onAddReply}
+                                onReplySubmit={onAddReply}
+                                navigateToUserProfile={navigateToUserProfile}
+                                postId={postId}
+                                activeReplyInputs={activeReplyInputs}
+                            />
+                        ))}
+                        {/* Load More Replies Button */}
+                        {comment.repliesNextCursor && (
+                            <div className="flex justify-center mt-2">
+                                <button
+                                    className="px-3 py-1 rounded-full text-xs bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                                    onClick={(e) => onToggleReplies(comment._id, e, comment.repliesNextCursor, true)}
+                                >
+                                    Load More Replies
+                                </button>
+                            </div>
+                        )}
+                        {!comment.repliesNextCursor && comment.replies && comment.replies.length > 0 && (
+                            <div className="text-center text-xs text-gray-400 mt-2">End of replies</div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

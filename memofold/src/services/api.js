@@ -188,9 +188,13 @@ updatePost: async (token, postId, postData, isFormData = false) => {
         return response.json();
     },
 
-    fetchComments: async (postId, token) => {
-        const response = await fetch(
-            `${config.apiUrl}/posts/${postId}/comments`,
+    fetchComments: async (postId, token, cursor = null) => {
+            let url = `${config.apiUrl}/posts/${postId}/comments`;
+            if (cursor) {
+                url += `?cursor=${cursor}`;
+            }
+            const response = await fetch(
+            url,
             {
                 headers: {
                     "Content-Type": "application/json",
@@ -294,9 +298,13 @@ updatePost: async (token, postId, postData, isFormData = false) => {
     },
 
     // Reply endpoints
-    fetchCommentReplies: async (commentId, token) => {
+    fetchCommentReplies: async (commentId, token, cursor = null) => {
+        let url = `${config.apiUrl}/posts/replies/${commentId}`;
+        if (cursor) {
+            url += `?cursor=${cursor}`;
+        }
         const response = await fetch(
-            `${config.apiUrl}/posts/replies/${commentId}`,
+            url,
             {
                 headers: {
                     "Content-Type": "application/json",
