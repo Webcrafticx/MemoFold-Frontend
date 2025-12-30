@@ -262,10 +262,10 @@ const FriendsSidebar = ({
 
     // Friends tab logic
     useEffect(() => {
-        if (activeTab === "friends" && friendsList.length === 0 && token) {
+        if (isOpen && activeTab === "friends" && token) {
             fetchFriendsBackend(null, true);
         }
-    }, [activeTab, token]);
+    }, [isOpen, activeTab, token]);
 
     const fetchFriendsBackend = async (cursor = null, isFresh = false) => {
         if (!token) return;
