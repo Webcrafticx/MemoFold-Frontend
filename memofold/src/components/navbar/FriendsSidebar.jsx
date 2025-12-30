@@ -33,6 +33,7 @@ const FriendsSidebar = ({
     
     // Prevent duplicate API calls
     const isFetchingRef = useRef(false);
+    const hasFetchedFriendsRef = useRef(false);
 
     // Stream Chat client state
     const [chatClient, setChatClient] = useState(null);
@@ -77,6 +78,7 @@ const FriendsSidebar = ({
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "unset";
+            hasFetchedFriendsRef.current = false; // Reset when sidebar closes
         }
         return () => {
             document.body.style.overflow = "unset";
@@ -94,6 +96,7 @@ const FriendsSidebar = ({
         setChatClient(null);
         eventListenersAttached.current = false;
         isFetchingRef.current = false;
+        hasFetchedFriendsRef.current = false;
     }, [token]);
 
     // Initialize Stream client
@@ -262,7 +265,8 @@ const FriendsSidebar = ({
 
     // Friends tab logic
     useEffect(() => {
-        if (isOpen && activeTab === "friends" && token) {
+        if (isOpen && activeTab === "friends" && token && !hasFetchedFriendsRef.current) {
+            hasFetchedFriendsRef.current = true;
             fetchFriendsBackend(null, true);
         }
     }, [isOpen, activeTab, token]);
