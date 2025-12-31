@@ -1326,6 +1326,9 @@ const UserProfile = () => {
             return;
         }
 
+        // Instantly clear and close the reply input for snappy UI
+        setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
+        setActiveReplyInput(null);
         setIsReplying((prev) => ({ ...prev, [commentId]: true }));
         setError(null);
 
@@ -1398,9 +1401,6 @@ const UserProfile = () => {
                 ...prev,
                 [commentId]: true,
             }));
-
-            setReplyContent((prev) => ({ ...prev, [commentId]: "" }));
-            setActiveReplyInput(null); // Close the reply input after posting
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
@@ -1433,6 +1433,12 @@ const UserProfile = () => {
             return;
         }
 
+        // Instantly clear and close the reply input for snappy UI
+        setReplyContent((prev) => ({
+            ...prev,
+            [contentKey]: "",
+        }));
+        setActiveReplyInput(null);
         setIsReplying((prev) => ({
             ...prev,
             [contentKey]: true,
@@ -1507,14 +1513,6 @@ const UserProfile = () => {
                 ...prev,
                 [commentId]: true,
             }));
-
-            // Input clear karo
-            setReplyContent((prev) => ({
-                ...prev,
-                [contentKey]: "",
-            }));
-
-            setActiveReplyInput(null); // Close the reply input after posting
         } catch (err) {
             console.error("Error posting reply:", err);
             setError(err.message);
