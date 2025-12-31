@@ -1108,6 +1108,7 @@ const MainFeed = () => {
     // ✅ PROFILE-MATCHING: Updated handleAddReply function
     // ✅ PROFILE-MATCHING: Updated handleAddReply function
     const handleAddReply = async (postId, commentId, replyInputKey = null) => {
+
         // Use replyInputKey to get the specific content
         const content = replyContent[replyInputKey];
 
@@ -1115,6 +1116,10 @@ const MainFeed = () => {
             setError("Reply cannot be empty");
             return;
         }
+
+        // Instantly clear and close the reply input for snappy UI
+        setReplyContent((prev) => ({ ...prev, [replyInputKey]: "" }));
+        setActiveReplyInputs((prev) => ({ ...prev, [replyInputKey]: false }));
 
         try {
             setIsReplying((prev) => ({

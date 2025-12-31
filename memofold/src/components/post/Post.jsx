@@ -755,6 +755,9 @@ const Post = () => {
             return;
         }
 
+        // Instantly clear and close the reply input for snappy UI
+        setReplyContent((prev) => ({ ...prev, [replyKey]: "" }));
+        setActiveReplyInputs((prev) => ({ ...prev, [replyKey]: false }));
         setIsReplying((prev) => ({ ...prev, [replyKey]: true }));
         setError(null);
 
@@ -818,8 +821,6 @@ const Post = () => {
                 ...prev,
                 [commentId]: true,
             }));
-
-            setReplyContent((prev) => ({ ...prev, [replyKey]: "" }));
         } catch (err) {
             if (
                 err.message &&
