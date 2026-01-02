@@ -57,10 +57,10 @@ const CreatePostSection = ({
         try {
             setFileType(type);
 
-            // Validate video duration
+            // Validate video duration (allow up to 15 seconds inclusive)
             if (type === 'video') {
                 const duration = await checkVideoDuration(file);
-                if (duration > 15) {
+                if (Math.floor(duration) > 15) {
                     setNotification({ message: "Video must be 15 seconds or less", visible: true });
                     clearTimeout(notificationTimeoutRef.current);
                     notificationTimeoutRef.current = setTimeout(() => {

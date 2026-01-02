@@ -632,10 +632,37 @@ const ProfilePage = () => {
 
     // File upload handlers for edit mode
 const handleEditFileSelect = (file) => {
-    setEditState((prev) => ({
-        ...prev,
-        editFiles: [...prev.editFiles, file],
-    }));
+    // Video duration validation for edit mode (allow up to 15 seconds inclusive)
+    const type = getFileType(file);
+    if (type === 'video') {
+        const checkVideoDuration = async (file) => {
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.onloadedmetadata = () => {
+                    URL.revokeObjectURL(video.src);
+                    resolve(video.duration);
+                };
+                video.onerror = () => {
+                    URL.revokeObjectURL(video.src);
+                    resolve(0);
+                };
+                video.src = URL.createObjectURL(file);
+            });
+        };
+        checkVideoDuration(file).then((duration) => {
+            if (Math.floor(duration) > 15) {
+                setUiState((prev) => ({ ...prev, error: "Video must be 15 seconds or less" }));
+                setEditState((prev) => ({ ...prev, editFiles: [], existingImage: null, existingVideo: null }));
+            } else {
+                setEditState((prev) => ({ ...prev, editFiles: [...prev.editFiles, file], existingImage: null, existingVideo: null }));
+                setUiState((prev) => ({ ...prev, error: null }));
+            }
+        });
+    } else {
+        setEditState((prev) => ({ ...prev, editFiles: [...prev.editFiles, file], existingImage: null, existingVideo: null }));
+        setUiState((prev) => ({ ...prev, error: null }));
+    }
 };
 
     const handleRemoveEditFile = (index) => {
