@@ -117,7 +117,7 @@ const ChatPage = () => {
 
             // Watch logic (Single request)
             await currChannel.watch();
-            // await currChannel.addMembers(...) <-- REMOVED (Not needed if members are in options)
+            await currChannel.addMembers([authUser._id, targetUserId]);
 
             setChannel(currChannel);
             setChatClient(client);
