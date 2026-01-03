@@ -277,7 +277,6 @@ const MainFeed = () => {
         const { replyId, commentId } = deleteReplyModal;
 
         let foundPostId = "";
-
         for (const post of posts) {
             for (const comment of post.comments || []) {
                 const reply = comment.replies?.find((r) => r._id === replyId);
@@ -290,7 +289,6 @@ const MainFeed = () => {
         }
 
         setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
-
         const originalPosts = [...posts];
 
         try {
@@ -307,13 +305,11 @@ const MainFeed = () => {
                                                 replies:
                                                     comment.replies?.filter(
                                                         (reply) =>
-                                                            reply._id !==
-                                                            replyId
+                                                            reply._id !== replyId
                                                     ) || [],
                                                 replyCount: Math.max(
                                                     0,
-                                                    (comment.replyCount || 1) -
-                                                        1
+                                                    (comment.replyCount || 1) - 1
                                                 ),
                                             }
                                           : comment
@@ -324,14 +320,12 @@ const MainFeed = () => {
             );
 
             const result = await apiService.deleteReply(replyId, token);
-
-            if (result.success) {
-                await refreshSinglePost(foundPostId);
-                setActiveCommentPostId(null);
-                setTimeout(() => setSuccessMessage(null), 3000);
-            } else {
-                throw new Error(result.message || "Failed to delete reply");
-            }
+            // Do not close the comment dropdown or replies after deletion (profile page behavior)
+            // Optionally, you can refresh the post for accuracy:
+            // await refreshSinglePost(foundPostId);
+            // Keep the comment dropdown and replies open after deletion
+            setActiveCommentPostId(foundPostId);
+            setActiveReplies((prev) => ({ ...prev, [commentId]: true }));
         } catch (err) {
             console.error("❌ Delete reply error:", err);
             setError(err.message || "Failed to delete reply");

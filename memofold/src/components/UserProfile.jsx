@@ -360,7 +360,6 @@ const UserProfile = () => {
         const { replyId, commentId, postId } = deleteReplyModal;
 
         setIsDeletingReply((prev) => ({ ...prev, [replyId]: true }));
-
         const originalPosts = [...userPosts];
 
         try {
@@ -401,6 +400,9 @@ const UserProfile = () => {
             );
 
             await apiService.deleteReply(replyId, token);
+            // Keep the comment dropdown and replies open after deletion
+            setActiveCommentPostId(postId);
+            setActiveReplies((prev) => ({ ...prev, [commentId]: true }));
         } catch (err) {
             console.error("Error deleting reply:", err);
             setError(err.message);
