@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { highlightMentionsAndHashtags } from "../utils/highlightMentionsAndHashtags.jsx";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useVideo } from "../context/VideoContext";
 import {
     FaArrowLeft,
     FaUser,
@@ -37,6 +38,7 @@ const UserProfile = () => {
     const { userId } = useParams();
     const navigate = useNavigate();
     const { token, username, user } = useAuth();
+    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
     const [userData, setUserData] = useState(null);
     const [userDescription, setUserDescription] = useState("");
     const [userPosts, setUserPosts] = useState([]);
@@ -155,8 +157,6 @@ const UserProfile = () => {
     const [showVideoPreview, setShowVideoPreview] = useState(false);
     const [previewVideo, setPreviewVideo] = useState("");
 
-    // Video feed: Only one video plays with audio at a time
-    const [activeVideoId, setActiveVideoId] = useState(null);
     const videoRefs = useRef({});
 
     // Dark mode state
@@ -522,6 +522,14 @@ const UserProfile = () => {
         return false;
     };
 
+    // Sync video mute state with global context
+    const handleVideoVolumeChange = (postId) => (e) => {
+        const video = e.target;
+        if (video && activeVideoId === postId) {
+            setGlobalMuted(video.muted);
+        }
+    };
+
     // Handle video touch/click for mobile
     const handleVideoTap = (postId, e) => {
         e.stopPropagation();
@@ -578,7 +586,7 @@ const UserProfile = () => {
                     const video = videoRefs.current[postId];
                     if (video) {
                         if (activeVideoId === postId) {
-                            video.muted = false;
+                            video.muted = isGlobalMuted;
                             video.play().catch(() => {});
                         } else {
                             video.pause();
@@ -593,7 +601,7 @@ const UserProfile = () => {
         return () => {
             document.removeEventListener("visibilitychange", handleVisibility);
         };
-    }, [activeVideoId]);
+    }, [activeVideoId, isGlobalMuted]);
 
     const fetchCurrentUserProfile = async () => {
         try {
@@ -869,10 +877,17 @@ const UserProfile = () => {
     // Accepts: commentId, postId, cursor (optional), append (optional)
     const fetchCommentReplies = async (commentId, postId, cursor = null, append = false) => {
         try {
+            let cursorCreatedAt = null;
+            let cursorId = null;
+            if (cursor && typeof cursor === 'object' && cursor.createdAt && cursor._id) {
+                cursorCreatedAt = cursor.createdAt;
+                cursorId = cursor._id;
+            }
             const responseData = await apiService.fetchCommentReplies(
                 commentId,
                 token,
-                cursor
+                cursorCreatedAt,
+                cursorId
             );
             const replies = responseData.replies || [];
             const nextCursor = responseData.nextCursor || null;
@@ -905,6 +920,7 @@ const UserProfile = () => {
                 };
             });
 
+            let firstNewReplyId = null;
             setUserPosts((prevPosts) =>
                 prevPosts.map((post) => {
                     if (post._id === postId) {
@@ -914,6 +930,10 @@ const UserProfile = () => {
                                 if (comment._id === commentId) {
                                     let newReplies = [];
                                     if (append && Array.isArray(comment.replies)) {
+                                        // Save the first new reply id for scroll
+                                        if (repliesWithLikes.length > 0) {
+                                            firstNewReplyId = repliesWithLikes[0]._id;
+                                        }
                                         newReplies = [...comment.replies, ...repliesWithLikes];
                                     } else {
                                         newReplies = repliesWithLikes;
@@ -940,6 +960,16 @@ const UserProfile = () => {
             });
 
             localStorage.setItem("replyLikes", JSON.stringify(likesByReply));
+
+            // Scroll to first new reply after DOM update
+            if (append && repliesWithLikes.length > 0) {
+                setTimeout(() => {
+                    const el = document.getElementById(`reply-${repliesWithLikes[0]._id}`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
         } catch (err) {
             setError("Failed to load replies");
         }
@@ -1170,14 +1200,26 @@ const UserProfile = () => {
             e.stopPropagation();
         }
 
-        const post = userPosts.find((p) => p._id === postId);
-        const comment = post?.comments?.find((c) => c._id === commentId);
-        const isRepliesVisible = activeReplies[commentId];
+        // Always pass cursor as {createdAt, _id} if provided
+        let cursorObj = null;
+        if (cursor && cursor.createdAt && cursor._id) {
+            cursorObj = { createdAt: cursor.createdAt, _id: cursor._id };
+        } else if (append) {
+            const post = userPosts.find((p) => p._id === postId);
+            const comment = post?.comments?.find((c) => c._id === commentId);
+            if (comment && Array.isArray(comment.replies) && comment.replies.length > 0) {
+                const lastReply = comment.replies[comment.replies.length - 1];
+                if (lastReply && lastReply.createdAt && lastReply._id) {
+                    cursorObj = { createdAt: lastReply.createdAt, _id: lastReply._id };
+                }
+            }
+        }
 
+        const isRepliesVisible = activeReplies[commentId];
         // Only fetch if opening or loading more
         if (!isRepliesVisible || append) {
             try {
-                await fetchCommentReplies(commentId, postId, cursor, append);
+                await fetchCommentReplies(commentId, postId, cursorObj, append);
             } catch (err) {
                 setError("Failed to load replies");
                 return;
@@ -1734,7 +1776,7 @@ const UserProfile = () => {
             };
 
             return (
-                <div className="ml-4 md:ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
+                <div className="ml-4 md:ml-6 mt-2 pl-2 border-l-2 border-gray-300 dark:border-gray-600" id={`reply-${reply._id}`}> 
                     <div className="flex items-start space-x-2">
                         <div
                             className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 dark:bg-gray-600 cursor-pointer flex-shrink-0"
@@ -2441,11 +2483,13 @@ const UserProfile = () => {
                                                         ref={(el) => videoRefs.current[post._id] = el}
                                                         src={post.videoUrl}
                                                         className="w-full h-auto max-h-96 object-contain rounded-xl"
+                                                        muted={isGlobalMuted || activeVideoId !== post._id}
                                                         loop
                                                         playsInline
                                                         controls
                                                         controlsList="nodownload nofullscreen noplaybackrate"
                                                         onContextMenu={handleVideoContextMenu}
+                                                        onVolumeChange={handleVideoVolumeChange(post._id)}
                                                         style={{
                                                             backgroundColor: 'transparent',
                                                             display: 'block'

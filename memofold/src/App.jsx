@@ -27,6 +27,7 @@ import Post from "./components/post/Post";
 import ChatPage from "./components/chat/ChatPage";
 import CallPage from "./components/chat/CallPage";
 import socket from "./socket";
+import { VideoProvider } from "./context/VideoContext";
 
 
 const queryClient = new QueryClient({
@@ -116,10 +117,11 @@ function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <Router>
-                <div className="min-h-screen flex flex-col bg-gray-50">
-                    <main className="flex-grow">
-                        <Routes>
+            <VideoProvider>
+                <Router>
+                    <div className="min-h-screen flex flex-col bg-gray-50">
+                        <main className="flex-grow">
+                            <Routes>
                             {/* Public Routes */}
                             <Route
                                 path="/login"
@@ -261,11 +263,12 @@ function App() {
                                     </div>
                                 }
                             />
-                        </Routes>
-                    </main>
-                </div>
-                
-            </Router>
+                            </Routes>
+                        </main>
+                    </div>
+                    
+                </Router>
+            </VideoProvider>
         </QueryClientProvider>
     );
 }

@@ -298,10 +298,14 @@ updatePost: async (token, postId, postData, isFormData = false) => {
     },
 
     // Reply endpoints
-    fetchCommentReplies: async (commentId, token, cursor = null) => {
+    // Accepts: commentId, token, cursorCreatedAt, cursorId
+    fetchCommentReplies: async (commentId, token, cursorCreatedAt = null, cursorId = null) => {
         let url = `${config.apiUrl}/posts/replies/${commentId}`;
-        if (cursor) {
-            url += `?cursor=${cursor}`;
+        const params = [];
+        if (cursorCreatedAt) params.push(`cursorCreatedAt=${encodeURIComponent(cursorCreatedAt)}`);
+        if (cursorId) params.push(`cursorId=${encodeURIComponent(cursorId)}`);
+        if (params.length > 0) {
+            url += `?${params.join('&')}`;
         }
         const response = await fetch(
             url,

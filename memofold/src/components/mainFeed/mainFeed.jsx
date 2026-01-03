@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useVideo } from "../../context/VideoContext";
 import Navbar from "../navbar/navbar";
 import PostCard from "./PostCard";
 import FloatingHearts from "./FloatingHearts";
@@ -16,6 +17,7 @@ import ConfirmationModal from "../../common/ConfirmationModal";
 const MainFeed = () => {
     const { token, logout, user, username, realname } = useAuth();
     const navigate = useNavigate();
+    const { activeVideoId, setActiveVideoId } = useVideo();
 
     const [darkMode, setDarkMode] = useState(localStorageService.getDarkMode());
     const [posts, setPosts] = useState([]);
@@ -39,9 +41,6 @@ const MainFeed = () => {
 
     // Floating hearts state
     const [floatingHearts, setFloatingHearts] = useState([]);
-
-    // Video feed: Only one video plays with audio at a time
-    const [activeVideoId, setActiveVideoId] = useState(null);
 
     // Image preview states
     const [showImagePreview, setShowImagePreview] = useState(false);
@@ -991,10 +990,17 @@ const MainFeed = () => {
         // Only fetch if opening or loading more
         if (!activeReplies[commentId] || append) {
             try {
+                let cursorCreatedAt = null;
+                let cursorId = null;
+                if (cursor && typeof cursor === 'object' && cursor.createdAt && cursor._id) {
+                    cursorCreatedAt = cursor.createdAt;
+                    cursorId = cursor._id;
+                }
                 const responseData = await apiService.fetchCommentReplies(
                     commentId,
                     token,
-                    cursor
+                    cursorCreatedAt,
+                    cursorId
                 );
                 const replies = responseData.replies || [];
                 const nextCursor = responseData.nextCursor || null;
@@ -1464,8 +1470,6 @@ const MainFeed = () => {
                             onImagePreview={handleImagePreview}
                             onShowLikesModal={handleShowLikesModal}
                             activeReplyInputs={activeReplyInputs}
-                            activeVideoId={activeVideoId}
-                            setActiveVideoId={setActiveVideoId}
                         />
                     ))
                 )}
