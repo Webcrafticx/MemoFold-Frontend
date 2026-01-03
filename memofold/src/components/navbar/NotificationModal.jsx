@@ -282,10 +282,11 @@ const NotificationModal = ({
             markAsRead(notification._id);
         }
 
+        // For comment_like type, also redirect to post
         switch (notification.type) {
             case "like":
             case "comment":
-            case "comment_like":
+            case "comment_like": // Added comment_like here
             case "share":
                 if (notification.postid && notification.postid._id) {
                     navigate(`/post/${notification.postid._id}`);
@@ -345,10 +346,16 @@ const NotificationModal = ({
     };
 
     const getNotificationMessage = (notification) => {
+        // Use metadata if available, otherwise fallback to sender object
         const senderName =
+            notification.metadata?.realname ||
             notification.sender?.realname ||
+            notification.metadata?.username ||
             notification.sender?.username ||
             "Someone";
+
+        // For comment-like, we might want to show the comment content
+        const commentContent = notification.metadata?.content;
 
         switch (notification.type) {
             case "comment_like":
@@ -369,6 +376,15 @@ const NotificationModal = ({
                             {senderName}
                         </span>{" "}
                         liked your comment
+                        {commentContent && (
+                            <span className="italic text-gray-600 dark:text-gray-400">
+                                : "
+                                {commentContent.length > 30
+                                    ? commentContent.substring(0, 30) + "..."
+                                    : commentContent}
+                                "
+                            </span>
+                        )}
                     </>
                 );
             case "comment":
@@ -389,6 +405,15 @@ const NotificationModal = ({
                             {senderName}
                         </span>{" "}
                         commented on your post
+                        {commentContent && (
+                            <span className="italic text-gray-600 dark:text-gray-400">
+                                : "
+                                {commentContent.length > 30
+                                    ? commentContent.substring(0, 30) + "..."
+                                    : commentContent}
+                                "
+                            </span>
+                        )}
                     </>
                 );
             case "friend_request":
@@ -509,6 +534,22 @@ const NotificationModal = ({
 
     const hasPostData = (notification) => {
         return notification.postid && notification.postid._id;
+    };
+
+    // Get profile picture URL from metadata or sender object
+    const getProfilePic = (notification) => {
+        return (
+            notification.metadata?.profilePic || notification.sender?.profilePic
+        );
+    };
+
+    // Get username for avatar fallback
+    const getUsernameForAvatar = (notification) => {
+        return (
+            notification.metadata?.username ||
+            notification.sender?.username ||
+            "U"
+        );
     };
 
     if (!showModal) return null;
@@ -637,17 +678,14 @@ const NotificationModal = ({
                                         <div className="flex-1 min-w-0 flex items-start space-x-3 cursor-pointer">
                                             {/* User Avatar */}
                                             <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0 cursor-pointer">
-                                                {notification.sender
-                                                    ?.profilePic ? (
+                                                {getProfilePic(notification) ? (
                                                     <img
-                                                        src={
-                                                            notification.sender
-                                                                .profilePic
-                                                        }
-                                                        alt={
-                                                            notification.sender
-                                                                .username
-                                                        }
+                                                        src={getProfilePic(
+                                                            notification
+                                                        )}
+                                                        alt={getUsernameForAvatar(
+                                                            notification
+                                                        )}
                                                         className="w-full h-full object-cover cursor-pointer"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -672,8 +710,9 @@ const NotificationModal = ({
                                                 <span
                                                     className="flex items-center justify-center w-full h-full text-white font-semibold text-sm cursor-pointer"
                                                     style={
-                                                        notification.sender
-                                                            ?.profilePic
+                                                        getProfilePic(
+                                                            notification
+                                                        )
                                                             ? {
                                                                   display:
                                                                       "none",
@@ -693,7 +732,9 @@ const NotificationModal = ({
                                                         }
                                                     }}
                                                 >
-                                                    {notification.sender?.username
+                                                    {getUsernameForAvatar(
+                                                        notification
+                                                    )
                                                         ?.charAt(0)
                                                         .toUpperCase() || "U"}
                                                 </span>
