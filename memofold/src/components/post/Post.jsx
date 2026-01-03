@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useVideo } from "../../context/VideoContext";
 import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment, FaArrowLeft } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
@@ -19,6 +20,7 @@ const Post = () => {
     const { postId } = useParams();
     const navigate = useNavigate();
     const { token, user, username, realname } = useAuth();
+    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
     const [post, setPost] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -71,7 +73,6 @@ const Post = () => {
     const [floatingHearts, setFloatingHearts] = useState([]);
 
     // Video logic states
-    const [activeVideoId, setActiveVideoId] = useState(null);
     const videoRefs = useRef({});
     // Handle video tap for mobile
     const handleVideoTap = (postId, e) => {
@@ -90,6 +91,14 @@ const Post = () => {
     const handleVideoContextMenu = (e) => {
         e.preventDefault();
         return false;
+    };
+
+    // Sync video mute state with global context
+    const handleVideoVolumeChange = (e) => {
+        const video = e.target;
+        if (video && activeVideoId === post?._id) {
+            setGlobalMuted(video.muted);
+        }
     };
 
     // Intersection Observer for video autoplay/mute
@@ -117,6 +126,15 @@ const Post = () => {
         };
     }, [post, activeVideoId]);
 
+    // Sync video element muted property with global state
+    useEffect(() => {
+        if (!post || !post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (videoEl) {
+            videoEl.muted = isGlobalMuted || activeVideoId !== post._id;
+        }
+    }, [isGlobalMuted, activeVideoId, post]);
+
     // Tab visibility: pause/mute all videos if tab not active
     useEffect(() => {
         const handleVisibility = () => {
@@ -131,7 +149,7 @@ const Post = () => {
                 const video = videoRefs.current[post?._id];
                 if (video) {
                     if (activeVideoId === post?._id) {
-                        video.muted = false;
+                        video.muted = isGlobalMuted;
                         video.play().catch(() => {});
                     } else {
                         video.pause();
@@ -145,7 +163,7 @@ const Post = () => {
         return () => {
             document.removeEventListener("visibilitychange", handleVisibility);
         };
-    }, [activeVideoId, post]);
+    }, [activeVideoId, post, isGlobalMuted]);
 
     useEffect(() => {
         if (postId && token) {
@@ -891,8 +909,8 @@ const Post = () => {
     };
 
     // Enhanced: Support cursor-based pagination for replies
-    // Accepts: commentId, event, cursor (optional), append (optional)
-    const toggleReplies = async (commentId, e, cursor = null, append = false) => {
+    // Accepts: commentId, event, nextCursor (optional), append (optional)
+    const toggleReplies = async (commentId, e, nextCursor = null, append = false) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -907,13 +925,20 @@ const Post = () => {
         // Only fetch if opening or loading more
         if (!activeReplies[commentId] || append) {
             try {
+                let cursorCreatedAt = null;
+                let cursorId = null;
+                if (nextCursor && typeof nextCursor === 'object') {
+                    cursorCreatedAt = nextCursor.createdAt;
+                    cursorId = nextCursor._id || nextCursor.id;
+                }
                 const responseData = await apiService.fetchCommentReplies(
                     commentId,
                     token,
-                    cursor
+                    cursorCreatedAt,
+                    cursorId
                 );
                 const replies = responseData.replies || [];
-                const nextCursor = responseData.nextCursor || null;
+                const newNextCursor = responseData.nextCursor || null;
 
                 setPost((prev) => ({
                     ...prev,
@@ -966,7 +991,7 @@ const Post = () => {
                                     replyCount: append
                                         ? (comment.replyCount || 0) + replies.length
                                         : replies.length,
-                                    repliesNextCursor: nextCursor, // <-- Set nextCursor for UI
+                                    repliesNextCursor: newNextCursor, // <-- Set nextCursor for UI
                                 };
                             }
                             return comment;
@@ -1254,11 +1279,12 @@ const Post = () => {
                                     ref={el => (videoRefs.current[post._id] = el)}
                                     src={post.videoUrl}
                                     className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl bg-black"
-                                    muted={activeVideoId !== post._id}
+                                    muted={isGlobalMuted || activeVideoId !== post._id}
                                     autoPlay
                                     playsInline
                                     onClick={e => handleVideoTap(post._id, e)}
                                     onContextMenu={handleVideoContextMenu}
+                                    onVolumeChange={handleVideoVolumeChange}
                                     controls={activeVideoId === post._id}
                                     style={{ backgroundColor: "black" }}
                                 />

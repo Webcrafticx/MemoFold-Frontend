@@ -12,6 +12,7 @@ import {
     FaPaperclip,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { useVideo } from "../../context/VideoContext";
 
 // Components
 import ErrorBoundary from "./ErrorBoundary";
@@ -150,15 +151,13 @@ const ProfilePage = () => {
         postId: null,
     });
 
-    // Video handling state
-    const [activeVideoId, setActiveVideoId] = useState(null);
-
     const [floatingHearts, setFloatingHearts] = useState([]);
     const [currentUserProfile, setCurrentUserProfile] = useState(null);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [isLiking, setIsLiking] = useState({});
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
     const { token } = useAuth();
+    const { activeVideoId, setActiveVideoId } = useVideo();
 
     const navigate = useNavigate();
     const mobileMenuRef = useRef(null);
@@ -1144,12 +1143,18 @@ const handleEditFileSelect = (file) => {
                         [commentId]: true,
                     },
                 }));
-
+                let cursorCreatedAt = null;
+                let cursorId = null;
+                if (cursor && typeof cursor === 'object' && cursor.createdAt && cursor._id) {
+                    cursorCreatedAt = cursor.createdAt;
+                    cursorId = cursor._id;
+                }
                 const token = localStorage.getItem("token");
                 const response = await apiService.fetchCommentReplies(
                     commentId,
                     token,
-                    cursor
+                    cursorCreatedAt,
+                    cursorId
                 );
 
                 if (!response || response.success === false) {
@@ -2349,9 +2354,6 @@ const handleUpdatePost = async (postId) => {
                                         isDeletingReply={
                                             commentState.isDeletingReply
                                         }
-                                        // Video handling props
-                                        activeVideoId={activeVideoId}
-                                        setActiveVideoId={setActiveVideoId}
                                         // Pagination props
                                         commentsNextCursor={
                                             commentState.commentsNextCursor

@@ -4,6 +4,7 @@ import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
 import { useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useVideo } from "../../context/VideoContext";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 
 const PostCard = ({
@@ -42,9 +43,8 @@ const PostCard = ({
     token,
     onShowLikesModal,
     activeReplyInputs,
-    activeVideoId,
-    setActiveVideoId,
 }) => {
+    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
     const likeButtonRef = useRef(null);
     const videoRefs = useRef({});
     const navigate = useNavigate();
@@ -115,6 +115,14 @@ const PostCard = ({
         return false;
     };
 
+    // Sync video mute state with global context
+    const handleVideoVolumeChange = (postId) => (e) => {
+        const video = e.target;
+        if (video && activeVideoId === postId) {
+            setGlobalMuted(video.muted);
+        }
+    };
+
     // Handle video touch/click for mobile
     const handleVideoTap = (postId, e) => {
         e.stopPropagation();
@@ -169,7 +177,7 @@ const PostCard = ({
             } else {
                 // Only play and unmute if this post is the active video
                 if (activeVideoId === post._id) {
-                    videoEl.muted = false;
+                    videoEl.muted = isGlobalMuted;
                     videoEl.play().catch(() => {});
                 } else {
                     videoEl.pause();
@@ -185,7 +193,7 @@ const PostCard = ({
         return () => {
             document.removeEventListener("visibilitychange", handleVisibility);
         };
-    }, [activeVideoId, post._id, post.videoUrl]);
+    }, [activeVideoId, post._id, post.videoUrl, isGlobalMuted]);
 
 
 
@@ -270,11 +278,13 @@ const PostCard = ({
                             ref={(el) => videoRefs.current[post._id] = el}
                             src={post.videoUrl}
                             className="w-full h-auto max-h-96 object-contain rounded-xl"
+                            muted={isGlobalMuted || activeVideoId !== post._id}
                             loop
                             playsInline
                             controls
                             controlsList="nodownload nofullscreen noplaybackrate"
                             onContextMenu={handleVideoContextMenu}
+                            onVolumeChange={handleVideoVolumeChange(post._id)}
                             style={{
                                 backgroundColor: 'transparent',
                                 display: 'block'
