@@ -1,456 +1,1144 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
+import { useVideo } from "../../context/VideoContext";
+import {
+    FaHeart,
+    FaRegHeart,
+    FaComment,
+    FaEdit,
+    FaTrashAlt,
+    FaPaperclip,
+    FaCheck,
+    FaTimes,
+    FaVideo,
+} from "react-icons/fa";
+import { motion } from "framer-motion";
+import { formatDate, getTimeDifference } from "../../services/dateUtils";
+import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth";
-import config from "../../hooks/config";
-import { FiUsers } from "react-icons/fi";
-import NotificationModal from "./NotificationModal";
-import FriendsSidebar from "./FriendsSidebar";
-import SearchBar from "./SearchBar";
-import ProfileDropdown from "./ProfileDropDown";
-import NotificationBell from "./NotificationBell";
-import Logo from "./Logo";
-import { toast } from "react-toastify";
-import socket from "../../socket";
+import ProfileCommentSection from "./ProfileCommentSection";
+import {
+    compressImage,
+    compressVideo,
+    shouldCompressFile,
+    getFileType,
+    checkVideoDuration,
+    formatFileSize
+} from "../../utils/fileCompression";
 
-const Navbar = ({ onDarkModeChange }) => {
-    const [darkMode, setDarkMode] = useState(() => {
-        return localStorage.getItem("darkMode") === "true";
-    });
-    const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-    const [showNotificationModal, setShowNotificationModal] = useState(false);
-    const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
-    const [unreadNotifications, setUnreadNotifications] = useState(0);
-    const [unreadMessages, setUnreadMessages] = useState(0);
+const ProfilePostCard = ({
+    post,
+    isDarkMode,
+    username,
+    currentUserProfile,
+    onLike,
+    onEditPost,
+    onUpdatePost,
+    onCancelEdit,
+    onDeletePost,
+    onImagePreview,
+    navigateToUserProfile,
+    activeCommentPostId,
+    onToggleCommentDropdown,
+    commentContent,
+    onCommentSubmit,
+    onSetCommentContent,
+    isCommenting,
+    onDeleteComment,
+    onLikeComment,
+    isLikingComment,
+    isFetchingComments,
+    token,
+    // Likes modal prop
+    onShowLikesModal,
+    // Like loading state
+    isLiking,
+    // Edit state props
+    editingPostId,
+    editContent,
+    onEditContentChange,
+    isUpdatingPost,
+    isDeletingPost,
+    // File upload props
+    editFiles = [],
+    onEditFileSelect,
+    onRemoveEditFile,
+    // Existing media props
+    existingImage,
+    existingVideo,
+    onRemoveExistingMedia,
+    // Reply functionality props
+    activeReplyInputs,
+    replyContent,
+    onToggleReplyInput,
+    onReplySubmit,
+    onSetReplyContent,
+    onToggleReplies,
+    onLikeReply,
+    onDeleteReply,
+    isReplying,
+    isFetchingReplies,
+    isLikingReply,
+    isDeletingReply,
+    // Pagination props
+    commentsNextCursor,
+    repliesNextCursor,
+}) => {
+    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
+    const editTextareaRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const videoRefs = useRef({});
 
-    const { token, realname, logout } = useAuth();
-    const [username, setUsername] = useState(localStorage.getItem("username") || "");
-    // Listen for username updates (event-driven sync, like profilePic)
+    const isOwner = post.userId?._id === currentUserProfile?._id;
+    const isEditing = editingPostId === post._id;
+    const navigate = useNavigate();
+
+    // Compression states
+    const [isCompressing, setIsCompressing] = React.useState(false);
+    const [compressionProgress, setCompressionProgress] = React.useState(0);
+    const [newVideoUrl, setNewVideoUrl] = React.useState(null);
+    const [showMediaAlert, setShowMediaAlert] = React.useState(false);
+    // Custom notification state for edit section
+    const [notification, setNotification] = React.useState({ message: '', visible: false });
+    const notificationTimeoutRef = React.useRef(null);
+    // Notification UI helper
+    const renderNotification = () => (
+        notification.visible && (
+            <div className={`flex items-center justify-between mb-3 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                <span className="text-sm font-medium select-none">{notification.message}</span>
+                <button
+                    onClick={() => setNotification({ message: '', visible: false })}
+                    className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                    title="Close"
+                >
+                    <FaTimes size={16} className="cursor-pointer" />
+                </button>
+            </div>
+        )
+    );
+
+    // Properly handle like count
+    const getLikeCount = () => {
+        return post.likeCount || 0;
+    };
+
+    // Properly handle comment count
+    const getCommentCount = () => {
+        return post.commentCount || 0;
+    };
+
+    
+
     useEffect(() => {
-        const handleProfileInfoUpdate = () => {
-            setUsername(localStorage.getItem("username") || "");
-        };
-        window.addEventListener("profileInfoUpdated", handleProfileInfoUpdate);
+        if (isEditing && editTextareaRef.current) {
+            const textarea = editTextareaRef.current;
+            textarea.style.height = "auto";
+            textarea.style.height = textarea.scrollHeight + "px";
+        }
+    }, [isEditing]);
+
+    // Cleanup video URL on unmount
+    useEffect(() => {
         return () => {
-            window.removeEventListener("profileInfoUpdated", handleProfileInfoUpdate);
+            if (newVideoUrl) {
+                URL.revokeObjectURL(newVideoUrl);
+            }
+        };
+    }, [newVideoUrl]);
+
+    // Cleanup notification timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (notificationTimeoutRef.current) {
+                clearTimeout(notificationTimeoutRef.current);
+            }
         };
     }, []);
-    const [profilePic, setProfilePic] = useState(
-        localStorage.getItem("profilePic") || ""
-    );
-    const [currentUserProfile, setCurrentUserProfile] = useState(null);
-    const [showMobileSearch, setShowMobileSearch] = useState(false);
 
-    const navigate = useNavigate();
-    const profileDropdownRef = useRef(null);
-    const mobileSearchRef = useRef(null);
-    const profileTriggerRef = useRef(null);
+    // Intersection Observer logic for video autoplay and mute control
     useEffect(() => {
-        if (!token) {
-            // No token found — redirect immediately
-            navigate("/login", { replace: true });
-        } else {
-            try {
-                const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-                const currentTime = Date.now() / 1000;
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
 
-                // If token expired, logout and redirect
-                if (tokenPayload.exp && tokenPayload.exp < currentTime) {
-                    localStorage.removeItem("token");
-                    navigate("/login", { replace: true });
-                }
-            } catch (error) {
-                // Invalid or malformed token
-                console.error("Invalid token format:", error);
-                localStorage.removeItem("token");
-                navigate("/login", { replace: true });
-            }
+        let observer;
+        if ('IntersectionObserver' in window && typeof setActiveVideoId === 'function') {
+            observer = new window.IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                            setActiveVideoId(post._id);
+                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
+                            setActiveVideoId(null);
+                        }
+                    });
+                },
+                { threshold: 0.5 }
+            );
+            observer.observe(videoEl);
         }
-    }, [token, navigate]);
-
-
-            useEffect(() => {
-            const handleProfilePicUpdate = () => {
-                setProfilePic(localStorage.getItem("profilePic") || "");
-            };
-            window.addEventListener("profilePicUpdated", handleProfilePicUpdate);
-            return () => {
-                window.removeEventListener("profilePicUpdated", handleProfilePicUpdate);
-            };
-        }, []);
-
-        
-
-    // Handle dark mode
-    useEffect(() => {
-        if (darkMode) {
-            document.body.classList.add("dark");
-        } else {
-            document.body.classList.remove("dark");
-        }
-        localStorage.setItem("darkMode", darkMode);
-    }, [darkMode]);
-
-    socket.on("newNotification", () => {
-        // toast.info("You have a new notification!");
-  fetchUnreadCount();
-});
-
-    // Outside click handling
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (
-                showProfileDropdown &&
-                profileDropdownRef.current &&
-                !profileDropdownRef.current.contains(event.target) &&
-                !event.target.closest(".profile-trigger")
-            ) {
-                setShowProfileDropdown(false);
-            }
-
-            if (
-                showMobileSearch &&
-                mobileSearchRef.current &&
-                !mobileSearchRef.current.contains(event.target) &&
-                !event.target.closest(".mobile-search-icon")
-            ) {
-                setShowMobileSearch(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
         return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
+            if (observer && videoEl) observer.unobserve(videoEl);
         };
-    }, [showMobileSearch, showProfileDropdown]);
+    }, [post._id, post.videoUrl, setActiveVideoId, activeVideoId]);
 
-        // Prevent body scroll when ProfileDropDown is open
-        useEffect(() => {
-            if (showProfileDropdown) {
-                document.body.style.overflow = "hidden";
-            } else {
-                document.body.style.overflow = "";
-            }
-            return () => {
-                document.body.style.overflow = "";
-            };
-        }, [showProfileDropdown]);
-
-    // Fetch user data
+    // Handle tab visibility: pause and mute video if tab is not active
     useEffect(() => {
-        const fetchUserData = async () => {
-            try {
-                const response = await fetch(`${config.apiUrl}/user/me`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+        if (!post.videoUrl) return;
+        const videoEl = videoRefs.current[post._id];
+        if (!videoEl) return;
 
-                console.log("Status code:", response.status);
-
-                if (response.ok) {
-                    const result = await response.json();
-                    const userData = result.user;
-
-                    setCurrentUserProfile(userData);
-
-                    // Store user data in localStorage
-                    localStorage.setItem("userId", userData._id);
-                    localStorage.setItem("realname", userData.realname);
-                    localStorage.setItem("username", userData.username);
-                    localStorage.setItem("email", userData.email);
-                    localStorage.setItem("createdAt", userData.createdAt);
-                    localStorage.setItem("updatedAt", userData.updatedAt);
-                    localStorage.setItem("user", JSON.stringify(userData));
-
-                    // Handle profile picture
-                    if (userData.profilePic) {
-                        setProfilePic(userData.profilePic);
-                        localStorage.setItem("profilePic", userData.profilePic);
-                    } else {
-                        setProfilePic("");
-                        localStorage.removeItem("profilePic");
-                    }
-                } else if (response.status === 401) {
-                    // Clear invalid token and redirect to login
-                    localStorage.removeItem("token");
-                    navigate("/login", { replace: true });
+        const handleVisibility = () => {
+            if (document.visibilityState !== "visible") {
+                videoEl.pause();
+                videoEl.muted = true;
+            } else {
+                // Only play and unmute if this post is the active video
+                if (activeVideoId === post._id) {
+                    videoEl.muted = isGlobalMuted;
+                    videoEl.play().catch(() => {});
                 } else {
-                    console.error("Unexpected error:", response.status);
-                    // Handle other error statuses if needed
+                    videoEl.pause();
+                    videoEl.muted = true;
                 }
-            } catch (error) {
-                console.error("Error fetching user data:", error);
             }
         };
-        
 
-        if (token) {
-            fetchUserData();
-        } else {
-            // If no token, redirect to login
-            navigate("/login");
+        document.addEventListener("visibilitychange", handleVisibility);
+        // Initial check
+        handleVisibility();
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [activeVideoId, post._id, post.videoUrl, isGlobalMuted]);
+
+    // Profile picture source properly handle karein - multiple fallbacks
+    const getProfilePic = () => {
+        if (
+            post.userId?.profilePic &&
+            post.userId.profilePic !==
+                "https://ui-avatars.com/api/?name=User&background=random"
+        ) {
+            return post.userId.profilePic;
         }
-    }, [token, navigate]);
+        if (
+            post.profilePic &&
+            post.profilePic !==
+                "https://ui-avatars.com/api/?name=User&background=random"
+        ) {
+            return post.profilePic;
+        }
+        if (
+            currentUserProfile?.profilePic &&
+            currentUserProfile.profilePic !==
+                "https://ui-avatars.com/api/?name=User&background=random"
+        ) {
+            return currentUserProfile.profilePic;
+        }
+        const localStoragePic = localStorage.getItem("profilePic");
+        if (
+            localStoragePic &&
+            localStoragePic !==
+                "https://ui-avatars.com/api/?name=User&background=random"
+        ) {
+            return localStoragePic;
+        }
+        return null;
+    };
+
+    const getUsername = () => {
+        // Always use the latest username prop for the current user's posts
+        if (isOwner) {
+            return username || post.userId?.username || post.username || "User";
+        }
+        return post.userId?.username || post.username || username || "User";
+    };
+
+    const getRealName = () => {
+        // Always use the latest realName for the current user's posts
+        if (isOwner) {
+            return currentUserProfile?.realname || post.userId?.realname || getUsername();
+        }
+        return post.userId?.realname || currentUserProfile?.realname || getUsername();
+    };
+
+    const getUserId = () => {
+        return post.userId?._id || currentUserProfile?._id;
+    };
+
+    // Get liked users for display - same logic as main feed
+    const getLikedUsers = () => {
+        // Use likesPreview from API
+        if (post.likesPreview && post.likesPreview.length > 0) {
+            return post.likesPreview;
+        }
+        return [];
+    };
+
+    const likedUsers = getLikedUsers();
+    const totalLikes = getLikeCount();
+    const isPostLiked = post.isLikedByMe || false;
+
+    const handleEditClick = () => {
+        onEditPost(post._id);
+    };
+
+    const handleUpdateClick = () => {
+        onUpdatePost(post._id);
+    };
+
+    const handleCancelClick = () => {
+        // Cleanup video URL
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
+        setIsCompressing(false);
+        setCompressionProgress(0);
+        onCancelEdit();
+    };
+
+    // Handle likes modal
+    const handleShowLikes = (e) => {
+        e.stopPropagation();
+        if (onShowLikesModal && totalLikes > 0) {
+            onShowLikesModal(post._id);
+        }
+    };
     
-    const toggleDarkMode = () => {
-        const newMode = !darkMode;
-        setDarkMode(newMode);
-        localStorage.setItem("darkMode", newMode);
+    const navigateToProfile = (userId) => {
+        // Check if this is the current user
+        const isCurrentUser = userId === getUserId();
 
-        if (onDarkModeChange) {
-            onDarkModeChange(newMode);
+        if (isCurrentUser) {
+            navigate("/profile");
+        } else {
+            navigate(`/user/${userId}`);
         }
     };
 
-    const handleNotificationClick = () => {
-        setShowNotificationModal(true);
-        setShowProfileDropdown(false);
-        setShowMobileSearch(false);
-        setShowFriendsSidebar(false);
+    // Check if existing media is present
+    const hasExistingMedia = () => {
+        return existingImage || existingVideo;
     };
 
-    const handleFriendsClick = () => {
-        setShowFriendsSidebar(!showFriendsSidebar);
-        setShowProfileDropdown(false);
-        setShowMobileSearch(false);
+    // Check if new media is present
+    const hasNewMedia = () => {
+        return editFiles.length > 0 || newVideoUrl;
     };
 
-    const handleNotificationModalClose = () => {
-        setShowNotificationModal(false);
-    };
+    // Unified Add Media handler
+    const handleFileSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    const handleFriendsSidebarClose = () => {
-        setShowFriendsSidebar(false);
-    };
+        const type = getFileType(file);
+        if (type !== 'image' && type !== 'video') {
+            setNotification({ message: "Please select an image or video file", visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 6000);
+            return;
+        }
 
-    const fetchUnreadCount = async () => {
-        if (!token) return;
+        // Always clear both existing image and video when a new file is selected
+        if (existingImage || existingVideo) {
+            if (onRemoveExistingMedia) {
+                onRemoveExistingMedia();
+            }
+        }
+        // Also clear any new media in editFiles and newVideoUrl
+        if (editFiles && editFiles.length > 0 && onRemoveEditFile) {
+            editFiles.forEach((_, index) => {
+                onRemoveEditFile(index);
+            });
+        }
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
 
         try {
-            const response = await fetch(
-                `${config.apiUrl}/notifications/unread-count`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
+            setIsCompressing(true);
+            setCompressionProgress(10);
 
-            if (response.ok) {
-                const result = await response.json();
-                setUnreadNotifications(result.count || 0);
+            // Validate video duration
+            if (type === 'video') {
+                const duration = await checkVideoDuration(file);
+                if (duration > 15) {
+                    setNotification({ message: "Video must be 15 seconds or less", visible: true });
+                    clearTimeout(notificationTimeoutRef.current);
+                    notificationTimeoutRef.current = setTimeout(() => {
+                        setNotification({ message: '', visible: false });
+                    }, 6000);
+                    setIsCompressing(false);
+                    setCompressionProgress(0);
+                    return;
+                }
             }
+
+            let processedFile = file;
+            // Apply compression if needed
+            if (shouldCompressFile(file)) {
+                try {
+                    if (type === 'image') {
+                        processedFile = await compressImage(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    } else if (type === 'video') {
+                        processedFile = await compressVideo(file, (progress) => {
+                            setCompressionProgress(progress);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Compression failed:', error);
+                    setNotification({ message: 'Compression failed. Using original file.', visible: true });
+                    clearTimeout(notificationTimeoutRef.current);
+                    notificationTimeoutRef.current = setTimeout(() => {
+                        setNotification({ message: '', visible: false });
+                    }, 3000);
+                }
+            }
+
+            // Create preview for video
+            if (type === 'video') {
+                const videoUrl = URL.createObjectURL(processedFile);
+                setNewVideoUrl(videoUrl);
+            }
+
+            if (onEditFileSelect) {
+                onEditFileSelect(processedFile);
+            }
+            setTimeout(() => {
+                setIsCompressing(false);
+                setCompressionProgress(0);
+            }, 500);
+
         } catch (error) {
-            console.error("Error fetching unread notifications count:", error);
+            console.error('Error processing file:', error);
+            setNotification({ message: 'Error processing file. Please try again.', visible: true });
+            clearTimeout(notificationTimeoutRef.current);
+            notificationTimeoutRef.current = setTimeout(() => {
+                setNotification({ message: '', visible: false });
+            }, 3000);
+            setIsCompressing(false);
+            setCompressionProgress(0);
         }
     };
 
-    // Regular polling for notifications
-  useEffect(() => {
-  if (!token) return;
-
-  const handleNewNotification = () => {
-    fetchUnreadCount();
-    // toast.info("You have a new notification!");
-  };
-
-  socket.on("newNotification", handleNewNotification);
-
-  return () => {
-    socket.off("newNotification", handleNewNotification);
-  };
-}, [token]);
-
-
-    // Update unread messages count from FriendsSidebar (No duplicate polling!)
-    const handleUnreadMessagesUpdate = (count) => {
-        setUnreadMessages(count);
+    // Remove existing media
+    const handleRemoveExistingMedia = () => {
+        if (onRemoveExistingMedia) {
+            onRemoveExistingMedia();
+        }
+        // Also clear any new media
+        editFiles.forEach((file, index) => {
+            if (onRemoveEditFile) {
+                onRemoveEditFile(index);
+            }
+        });
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
+        setShowMediaAlert(false);
     };
 
-    const toggleMobileSearch = () => {
-        setShowMobileSearch(!showMobileSearch);
-        setShowProfileDropdown(false);
-        setShowFriendsSidebar(false);
+    // Remove new media
+    const handleRemoveNewMedia = () => {
+        editFiles.forEach((file, index) => {
+            if (onRemoveEditFile) {
+                onRemoveEditFile(index);
+            }
+        });
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
+        }
     };
 
-    const handleProfileClick = () => {
-        setShowProfileDropdown(!showProfileDropdown);
-        setShowMobileSearch(false);
-        setShowFriendsSidebar(false);
-    };
-
-    const UserAvatar = ({ profilePic, username, size = "sm" }) => {
-        const [imageError, setImageError] = useState(false);
-        const dimensions = size === "sm" ? "w-8 h-8" : "w-12 h-12";
-        const textSize = size === "sm" ? "text-sm" : "text-lg";
-
-        const showInitial = !profilePic || imageError;
-
+    // File preview rendering function
+    const renderFilePreview = (file) => {
+        if (file && file.type && file.type.startsWith("image/")) {
+            return (
+                <div className="relative">
+                    <img
+                        src={URL.createObjectURL(file)}
+                        alt="Preview"
+                        className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                        onClick={() =>
+                            onImagePreview(URL.createObjectURL(file))
+                        }
+                    />
+                    <button
+                        onClick={() =>
+                        onRemoveEditFile(editFiles.indexOf(file))
+                        }
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
+                    >
+                        <FaTimes />
+                    </button>
+                </div>
+            );
+        }
         return (
             <div
-                className={`${dimensions} rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold ${textSize} cursor-pointer`}
+                className={`p-2 rounded-lg flex items-center ${
+                    isDarkMode ? "bg-gray-600" : "bg-white"
+                }`}
             >
-                {!showInitial ? (
-                    <img
-                        src={profilePic}
-                        alt={username}
-                        className="w-full h-full object-cover cursor-pointer"
-                        onError={() => setImageError(true)}
-                    />
-                ) : (
-                    <span className="cursor-pointer">
-                        {username?.charAt(0).toUpperCase() || "U"}
-                    </span>
+                <span className="mr-2">📁</span>
+                <span className="text-sm truncate max-w-xs">{file?.name || "File"}</span>
+                <button
+                    onClick={() => onRemoveEditFile(editFiles.indexOf(file))}
+                    className="ml-2 text-red-500 hover:text-red-700 cursor-pointer"
+                >
+                    <FaTimes />
+                </button>
+            </div>
+        );
+    };
+
+    // Render existing media in edit mode
+    const renderExistingMedia = () => {
+        const hasMedia = hasExistingMedia();
+        const hasNew = hasNewMedia();
+        
+        if (!hasMedia && !hasNew) return null;
+
+        return (
+            <div className="relative mb-3">
+                <p
+                    className={`text-sm mb-2 ${
+                        isDarkMode ? "text-gray-400" : "text-gray-600"
+                    }`}
+                >
+                    {hasMedia ? "Current Media:" : "New Media:"}
+                </p>
+                
+                {/* Existing Media - Only show in edit mode */}
+                {hasMedia && isEditing && (
+                    <div className="relative inline-block mb-2">
+                        {existingImage ? (
+                            <>
+                                <img
+                                    src={existingImage}
+                                    alt="Current post"
+                                    className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
+                                    onClick={() => onImagePreview(existingImage)}
+                                />
+                                <button
+                                    onClick={handleRemoveExistingMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove current media"
+                                >
+                                    <FaTimes />
+                                </button>
+                                <div className="mt-1 text-xs text-gray-500">
+                                    Click ✕ to remove before adding new
+                                </div>
+                            </>
+                        ) : existingVideo ? (
+                            <>
+                                <div className="relative w-full max-w-full">
+                                    <video
+                                        src={existingVideo}
+                                        className="max-h-48 max-w-full object-contain rounded-lg"
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        controls
+                                        controlsList="nodownload nofullscreen noplaybackrate"
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            return false;
+                                        }}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            display: "block",
+                                        }}
+                                        preload="metadata"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleRemoveExistingMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove current video"
+                                >
+                                    <FaTimes />
+                                </button>
+                                <div className="mt-1 text-xs text-gray-500">
+                                    Click ✕ to remove before adding new
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                )}
+                
+                {/* New Media */}
+                {hasNew && (
+                    <div className="mt-3">
+                        {newVideoUrl ? (
+                            <div className="relative inline-block mb-2">
+                                <div className="relative w-full max-w-full">
+                                    <video
+                                        src={newVideoUrl}
+                                        className="max-h-48 max-w-full object-contain rounded-lg"
+                                        autoPlay
+                                        muted
+                                        loop
+                                        playsInline
+                                        controls
+                                        controlsList="nodownload nofullscreen noplaybackrate"
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            return false;
+                                        }}
+                                        style={{
+                                            backgroundColor: "transparent",
+                                            display: "block",
+                                        }}
+                                        preload="metadata"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleRemoveNewMedia}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
+                                    title="Remove new video"
+                                >
+                                    <FaTimes />
+                                </button>
+                                {/* <div className="mt-1 text-xs text-green-500">
+                                    New video ready to upload
+                                </div> */}
+                            </div>
+                        ) : editFiles.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {editFiles.map((file, index) => (
+                                    <div key={index}>
+                                        {renderFilePreview(file)}
+                                    </div>
+                                ))}
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Remove ✕ to add different media
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
                 )}
             </div>
         );
     };
 
+    // ✅ Handle context menu to prevent download
+    const handleVideoContextMenu = (e) => {
+        e.preventDefault();
+        return false;
+    };
+
+    // ✅ Handle video touch/click for mobile
+    const handleVideoTap = (e) => {
+        e.stopPropagation();
+        const video = videoRefs.current[post._id];
+        if (video) {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        }
+    };
+
+    // Sync video mute state with global context
+    const handleVideoVolumeChange = (e) => {
+        const video = e.target;
+        if (video && activeVideoId === post._id) {
+            setGlobalMuted(video.muted);
+        }
+    };
+
+    const likeCount = getLikeCount();
+    const commentCount = getCommentCount();
+
     return (
-        <>
-            <div className="sticky top-0 z-40 w-full cursor-default">
-                <div className="max-w-screen pb-4 bg-inherit">
+        <div
+            className={`${
+                isDarkMode
+                    ? "bg-gray-800 border-gray-700 text-gray-100"
+                    : "bg-white border-gray-200 text-gray-800"
+            } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-default`}
+        >
+            {/* Post Header */}
+            <div className="flex items-start justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-2 sm:gap-3">
                     <div
-                        className={`flex justify-between items-center py-4 rounded-xl px-4 md:px-8 ${
-                            darkMode ? "bg-gray-800" : "bg-white"
-                        } shadow-md relative`}
+                        className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
+                        onClick={() => navigateToUserProfile(getUserId())}
                     >
-                        <Logo
-                            darkMode={darkMode}
-                            navigateToMain={() => navigate("/feed")}
-                        />
-
-                        <div className="hidden md:block flex-1 max-w-lg mx-4">
-                            <SearchBar
-                                darkMode={darkMode}
-                                token={token}
-                                currentUserProfile={currentUserProfile}
-                                navigate={navigate}
+                        {getProfilePic() ? (
+                            <img
+                                src={getProfilePic()}
+                                alt={getUsername()}
+                                className="w-10 h-10 object-cover"
+                                onError={(e) => {
+                                    e.target.style.display = "none";
+                                    const parent = e.target.parentElement;
+                                    const fallback =
+                                        parent.querySelector(
+                                            ".profile-fallback"
+                                        );
+                                    if (fallback) {
+                                        fallback.style.display = "flex";
+                                    }
+                                }}
                             />
-                        </div>
-
-                        <div className="flex items-center space-x-2 md:space-x-4 pr-4">
-                            <button
-                                className="md:hidden p-2 rounded-md mobile-search-icon cursor-pointer"
-                                onClick={toggleMobileSearch}
-                                aria-label="Search"
-                            >
-                                <svg
-                                    className="w-5 h-5 cursor-pointer"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                    />
-                                </svg>
-                            </button>
-
-                            <div className="relative cursor-pointer">
-                                <NotificationBell
-                                    darkMode={darkMode}
-                                    unreadNotifications={unreadNotifications}
-                                    onNotificationClick={
-                                        handleNotificationClick
-                                    }
-                                />
-                            </div>
-
-                            {/* Friends Icon with Unread Badge */}
-                            <div className="relative">
-                                <button
-                                    onClick={handleFriendsClick}
-                                    className={`friends-trigger p-2 rounded-md transition-colors cursor-pointer relative ${
-                                        darkMode
-                                            ? "text-gray-300 hover:text-cyan-400 hover:bg-gray-700"
-                                            : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
-                                    }`}
-                                    aria-label="Friends"
-                                >
-                                    <FiUsers className="w-6 h-6 cursor-pointer" />
-                                    {unreadMessages > 0 && (
-                                        <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1">
-                                            {unreadMessages > 99
-                                                ? "99+"
-                                                : unreadMessages}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
-
-                            <div className="relative">
-                                <div
-                                    ref={profileTriggerRef}
-                                    className="profile-trigger cursor-pointer border-2 border-blue-500 rounded-full p-1"
-                                    onClick={handleProfileClick}
-                                >
-                                    <UserAvatar
-                                        profilePic={profilePic}
-                                        username={username}
-                                        size="sm"
-                                    />
-                                </div>
-
-                                <ProfileDropdown
-                                    darkMode={darkMode}
-                                    profilePic={profilePic}
-                                    username={username}
-                                    realname={realname}
-                                    showProfileDropdown={showProfileDropdown}
-                                    setShowProfileDropdown={
-                                        setShowProfileDropdown
-                                    }
-                                    profileDropdownRef={profileDropdownRef}
-                                    toggleDarkMode={toggleDarkMode}
-                                    navigate={navigate}
-                                    logout={logout}
-                                    currentPath={window.location.pathname}
-                                />
-                            </div>
-                        </div>
+                        ) : (
+                            <span className="profile-fallback flex items-center cursor-pointer justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
+                                {getUsername().charAt(0).toUpperCase()}
+                            </span>
+                        )}
+                        {/* Hidden fallback for error case */}
+                        <span className="profile-fallback hidden items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
+                            {getUsername().charAt(0).toUpperCase()}
+                        </span>
                     </div>
 
-                    {showMobileSearch && (
-                        <div
-                            ref={mobileSearchRef}
-                            className={`md:hidden mt-2 py-3 px-4 rounded-xl cursor-default ${
-                                darkMode ? "bg-gray-800" : "bg-white"
-                            } shadow-md`}
+                    <div>
+                        <h3
+                            className="text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer"
+                            onClick={() => navigateToUserProfile(getUserId())}
                         >
-                            <SearchBar
-                                darkMode={darkMode}
-                                token={token}
-                                currentUserProfile={currentUserProfile}
-                                navigate={navigate}
-                                isMobile={true}
-                                onSearch={() => setShowMobileSearch(false)}
+                            {getRealName()}
+                        </h3>
+                        <p
+                            className={`text-xs ${
+                                isDarkMode ? "text-gray-400" : "text-gray-500"
+                            } cursor-default`}
+                        >
+                            @{getUsername()} · {formatDate(post.createdAt)}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Edit/Delete buttons - Only show when not editing */}
+                {isOwner && !isEditing && (
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={handleEditClick}
+                            className={`p-2 rounded-full ${
+                                isDarkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-100"
+                            } cursor-pointer`}
+                            title="Edit post"
+                        >
+                            <FaEdit className="text-blue-500 text-sm" />
+                        </button>
+                        <button
+                            onClick={() => onDeletePost(post._id)}
+                            disabled={isDeletingPost}
+                            className={`p-2 rounded-full ${
+                                isDarkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-100"
+                            } cursor-pointer ${
+                                isDeletingPost
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                            }`}
+                            title="Delete post"
+                        >
+                            <FaTrashAlt className="text-red-500 text-sm" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Post Content - Edit Mode */}
+            {isEditing ? (
+                <div className="mb-3 sm:mb-4">
+                    <textarea
+                        ref={editTextareaRef}
+                        value={editContent}
+                        onChange={(e) => {
+                            onEditContentChange(e.target.value);
+
+                            const textarea = editTextareaRef.current;
+                            if (!textarea) return;
+
+                            textarea.style.height = "auto";
+                            textarea.style.height =
+                                textarea.scrollHeight + "px";
+                        }}
+                        rows={3}
+                        placeholder="Edit your post..."
+                        disabled={isUpdatingPost || isCompressing}
+                        className={`w-full p-4 rounded-lg border resize-none max-h-96 overflow-y-auto ${
+                            isDarkMode
+                                ? "bg-gray-700 border-gray-600 text-white"
+                                : "bg-white border-gray-300 text-gray-800"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    />
+
+                    {/* Media Alert */}
+                    {showMediaAlert && (
+                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-yellow-900 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className={`text-sm font-medium ${isDarkMode ? 'text-yellow-200' : 'text-yellow-800'}`}>
+                                    ⚠️ Remove current media first
+                                </p>
+                                <button
+                                    onClick={() => setShowMediaAlert(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <FaTimes size={12} />
+                                </button>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+                                You can only have one media file at a time. Please remove the current media before adding a new one.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Compression Progress */}
+                    {isCompressing && (
+                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="inline-block h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm">
+                                    Processing...
+                                </span>
+                            </div>
+                            <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2">
+                                <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${compressionProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                                Progress: {compressionProgress}%
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Show existing media */}
+                    {renderExistingMedia()}
+
+                    {/* Custom Notification for edit section */}
+                    {notification.visible && (
+                        <div className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
+                            <span className="text-sm font-medium">{notification.message}</span>
+                            <button
+                                onClick={() => setNotification({ message: '', visible: false })}
+                                className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                                title="Close"
+                            >
+                                <FaTimes size={16} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* File Upload Section - Unified Add Media */}
+                    <div className="mt-3 flex flex-row items-center gap-2 justify-end">
+                        <button
+                            onClick={() => {
+                                if (hasExistingMedia() && !hasNewMedia()) {
+                                    setShowMediaAlert(true);
+                                    return;
+                                }
+                                if (fileInputRef.current) {
+                                    fileInputRef.current.value = "";
+                                    fileInputRef.current.click();
+                                }
+                            }}
+                            disabled={isCompressing || isUpdatingPost}
+                            className={`p-2 rounded-lg flex items-center gap-2 ${
+                                isDarkMode
+                                    ? "hover:bg-gray-700 bg-gray-800"
+                                    : "hover:bg-gray-100 bg-gray-50"
+                            } ${isCompressing || isUpdatingPost ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title="Update Media"
+                        >
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleFileSelect}
+                                accept="image/*,video/*"
+                                disabled={isUpdatingPost || isCompressing}
+                            />
+                            <FaPaperclip className="text-gray-500 text-sm" />
+                            <span className="text-xs">Update Media</span>
+                        </button>
+                        <button
+                            onClick={handleUpdateClick}
+                            disabled={isUpdatingPost || isCompressing}
+                            className={`px-4 py-2 rounded-lg font-medium ${
+                                isUpdatingPost || isCompressing
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : "bg-green-500 hover:bg-green-600 text-white cursor-pointer"
+                            }`}
+                        >
+                            {isUpdatingPost ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                            onClick={handleCancelClick}
+                            disabled={isUpdatingPost || isCompressing}
+                            className="px-4 py-2 rounded-lg font-medium bg-gray-500 hover:bg-gray-600 text-white cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                /* Normal Post View */
+                <>
+                    <p
+                        className={`mb-3 sm:mb-4 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                        } text-sm sm:text-base cursor-default whitespace-pre-line`}
+                    >
+                        {highlightMentionsAndHashtags(post.content)}
+                    </p>
+
+                    {/* Post Image */}
+                    {post.image && !isEditing && (
+                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
+                            <img
+                                src={post.image}
+                                alt="Post"
+                                className="max-h-96 max-w-full object-contain rounded-lg cursor-pointer"
+                                onClick={() => onImagePreview(post.image)}
+                                onError={(e) => {
+                                    e.target.style.display = "none";
+                                }}
                             />
                         </div>
                     )}
+
+                    {/* Post Video - Only show when NOT editing */}
+                    {post.videoUrl && !isEditing && (
+                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
+                            <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
+                                <video
+                                    ref={(el) => videoRefs.current[post._id] = el}
+                                    src={post.videoUrl}
+                                    className="w-full h-auto max-h-96 object-contain rounded-xl"
+                                    muted={isGlobalMuted || activeVideoId !== post._id}
+                                    loop
+                                    playsInline
+                                    controls
+                                    controlsList="nodownload nofullscreen noplaybackrate"
+                                    onContextMenu={handleVideoContextMenu}
+                                    onVolumeChange={handleVideoVolumeChange}
+                                    style={{
+                                        backgroundColor: 'transparent',
+                                        display: 'block'
+                                    }}
+                                    preload="metadata"
+                                />
+                                {/* Mobile tap indicator */}
+                                <div 
+                                    className="absolute inset-0 pointer-events-none"
+                                    onClick={handleVideoTap}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* Post Actions - Hide when editing */}
+            {!isEditing && (
+                <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
+                    <div className="flex items-center gap-3">
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onLike(post._id, e);
+                            }}
+                            disabled={isLiking}
+                            className={`flex items-center gap-1 ${
+                                isLiking
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : isPostLiked
+                                    ? "text-red-500 hover:text-red-600"
+                                    : isDarkMode
+                                    ? "text-gray-400 hover:text-gray-300"
+                                    : "text-gray-500 hover:text-gray-700"
+                            } transition-colors cursor-pointer text-xs sm:text-sm`}
+                        >
+                            {isLiking ? (
+                                <div className="inline-block h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                                <motion.div
+                                    animate={{
+                                        scale: isPostLiked ? [1, 1.2, 1] : 1,
+                                    }}
+                                    transition={{
+                                        duration: 0.3,
+                                    }}
+                                >
+                                    {isPostLiked ? (
+                                        <FaHeart className="text-red-500" />
+                                    ) : (
+                                        <FaRegHeart className="text-gray-400" />
+                                    )}
+                                </motion.div>
+                            )}
+                            <motion.span
+                                key={likeCount}
+                                initial={{ scale: 1 }}
+                                animate={{ scale: [1.2, 1] }}
+                                transition={{ duration: 0.2 }}
+                                className={`text-sm font-medium ${
+                                    isPostLiked
+                                        ? "text-red-500"
+                                        : "text-gray-400"
+                                }`}
+                            >
+                            </motion.span>
+                        </motion.button>
+
+                        {/* Liked by text - turant update hoga - SAME AS MAIN FEED */}
+                        {totalLikes > 0 && (
+                            <div className="text-sm">
+                                <div className="flex items-center flex-wrap">
+                                    {likedUsers.length > 0 ? (
+                                        <>
+                                            {likedUsers
+                                                .slice(0, 2)
+                                                .map((user, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className={`font-medium mr-1 cursor-pointer hover:underline ${
+                                                            isDarkMode
+                                                                ? "text-gray-300"
+                                                                : "text-gray-700"
+                                                        }`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigateToProfile(
+                                                                user.id
+                                                            );
+                                                        }}
+                                                    >
+                                                        {user.username}
+                                                        {index <
+                                                        Math.min(
+                                                            2,
+                                                            likedUsers.length -
+                                                                1
+                                                        )
+                                                            ? ","
+                                                            : ""}
+                                                    </span>
+                                                ))}
+
+                                            {totalLikes > 2 && (
+                                                <button
+                                                    onClick={handleShowLikes}
+                                                    className={`font-medium cursor-pointer ${
+                                                        isDarkMode
+                                                            ? "text-blue-300"
+                                                            : "text-blue-500"
+                                                    } hover:underline`}
+                                                >
+                                                    and {totalLikes - 2} others
+                                                </button>
+                                            )}
+
+                                            {totalLikes === 2 &&
+                                                likedUsers.length === 1 && (
+                                                    <span
+                                                        className={`font-medium mr-1 ${
+                                                            isDarkMode
+                                                                ? "text-gray-300"
+                                                                : "text-gray-700"
+                                                        }`}
+                                                    >
+                                                        and 1 other
+                                                    </span>
+                                                )}
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={handleShowLikes}
+                                            className={`font-medium cursor-pointer ${
+                                                isDarkMode
+                                                    ? "text-blue-300"
+                                                    : "text-blue-500"
+                                            } hover:underline`}
+                                        >
+                                            {totalLikes}{" "}
+                                            {totalLikes === 1
+                                                ? "like"
+                                                : "likes"}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
+                        onClick={() => onToggleCommentDropdown(post._id)}
+                        disabled={isFetchingComments}
+                    >
+                        <FaComment />
+                        <span className="text-sm">{commentCount}</span>
+                        {isFetchingComments && (
+                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
+                        )}
+                    </button>
                 </div>
-            </div>
+            )}
 
-            <NotificationModal
-                showModal={showNotificationModal}
-                unreadNotifications={unreadNotifications}
-                onClose={handleNotificationModalClose}
-                darkMode={darkMode}
-            />
-
-            <FriendsSidebar
-                isOpen={showFriendsSidebar}
-                onClose={handleFriendsSidebarClose}
-                darkMode={darkMode}
-                token={token}
-                onUnreadCountUpdate={handleUnreadMessagesUpdate}
-            />
-        </>
+            {/* Comments Section */}
+            {!isEditing &&
+                activeCommentPostId === post._id &&
+                post.comments && (
+                    <ProfileCommentSection
+                        post={post}
+                        isDarkMode={isDarkMode}
+                        username={username}
+                        currentUserProfile={currentUserProfile}
+                        activeCommentPostId={activeCommentPostId}
+                        commentContent={commentContent}
+                        isCommenting={isCommenting}
+                        isFetchingComments={isFetchingComments}
+                        onCommentSubmit={onCommentSubmit}
+                        onSetCommentContent={onSetCommentContent}
+                        onDeleteComment={onDeleteComment}
+                        navigateToUserProfile={navigateToUserProfile}
+                        formatDate={getTimeDifference}
+                        onLikeComment={onLikeComment}
+                        isLikingComment={isLikingComment}
+                        onToggleCommentDropdown={onToggleCommentDropdown}
+                        // Reply functionality props
+                        activeReplyInputs={activeReplyInputs}
+                        replyContent={replyContent}
+                        onToggleReplyInput={onToggleReplyInput}
+                        onReplySubmit={onReplySubmit}
+                        onSetReplyContent={onSetReplyContent}
+                        onToggleReplies={onToggleReplies}
+                        onLikeReply={onLikeReply}
+                        onDeleteReply={onDeleteReply}
+                        isReplying={isReplying}
+                        isFetchingReplies={isFetchingReplies}
+                        isLikingReply={isLikingReply}
+                        isDeletingReply={isDeletingReply}
+                        // Pagination props
+                        commentsNextCursor={commentsNextCursor}
+                        repliesNextCursor={repliesNextCursor}
+                    />
+                )}
+        </div>
     );
 };
 
-export default Navbar;
+export default ProfilePostCard;

@@ -342,10 +342,21 @@ const ProfilePostCard = ({
             return;
         }
 
-        // Check if existing media needs to be removed first
-        if (hasExistingMedia()) {
-            setShowMediaAlert(true);
-            return;
+        // Always clear both existing image and video when a new file is selected
+        if (existingImage || existingVideo) {
+            if (onRemoveExistingMedia) {
+                onRemoveExistingMedia();
+            }
+        }
+        // Also clear any new media in editFiles and newVideoUrl
+        if (editFiles && editFiles.length > 0 && onRemoveEditFile) {
+            editFiles.forEach((_, index) => {
+                onRemoveEditFile(index);
+            });
+        }
+        if (newVideoUrl) {
+            URL.revokeObjectURL(newVideoUrl);
+            setNewVideoUrl(null);
         }
 
         try {
@@ -381,6 +392,7 @@ const ProfilePostCard = ({
                         });
                     }
                 } catch (error) {
+                    console.error('Compression failed:', error);
                     setNotification({ message: 'Compression failed. Using original file.', visible: true });
                     clearTimeout(notificationTimeoutRef.current);
                     notificationTimeoutRef.current = setTimeout(() => {
@@ -389,25 +401,10 @@ const ProfilePostCard = ({
                 }
             }
 
-            // Cleanup previous video URL
-            if (newVideoUrl) {
-                URL.revokeObjectURL(newVideoUrl);
-            }
-
             // Create preview for video
             if (type === 'video') {
                 const videoUrl = URL.createObjectURL(processedFile);
                 setNewVideoUrl(videoUrl);
-                // Clear any existing edit files (video replaces everything)
-                editFiles.forEach((file, index) => {
-                    onRemoveEditFile(index);
-                });
-            } else {
-                // For image, clear any video
-                if (newVideoUrl) {
-                    URL.revokeObjectURL(newVideoUrl);
-                    setNewVideoUrl(null);
-                }
             }
 
             if (onEditFileSelect) {
@@ -419,6 +416,7 @@ const ProfilePostCard = ({
             }, 500);
 
         } catch (error) {
+            console.error('Error processing file:', error);
             setNotification({ message: 'Error processing file. Please try again.', visible: true });
             clearTimeout(notificationTimeoutRef.current);
             notificationTimeoutRef.current = setTimeout(() => {

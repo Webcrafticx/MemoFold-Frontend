@@ -38,6 +38,9 @@ import {
     convertUTCToIST,
 } from "../../services/dateUtils";
 
+// Utils
+import { getFileType, shouldCompressFile } from "../../utils/fileCompression";
+
 // Utility function for better error handling
 const handleApiError = (error, defaultMessage = "Something went wrong") => {
     console.error("API Error:", error);
@@ -654,13 +657,17 @@ const handleEditFileSelect = (file) => {
                 setUiState((prev) => ({ ...prev, error: "Video must be 15 seconds or less" }));
                 setEditState((prev) => ({ ...prev, editFiles: [], existingImage: null, existingVideo: null }));
             } else {
-                setEditState((prev) => ({ ...prev, editFiles: [...prev.editFiles, file], existingImage: null, existingVideo: null }));
+                // If video is selected, remove any existing image
+                setEditState((prev) => ({ ...prev, editFiles: [file], existingImage: null, existingVideo: null }));
                 setUiState((prev) => ({ ...prev, error: null }));
             }
         });
-    } else {
-        setEditState((prev) => ({ ...prev, editFiles: [...prev.editFiles, file], existingImage: null, existingVideo: null }));
+    } else if (type === 'image') {
+        // If image is selected, remove any existing video
+        setEditState((prev) => ({ ...prev, editFiles: [file], existingImage: null, existingVideo: null }));
         setUiState((prev) => ({ ...prev, error: null }));
+    } else {
+        setUiState((prev) => ({ ...prev, error: "Unsupported file type" }));
     }
 };
 
@@ -1643,7 +1650,6 @@ const handleUpdatePost = async (postId) => {
 
         if (editState.editFiles.length > 0) {
             const file = editState.editFiles[0];
-            
             let fileType = null;
             if (file.type.startsWith('image/')) {
                 fileType = 'image';
@@ -1654,7 +1660,7 @@ const handleUpdatePost = async (postId) => {
                 setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
                 return;
             }
-            
+
             if (fileType === 'image') {
                 // For images, convert to base64
                 const imageData = await new Promise((resolve, reject) => {
@@ -1664,9 +1670,11 @@ const handleUpdatePost = async (postId) => {
                     reader.readAsDataURL(file);
                 });
 
+                // Always send both fields
                 const postData = {
                     content: editState.editContent,
                     image: imageData,
+                    video: null,
                 };
 
                 const response = await apiService.updatePost(
@@ -1699,7 +1707,10 @@ const handleUpdatePost = async (postId) => {
                 const formData = new FormData();
                 formData.append("content", editState.editContent);
                 formData.append("media", file);
-                
+                // Always send both fields
+                formData.append("image", ""); // image is null
+                formData.append("video", file); // video is the file
+
                 const response = await apiService.updatePost(
                     token,
                     postId,
