@@ -29,6 +29,7 @@ import FriendsSidebar from "../navbar/FriendsSidebar";
 import { useAuth } from "../../hooks/useAuth";
 
 // Services
+
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 import {
@@ -37,6 +38,7 @@ import {
     getCurrentUTCTime,
     convertUTCToIST,
 } from "../../services/dateUtils";
+import { getFileType, compressImage, compressVideo } from "../../utils/fileCompression";
 
 // Utility function for better error handling
 const handleApiError = (error, defaultMessage = "Something went wrong") => {
@@ -1493,11 +1495,15 @@ const handleEditFileSelect = (file) => {
             const token = localStorage.getItem("token");
 
             if (fileType === "video") {
+                let compressedFile = file;
+                if (file) {
+                    compressedFile = await compressVideo(file);
+                }
                 const formData = new FormData();
                 formData.append("content", content);
                 formData.append("createdAt", selectedDate);
                 formData.append("date", selectedDate);
-                formData.append("media", file);
+                formData.append("media", compressedFile);
 
                 const response = await apiService.createPost(token, formData);
 
@@ -1508,12 +1514,14 @@ const handleEditFileSelect = (file) => {
                 }
             } else {
                 let imageData = null;
+                let compressedFile = file;
                 if (file) {
+                    compressedFile = await compressImage(file);
                     imageData = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onload = () => resolve(reader.result);
                         reader.onerror = (error) => reject(error);
-                        reader.readAsDataURL(file);
+                        reader.readAsDataURL(compressedFile);
                     });
                 }
 
@@ -1623,6 +1631,7 @@ const handleEditFileSelect = (file) => {
     };
 
 const handleUpdatePost = async (postId) => {
+    // If switching media type, ensure the other is set to null
     if (
         !editState.editContent.trim() &&
         editState.editFiles.length === 0 &&
@@ -1642,20 +1651,12 @@ const handleUpdatePost = async (postId) => {
         const hadOriginalImage = originalPost?.image;
 
         if (editState.editFiles.length > 0) {
-            const file = editState.editFiles[0];
-            
-            let fileType = null;
-            if (file.type.startsWith('image/')) {
-                fileType = 'image';
-            } else if (file.type.startsWith('video/')) {
-                fileType = 'video';
-            } else {
-                toast.error("Please select an image or video file");
-                setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
-                return;
-            }
-            
+            let file = editState.editFiles[0];
+            const fileType = getFileType(file);
+
             if (fileType === 'image') {
+                // Compress image before upload
+                file = await compressImage(file);
                 // For images, convert to base64
                 const imageData = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -1667,6 +1668,7 @@ const handleUpdatePost = async (postId) => {
                 const postData = {
                     content: editState.editContent,
                     image: imageData,
+                    video: null, // Explicitly set video to null if switching to image
                 };
 
                 const response = await apiService.updatePost(
@@ -1695,11 +1697,14 @@ const handleUpdatePost = async (postId) => {
                 }));
 
             } else if (fileType === 'video') {
+                // Compress video before upload
+                file = await compressVideo(file);
                 // For videos, use FormData
                 const formData = new FormData();
                 formData.append("content", editState.editContent);
                 formData.append("media", file);
-                
+                formData.append("image", ""); // Explicitly clear image if switching to video
+
                 const response = await apiService.updatePost(
                     token,
                     postId,
@@ -1725,13 +1730,19 @@ const handleUpdatePost = async (postId) => {
                             : post
                     ),
                 }));
+            } else {
+                toast.error("Please select an image or video file");
+                setEditState((prev) => ({ ...prev, isUpdatingPost: false }));
+                return;
             }
         } else {
+            // No new file, just update content or remove media
             if (editState.existingImage === null && editState.existingVideo === null) {
                 if (hadOriginalVideo) {
                     const formData = new FormData();
                     formData.append("content", editState.editContent);
                     formData.append("media", ""); 
+                    formData.append("image", ""); // Explicitly clear image
                     const response = await apiService.updatePost(
                         token,
                         postId,
@@ -1758,6 +1769,7 @@ const handleUpdatePost = async (postId) => {
                     const postData = {
                         content: editState.editContent,
                         image: null, 
+                        video: null, // Explicitly clear video
                     };
                     const response = await apiService.updatePost(
                         token,
