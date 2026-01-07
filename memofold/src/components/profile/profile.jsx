@@ -1668,7 +1668,7 @@ const handleUpdatePost = async (postId) => {
                 const postData = {
                     content: editState.editContent,
                     image: imageData,
-                    video: null, // Explicitly set video to null if switching to image
+                    media: null, // Explicitly set media to null if switching to image
                 };
 
                 const response = await apiService.updatePost(
@@ -1769,7 +1769,7 @@ const handleUpdatePost = async (postId) => {
                     const postData = {
                         content: editState.editContent,
                         image: null, 
-                        video: null, // Explicitly clear video
+                        media: null, // Explicitly clear media
                     };
                     const response = await apiService.updatePost(
                         token,
