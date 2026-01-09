@@ -384,6 +384,21 @@ updatePost: async (token, postId, postData, isFormData = false) => {
         return response.json();
     },
 
+    // Fetch friends list with optional search and cursor
+    fetchFriendsList: async (token, cursor = null, search = null) => {
+        const url = new URL(`${config.apiUrl}/friends/friends-list`);
+        if (cursor) url.searchParams.append("cursor", cursor);
+        if (search) url.searchParams.append("search", search);
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.json();
+    },
+
         async syncAllProfilePics(token) {
                 const res = await fetch(`${config.apiUrl}/stream/sync-profile-pics`, {
                         method: "POST",

@@ -16,7 +16,8 @@ const FriendsSidebar = ({
 }) => {
     // UI State
     const [activeTab, setActiveTab] = useState("friends"); // 'friends' | 'chats'
-    const [searchQuery, setSearchQuery] = useState("");
+    const [friendsSearch, setFriendsSearch] = useState("");
+    const [chatsSearch, setChatsSearch] = useState("");
 
     // Data State
     const [chatList, setChatList] = useState([]);       // ONLY active conversations from Stream
@@ -79,6 +80,8 @@ const FriendsSidebar = ({
         } else {
             document.body.style.overflow = "unset";
             hasFetchedFriendsRef.current = false; // Reset when sidebar closes
+            setFriendsSearch(""); // Reset friends search when sidebar closes
+            setChatsSearch(""); // Reset chats search when sidebar closes
         }
         return () => {
             document.body.style.overflow = "unset";
@@ -97,6 +100,8 @@ const FriendsSidebar = ({
         eventListenersAttached.current = false;
         isFetchingRef.current = false;
         hasFetchedFriendsRef.current = false;
+        setFriendsSearch("");
+        setChatsSearch("");
     }, [token]);
 
     // Initialize Stream client
@@ -267,11 +272,22 @@ const FriendsSidebar = ({
     useEffect(() => {
         if (isOpen && activeTab === "friends" && token && !hasFetchedFriendsRef.current) {
             hasFetchedFriendsRef.current = true;
-            fetchFriendsBackend(null, true);
+            fetchFriendsBackend(null, true, "");
         }
     }, [isOpen, activeTab, token]);
 
-    const fetchFriendsBackend = async (cursor = null, isFresh = false) => {
+    // Search effect for friends
+    useEffect(() => {
+        if (activeTab !== "friends" || !token) return;
+
+        const timer = setTimeout(() => {
+            fetchFriendsBackend(null, true, friendsSearch);
+        }, 300); // Debounce 300ms
+
+        return () => clearTimeout(timer);
+    }, [friendsSearch, activeTab, token]);
+
+    const fetchFriendsBackend = async (cursor = null, isFresh = false, search = "") => {
         if (!token) return;
         if (isFetchingRef.current) return;
 
@@ -281,13 +297,7 @@ const FriendsSidebar = ({
             if (isFresh) setFriendsLoading(true);
             else setFetchingMoreFriends(true);
 
-            const url = new URL(`${config.apiUrl}/friends/friends-list`);
-            if (cursor) url.searchParams.append("cursor", cursor);
-
-            const response = await fetch(url.toString(), {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await response.json();
+            const data = await apiService.fetchFriendsList(token, cursor, search);
 
             if (data.success) {
                 setFriendsList((prev) => {
@@ -311,7 +321,7 @@ const FriendsSidebar = ({
     };
 
     const handleScroll = () => {
-        if (activeTab !== "friends" || !nextCursor || isFetchingRef.current) return;
+        if (activeTab !== "friends" || !nextCursor || isFetchingRef.current || friendsSearch) return;
 
         const container = listRef.current;
         if (container) {
@@ -319,7 +329,7 @@ const FriendsSidebar = ({
             if (scrollHeight <= clientHeight) return;
 
             if (scrollTop + clientHeight >= scrollHeight - 20) {
-                fetchFriendsBackend(nextCursor);
+                fetchFriendsBackend(nextCursor, false, friendsSearch);
             }
         }
     };
@@ -339,10 +349,10 @@ const FriendsSidebar = ({
 
     const getDisplayList = () => {
         const list = activeTab === "chats" ? chatList : friendsList;
-        return list.filter(item => {
-            const name = activeTab === "chats" ? item.displayName : (item.realname || item.username);
-            return name?.toLowerCase().includes(searchQuery.toLowerCase());
-        });
+        if (activeTab === "chats") {
+            return list.filter(item => item.displayName?.toLowerCase().includes(chatsSearch.toLowerCase()));
+        }
+        return list; // friends already filtered from API
     };
 
     const displayList = getDisplayList();
@@ -373,8 +383,8 @@ const FriendsSidebar = ({
                         <input
                             type="text"
                             placeholder={activeTab === 'chats' ? "Search chats..." : "Search friends..."}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={activeTab === 'chats' ? chatsSearch : friendsSearch}
+                            onChange={(e) => activeTab === 'chats' ? setChatsSearch(e.target.value) : setFriendsSearch(e.target.value)}
                             className={`flex-1 bg-transparent outline-none ${darkMode ? "text-white" : "text-gray-800"}`}
                         />
                     </div>
@@ -423,7 +433,7 @@ const FriendsSidebar = ({
                         </div>
                     ) : displayList.length === 0 ? (
                         <div className={`text-center py-10 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                            {activeTab === 'chats' ? "No conversations yet." : "No friends found."}
+                            {activeTab === 'chats' ? "No conversations yet." : friendsSearch ? `No friends found with "${friendsSearch}"` : "No friends found."}
                         </div>
                     ) : (
                         <div className="space-y-1">
