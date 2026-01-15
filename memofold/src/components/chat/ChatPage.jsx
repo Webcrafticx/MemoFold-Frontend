@@ -6,29 +6,30 @@ import { apiService } from "../../services/api";
 import { Channel, Chat, MessageInput, MessageList } from "stream-chat-react";
 import { StreamChat } from "stream-chat";
 import toast from "react-hot-toast";
+import { localStorageService } from "../../services/localStorage"; // Import localStorageService
 
 import "stream-chat-react/dist/css/v2/index.css";
 import CallButton from "./CallButton";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
-// 🟡 Skeleton Loader
-const ChatSkeleton = () => (
-    <div className="bg-white fixed inset-0 flex flex-col">
-        <div className="p-4 border-b border-gray-200 bg-white">
+// 🟡 Skeleton Loader (Updated for Dark Mode)
+const ChatSkeleton = ({ isDarkMode }) => (
+    <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} fixed inset-0 flex flex-col`}>
+        <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
             <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse"></div>
+                <div className={`w-10 h-10 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded-full animate-pulse`}></div>
                 <div className="flex-1">
-                    <div className="h-4 bg-gray-300 rounded w-32 mb-2 animate-pulse"></div>
-                    <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+                    <div className={`h-4 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'} rounded w-32 mb-2 animate-pulse`}></div>
+                    <div className={`h-3 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'} rounded w-20 animate-pulse`}></div>
                 </div>
             </div>
         </div>
         <div className="flex-1 p-4 space-y-6 overflow-hidden"></div>
-        <div className="p-4 border-t border-gray-200 bg-white">
+        <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
             <div className="flex space-x-2">
-                <div className="flex-1 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
-                <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div className={`flex-1 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
+                <div className={`w-12 h-12 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} rounded-lg animate-pulse`}></div>
             </div>
         </div>
     </div>
@@ -60,9 +61,25 @@ const ChatPage = () => {
     const [channel, setChannel] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isSendingCall, setIsSendingCall] = useState(false);
+    
+    // Dark Mode State
+    const [isDarkMode, setIsDarkMode] = useState(localStorageService.getDarkMode());
+
     const { user: authUser, token } = useAuth();
     const initializedRef = useRef(false); // Locking mechanism
     const reloadAttemptedRef = useRef(false);
+
+    // Listen for storage changes in case user toggles mode in another tab/window
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setIsDarkMode(localStorageService.getDarkMode());
+        };
+        // Also check immediately on mount
+        handleStorageChange();
+        
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
 
     const { data: tokenData, isLoading: tokenLoading } = useQuery({
         queryKey: ["streamToken", authUser?._id],
@@ -199,7 +216,7 @@ const ChatPage = () => {
         navigate(userId === authUser._id ? "/profile" : `/user/${userId}`);
     };
 
-    if (loading) return <ChatSkeleton />;
+    if (loading) return <ChatSkeleton isDarkMode={isDarkMode} />;
 
     const targetUser = channel?.state?.members[targetUserId]?.user;
     const lastSeenText = targetUser?.online
@@ -207,20 +224,21 @@ const ChatPage = () => {
         : formatLastSeen(targetUser?.last_active);
 
     return (
-        <div className="bg-white fixed inset-0">
-            <Chat client={chatClient}>
+        <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} fixed inset-0`}>
+            {/* Pass the theme prop to Chat. Stream uses str-chat__theme-dark for dark mode */}
+            <Chat client={chatClient} theme={`messaging ${isDarkMode ? 'str-chat__theme-dark' : 'str-chat__theme-light'}`}>
                 <Channel channel={channel}>
                     <div className="w-full h-full flex flex-col">
                         {/* Header */}
-                        <div className="flex items-center justify-between px-4 border-b border-gray-200 bg-white">
+                        <div className={`flex items-center justify-between px-4 border-b ${isDarkMode ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
                             <div className="flex items-center space-x-3">
                                 <button
                                     onClick={handleBack}
-                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                                    className={`p-2 rounded-full transition-colors cursor-pointer ${isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
                                     aria-label="Go back"
                                 >
                                     <svg
-                                        className="w-5 h-5 text-gray-600"
+                                        className={`w-5 h-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
@@ -255,10 +273,10 @@ const ChatPage = () => {
                                     )}
 
                                     <div>
-                                        <h2 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
+                                        <h2 className={`text-lg font-semibold transition-colors ${isDarkMode ? 'text-gray-100 group-hover:text-blue-400' : 'text-gray-800 group-hover:text-blue-600'}`}>
                                             {targetUser?.name || "User"}
                                         </h2>
-                                        <p className="text-sm text-gray-500 flex items-center">
+                                        <p className={`text-sm flex items-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                             {targetUser?.online && (
                                                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                                             )}
@@ -271,11 +289,12 @@ const ChatPage = () => {
                             <CallButton
                                 handleVideoCall={handleVideoCall}
                                 isSending={isSendingCall}
+                                isDarkMode={isDarkMode}
                             />
                         </div>
 
                         {/* Messages */}
-                        <div className="flex-1 min-h-0">
+                        <div className={`flex-1 min-h-0 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
                             <MessageList />
                         </div>
 

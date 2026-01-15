@@ -1,7 +1,11 @@
 // components/CallButton.jsx
-const CallButton = ({ handleVideoCall, isSending = false }) => {
+const CallButton = ({ handleVideoCall, isSending = false, isDarkMode }) => {
   return (
-    <div className="p-3 bg-white sticky top-0 z-10">
+    <div 
+      className={`p-3 sticky top-0 z-10 ${
+        isDarkMode ? 'bg-gray-900' : 'bg-white'
+      }`}
+    >
       <div className="flex justify-end">
         <button 
           onClick={handleVideoCall} 
