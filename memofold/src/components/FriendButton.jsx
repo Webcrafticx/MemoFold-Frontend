@@ -10,21 +10,21 @@ import ConfirmationModal from "../common/ConfirmationModal";
 
 const FriendButton = ({
     targetUserId,
-    initialState = "loading", // 👈 coming from UserProfile
+    initialState = "loading", // add | cancel | remove | accept | loading
 }) => {
     const [buttonState, setButtonState] = useState(initialState);
     const [isLoading, setIsLoading] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showRemoveModal, setShowRemoveModal] = useState(false);
 
-    // 🔥 Sync whenever parent updates status
+    // Sync when parent updates state
     useEffect(() => {
         setButtonState(initialState);
     }, [initialState]);
 
     const token = localStorage.getItem("token");
 
-    /* ------------------ ACTION HANDLERS ------------------ */
+    /* ------------------ API HANDLERS ------------------ */
 
     const handleAddFriend = async () => {
         if (!token) return;
@@ -45,7 +45,6 @@ const FriendButton = ({
 
             if (!res.ok) throw new Error("Failed to send request");
 
-            // optimistic update
             setButtonState("cancel");
         } catch (err) {
             alert(err.message || "Something went wrong");
@@ -81,6 +80,33 @@ const FriendButton = ({
         }
     };
 
+    const handleAcceptRequest = async () => {
+        if (!token) return;
+
+        try {
+            setIsLoading(true);
+
+            const res = await fetch(
+                `${config.apiUrl}/friends/accept-request/${targetUserId}`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            if (!res.ok) throw new Error("Failed to accept request");
+
+            setButtonState("remove"); // now friends
+        } catch (err) {
+            alert(err.message || "Something went wrong");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleRemoveFriend = async () => {
         if (!token) return;
 
@@ -108,7 +134,7 @@ const FriendButton = ({
         }
     };
 
-    /* ------------------ UI HELPERS ------------------ */
+    /* ------------------ UI CONFIG ------------------ */
 
     const getButtonConfig = () => {
         switch (buttonState) {
@@ -116,25 +142,39 @@ const FriendButton = ({
                 return {
                     icon: <FaUserPlus size={14} />,
                     text: "Add Friend",
-                    className: "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer",
+                    className:
+                        "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer",
                 };
+
             case "cancel":
                 return {
                     icon: <FaUserClock size={14} />,
                     text: "Cancel Request",
-                    className: "bg-amber-500 hover:bg-amber-600 text-white cursor-pointer",
+                    className:
+                        "bg-amber-500 hover:bg-amber-600 text-white cursor-pointer",
                 };
+
+            case "accept":
+                return {
+                    icon: <FaUserCheck size={14} />,
+                    text: "Accept Request",
+                    className:
+                        "bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer",
+                };
+
             case "remove":
                 return {
                     icon: <FaUserCheck size={14} />,
                     text: "Remove Friend",
-                    className: "bg-green-500 hover:bg-green-600 text-white cursor-pointer",
+                    className:
+                        "bg-green-500 hover:bg-green-600 text-white cursor-pointer",
                 };
+
             default:
                 return {
                     icon: <FaSpinner size={14} className="animate-spin" />,
                     text: "Loading",
-                    className: "bg-gray-400 cursor-pointer" ,
+                    className: "bg-gray-400 cursor-not-allowed",
                 };
         }
     };
@@ -144,6 +184,7 @@ const FriendButton = ({
 
         if (buttonState === "add") handleAddFriend();
         if (buttonState === "cancel") setShowCancelModal(true);
+        if (buttonState === "accept") handleAcceptRequest();
         if (buttonState === "remove") setShowRemoveModal(true);
     };
 
