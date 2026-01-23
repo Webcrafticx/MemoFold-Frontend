@@ -87,19 +87,21 @@ const FriendButton = ({
             setIsLoading(true);
 
             const res = await fetch(
-                `${config.apiUrl}/friends/accept-request/${targetUserId}`,
+                `${config.apiUrl}/friends/friend-request/${targetUserId}/respond`,
                 {
                     method: "POST",
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
                     },
+                    body: JSON.stringify({ action: "accept" }),
                 }
             );
 
-            if (!res.ok) throw new Error("Failed to accept request");
+            if (!res.ok) throw new Error("Failed to accept friend request");
 
-            setButtonState("remove"); // now friends
+            // now officially friends
+            setButtonState("remove");
         } catch (err) {
             alert(err.message || "Something went wrong");
         } finally {
