@@ -3,6 +3,7 @@ import {
     FaUserPlus,
     FaUserCheck,
     FaUserClock,
+    FaUserTimes,
     FaSpinner,
 } from "react-icons/fa";
 import config from "../hooks/config";
@@ -10,14 +11,14 @@ import ConfirmationModal from "../common/ConfirmationModal";
 
 const FriendButton = ({
     targetUserId,
-    initialState = "loading", // add | cancel | remove | accept | loading
+    initialState = "loading",
+    // add | cancel | accept | remove | loading
 }) => {
     const [buttonState, setButtonState] = useState(initialState);
     const [isLoading, setIsLoading] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showRemoveModal, setShowRemoveModal] = useState(false);
 
-    // Sync when parent updates state
     useEffect(() => {
         setButtonState(initialState);
     }, [initialState]);
@@ -91,17 +92,44 @@ const FriendButton = ({
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
                     },
                     body: JSON.stringify({ action: "accept" }),
                 }
             );
 
-            if (!res.ok) throw new Error("Failed to accept friend request");
+            if (!res.ok) throw new Error("Failed to accept request");
 
-            // now officially friends
             setButtonState("remove");
+        } catch (err) {
+            alert(err.message || "Something went wrong");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeclineRequest = async () => {
+        if (!token) return;
+
+        try {
+            setIsLoading(true);
+
+            const res = await fetch(
+                `${config.apiUrl}/friends/friend-request/${targetUserId}/respond`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ action: "decline" }),
+                }
+            );
+
+            if (!res.ok) throw new Error("Failed to decline request");
+
+            setButtonState("add");
         } catch (err) {
             alert(err.message || "Something went wrong");
         } finally {
@@ -136,7 +164,7 @@ const FriendButton = ({
         }
     };
 
-    /* ------------------ UI CONFIG ------------------ */
+    /* ------------------ UI HELPERS ------------------ */
 
     const getButtonConfig = () => {
         switch (buttonState) {
@@ -147,7 +175,6 @@ const FriendButton = ({
                     className:
                         "bg-blue-500 hover:bg-blue-600 text-white cursor-pointer",
                 };
-
             case "cancel":
                 return {
                     icon: <FaUserClock size={14} />,
@@ -155,15 +182,6 @@ const FriendButton = ({
                     className:
                         "bg-amber-500 hover:bg-amber-600 text-white cursor-pointer",
                 };
-
-            case "accept":
-                return {
-                    icon: <FaUserCheck size={14} />,
-                    text: "Accept Request",
-                    className:
-                        "bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer",
-                };
-
             case "remove":
                 return {
                     icon: <FaUserCheck size={14} />,
@@ -171,7 +189,6 @@ const FriendButton = ({
                     className:
                         "bg-green-500 hover:bg-green-600 text-white cursor-pointer",
                 };
-
             default:
                 return {
                     icon: <FaSpinner size={14} className="animate-spin" />,
@@ -186,32 +203,67 @@ const FriendButton = ({
 
         if (buttonState === "add") handleAddFriend();
         if (buttonState === "cancel") setShowCancelModal(true);
-        if (buttonState === "accept") handleAcceptRequest();
         if (buttonState === "remove") setShowRemoveModal(true);
     };
 
     const btn = getButtonConfig();
 
+    /* ------------------ RENDER ------------------ */
+
     return (
         <>
-            <button
-                onClick={handleClick}
-                disabled={isLoading || buttonState === "loading"}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition ${
-                    btn.className
-                } ${
-                    isLoading
-                        ? "opacity-60 cursor-not-allowed"
-                        : "hover:opacity-90"
-                }`}
-            >
-                {isLoading ? (
-                    <FaSpinner size={14} className="animate-spin" />
-                ) : (
-                    btn.icon
-                )}
-                <span>{btn.text}</span>
-            </button>
+            {/* ACCEPT + DECLINE */}
+            {buttonState === "accept" ? (
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleAcceptRequest}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition"
+                    >
+                        {isLoading ? (
+                            <FaSpinner size={14} className="animate-spin" />
+                        ) : (
+                            <FaUserCheck size={14} />
+                        )}
+                        Accept
+                    </button>
+
+                    <button
+                        onClick={handleDeclineRequest}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-red-400 hover:bg-red-500 text-white transition"
+                    >
+                        {isLoading ? (
+                            <FaSpinner size={14} className="animate-spin" />
+                        ) : (
+                            <FaUserTimes size={14} />
+                        )}
+                        Decline
+                    </button>
+                </div>
+            ) : (
+                <>
+                    {/* SINGLE BUTTON STATES */}
+                    <button
+                        onClick={handleClick}
+                        disabled={isLoading || buttonState === "loading"}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition ${
+                            btn.className
+                        } ${
+                            isLoading
+                                ? "opacity-60 cursor-not-allowed"
+                                : "hover:opacity-90"
+                        }`}
+                    >
+                        {isLoading ? (
+                            <FaSpinner size={14} className="animate-spin" />
+                        ) : (
+                            btn.icon
+                        )}
+                        <span>{btn.text}</span>
+                    </button>
+                </>
+            )}
 
             {/* Cancel Request Modal */}
             <ConfirmationModal
