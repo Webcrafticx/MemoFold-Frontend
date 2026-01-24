@@ -218,7 +218,7 @@ const FriendButton = ({
                     <button
                         onClick={handleAcceptRequest}
                         disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition cursor-pointer"
                     >
                         {isLoading ? (
                             <FaSpinner size={14} className="animate-spin" />
@@ -231,7 +231,7 @@ const FriendButton = ({
                     <button
                         onClick={handleDeclineRequest}
                         disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-red-400 hover:bg-red-500 text-white transition"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-red-400 hover:bg-red-500 text-white transition cursor-pointer"
                     >
                         {isLoading ? (
                             <FaSpinner size={14} className="animate-spin" />
