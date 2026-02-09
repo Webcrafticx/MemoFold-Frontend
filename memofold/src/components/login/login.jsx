@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate, Link } from "react-router-dom";
-import snip1 from "../../assets/snip1.jpg";
-import snip2 from "../../assets/snip2.jpg";
-import snip3 from "../../assets/snip3.jpg";
+import snip1 from "../../assets/snip4.jpeg";
+import snip2 from "../../assets/snip5.jpeg";
+import snip3 from "../../assets/snip6.jpeg";
 import logo from "../../assets/logo.png";
 import { enablePushNotifications } from "../../utils/pushNotification";
 
@@ -25,8 +25,6 @@ const LoginPage = () => {
             navigate("/feed");
         }
     }, [token, navigate]);
-
-
 
     const handleChange = (e) => {
         const { name, value } = e.target;
