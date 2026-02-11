@@ -17,7 +17,7 @@
     "browser-image-compression": "^2.0.2",
     "crypto-browserify": "^3.12.1",
     "emailjs-com": "^3.2.0",
-    "framer-motion": "^12.23.0",
+    "framer-motion": "^12.23.26",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.545.0",
     "react": "^19.1.0",
