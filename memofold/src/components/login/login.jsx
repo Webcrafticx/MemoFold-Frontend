@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate, Link } from "react-router-dom";
-import snip1 from "../../assets/snip4.jpeg";
-import snip2 from "../../assets/snip5.jpeg";
-import snip3 from "../../assets/snip6.jpeg";
+import snip1 from "../../assets/snip4.webp";
+import snip2 from "../../assets/snip5.webp";
+import snip3 from "../../assets/snip6.webp";
 import logo from "../../assets/logo.png";
 import { enablePushNotifications } from "../../utils/pushNotification";
 
@@ -70,8 +70,8 @@ const LoginPage = () => {
                                 index === 0
                                     ? "-left-8 -rotate-3"
                                     : index === 1
-                                    ? "z-20"
-                                    : "left-16 rotate-6"
+                                      ? "z-20"
+                                      : "left-16 rotate-6"
                             } ${
                                 isHovering === index
                                     ? "scale-105 -translate-y-2 z-30"
@@ -276,7 +276,7 @@ const LoginPage = () => {
                             >
                                 {item}
                             </Link>
-                        )
+                        ),
                     )}
                 </div>
                 <div className="text-xs text-gray-500">
