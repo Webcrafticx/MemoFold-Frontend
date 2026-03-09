@@ -36,6 +36,7 @@ const NotificationModal = ({
     const navigate = useNavigate();
     const modalRef = useRef(null);
     const contentRef = useRef(null);
+    const previewModalRef = useRef(null);
 
     useEffect(() => {
         if (showModal) {
@@ -80,6 +81,14 @@ const NotificationModal = ({
 
     useEffect(() => {
         const handleClickOutside = (event) => {
+            if (
+                selectedPostNotification &&
+                previewModalRef.current &&
+                previewModalRef.current.contains(event.target)
+            ) {
+                return;
+            }
+
             if (modalRef.current && !modalRef.current.contains(event.target)) {
                 if (selectedPostNotification) {
                     setSelectedPostNotification(null);
@@ -288,8 +297,30 @@ const NotificationModal = ({
         );
     };
 
+    const normalizePostId = (value) => {
+        if (!value) return null;
+        if (typeof value === "string") return value;
+        if (typeof value === "object") {
+            return (
+                value._id ||
+                value.id ||
+                value.$oid ||
+                value.postId ||
+                null
+            );
+        }
+        return null;
+    };
+
     const getNotificationPostId = (notification) => {
-        return notification?.postid?._id || notification?.postId || null;
+        return (
+            normalizePostId(notification?.postid?._id) ||
+            normalizePostId(notification?.postid) ||
+            normalizePostId(notification?.postId) ||
+            normalizePostId(notification?.metadata?.postId) ||
+            normalizePostId(notification?.metadata?.postid) ||
+            null
+        );
     };
 
     const getRenderableImageUrl = (url) => {
@@ -306,13 +337,18 @@ const NotificationModal = ({
         return url;
     };
 
-    const handleViewMoreFromPreview = () => {
+    const handleViewMoreFromPreview = (e) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
         const postId = getNotificationPostId(selectedPostNotification);
         if (!postId) return;
 
-        setSelectedPostNotification(null);
-        navigate(`/post/${postId}`);
-        onClose();
+        const targetPath = `/post/${postId}`;
+        // Hard navigation avoids modal unmount/race issues and matches expected redirect behavior
+        window.location.href = targetPath;
     };
 
     const handleNotificationClick = (notification) => {
@@ -595,6 +631,7 @@ const NotificationModal = ({
                   onClick={() => setSelectedPostNotification(null)}
               >
                   <div
+                      ref={previewModalRef}
                       className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl p-4 ${
                           darkMode
                               ? "bg-gray-800 text-white"
@@ -657,6 +694,7 @@ const NotificationModal = ({
                               Close
                           </button>
                           <button
+                              type="button"
                               onClick={handleViewMoreFromPreview}
                               className="px-3 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                           >
@@ -1046,6 +1084,7 @@ const NotificationModal = ({
                         </div>
                     )}
                 </div>
+            </div>
             </div>
             {previewModal}
         </>
