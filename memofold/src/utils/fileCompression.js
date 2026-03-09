@@ -11,8 +11,12 @@ export const formatFileSize = (bytes) => {
 
 // Get file type
 export const getFileType = (file) => {
-    if (file.type.startsWith('image/')) return 'image';
-    if (file.type.startsWith('video/')) return 'video';
+    const fileName = (file?.name || '').toLowerCase();
+    const isDngFile = fileName.endsWith('.dng');
+
+    // Some clients label DNG as generic/unknown MIME, so allow extension fallback.
+    if ((file?.type || '').startsWith('image/') || isDngFile) return 'image';
+    if ((file?.type || '').startsWith('video/')) return 'video';
     return 'other';
 };
 

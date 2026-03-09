@@ -344,7 +344,7 @@ const CreatePostSection = ({
                         ref={fileInputRef}
                         onChange={handleFileChange}
                         className="hidden"
-                        accept="image/*,video/*"
+                        accept="image/*,.dng,video/*"
                         disabled={isCompressing}
                     />
 

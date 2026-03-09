@@ -1714,6 +1714,20 @@ const UserProfile = () => {
         };
     };
 
+    const getRenderableImageUrl = (url) => {
+        if (!url || typeof url !== "string") return url;
+
+        const isDng = /\.dng(\?|$)/i.test(url);
+        const isCloudinary =
+            url.includes("res.cloudinary.com") && url.includes("/upload/");
+
+        if (isDng && isCloudinary) {
+            return url.replace("/upload/", "/upload/f_auto,q_auto/");
+        }
+
+        return url;
+    };
+
     const formatDate = (dateString) => {
         try {
             const utcDate = new Date(dateString);
@@ -2544,15 +2558,19 @@ const UserProfile = () => {
                                         </p>
 
                                         {/* Post Image */}
-                                        {post.image && (
+                                        {getRenderableImageUrl(post.image) && (
                                             <div className="w-full mb-3 overflow-hidden flex justify-center">
                                                 <img
-                                                    src={post.image}
+                                                    src={getRenderableImageUrl(
+                                                        post.image
+                                                    )}
                                                     alt="Post"
                                                     className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
                                                     onClick={() => {
                                                         setPreviewImage(
-                                                            post.image
+                                                            getRenderableImageUrl(
+                                                                post.image
+                                                            )
                                                         );
                                                         setShowImagePreview(
                                                             true

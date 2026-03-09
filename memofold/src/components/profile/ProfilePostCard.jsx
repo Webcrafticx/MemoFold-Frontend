@@ -278,6 +278,19 @@ const ProfilePostCard = ({
     const likedUsers = getLikedUsers();
     const totalLikes = getLikeCount();
     const isPostLiked = post.isLikedByMe || false;
+    const getRenderableImageUrl = (url) => {
+        if (!url || typeof url !== "string") return url;
+
+        const isDng = /\.dng(\?|$)/i.test(url);
+        const isCloudinary = url.includes("res.cloudinary.com") && url.includes("/upload/");
+
+        if (isDng && isCloudinary) {
+            return url.replace("/upload/", "/upload/f_auto,q_auto/");
+        }
+
+        return url;
+    };
+    const displayImageUrl = getRenderableImageUrl(post.image);
 
     const handleEditClick = () => {
         onEditPost(post._id);
@@ -520,15 +533,15 @@ const ProfilePostCard = ({
                 </p>
                 
                 {/* Existing Media - Only show in edit mode */}
-                {hasMedia && isEditing && (
+                        {hasMedia && isEditing && (
                     <div className="relative inline-block mb-2">
                         {existingImage ? (
                             <>
                                 <img
-                                    src={existingImage}
+                                    src={getRenderableImageUrl(existingImage)}
                                     alt="Current post"
                                     className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
-                                    onClick={() => onImagePreview(existingImage)}
+                                    onClick={() => onImagePreview(getRenderableImageUrl(existingImage))}
                                 />
                                 <button
                                     onClick={handleRemoveExistingMedia}
@@ -868,7 +881,7 @@ const ProfilePostCard = ({
                                 type="file"
                                 className="hidden"
                                 onChange={handleFileSelect}
-                                accept="image/*,video/*"
+                                accept="image/*,.dng,video/*"
                                 disabled={isUpdatingPost || isCompressing}
                             />
                             <FaPaperclip className="text-gray-500 text-sm" />
@@ -906,13 +919,13 @@ const ProfilePostCard = ({
                     </p>
 
                     {/* Post Image */}
-                    {post.image && !isEditing && (
+                    {displayImageUrl && !isEditing && (
                         <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                             <img
-                                src={post.image}
+                                src={displayImageUrl}
                                 alt="Post"
                                 className="max-h-96 max-w-full object-contain rounded-lg cursor-pointer"
-                                onClick={() => onImagePreview(post.image)}
+                                onClick={() => onImagePreview(displayImageUrl)}
                                 onError={(e) => {
                                     e.target.style.display = "none";
                                 }}

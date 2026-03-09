@@ -1049,8 +1049,22 @@ const Post = () => {
     };
 
     const handleImagePreview = (imageUrl) => {
-        setPreviewImage(imageUrl);
+        setPreviewImage(getRenderableImageUrl(imageUrl));
         setShowImagePreview(true);
+    };
+
+    const getRenderableImageUrl = (url) => {
+        if (!url || typeof url !== "string") return url;
+
+        const isDng = /\.dng(\?|$)/i.test(url);
+        const isCloudinary =
+            url.includes("res.cloudinary.com") && url.includes("/upload/");
+
+        if (isDng && isCloudinary) {
+            return url.replace("/upload/", "/upload/f_auto,q_auto/");
+        }
+
+        return url;
     };
 
     const handleImageError = (e) => {
@@ -1292,14 +1306,16 @@ const Post = () => {
                         )}
 
                         {/* Post Image */}
-                        {post.image && (
+                        {getRenderableImageUrl(post.image) && (
                             <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                                 <img
-                                    src={post.image}
+                                    src={getRenderableImageUrl(post.image)}
                                     alt="Post"
                                     className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
                                     onClick={() =>
-                                        handleImagePreview(post.image)
+                                        handleImagePreview(
+                                            getRenderableImageUrl(post.image)
+                                        )
                                     }
                                     onError={handleImageError}
                                 />

@@ -185,7 +185,7 @@ const ProfileHeader = ({
                             ref={profilePicInputRef}
                             onChange={handleProfilePicFileChange}
                             className="hidden"
-                            accept="image/*"
+                            accept="image/*,.dng"
                             disabled={isCompressing}
                         />
                         {/* Custom Notification */}

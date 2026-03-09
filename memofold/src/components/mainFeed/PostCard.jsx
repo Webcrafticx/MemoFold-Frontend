@@ -68,6 +68,20 @@ const PostCard = ({
 
     const likedUsers = getLikedUsers();
     const totalLikes = post.likeCount || 0;
+    const getRenderableImageUrl = (url) => {
+        if (!url || typeof url !== "string") return url;
+
+        const isDng = /\.dng(\?|$)/i.test(url);
+        const isCloudinary =
+            url.includes("res.cloudinary.com") && url.includes("/upload/");
+
+        if (isDng && isCloudinary) {
+            return url.replace("/upload/", "/upload/f_auto,q_auto/");
+        }
+
+        return url;
+    };
+    const displayImageUrl = getRenderableImageUrl(post.image);
 
     const handleShowAllLikes = (e) => {
         e.stopPropagation();
@@ -258,13 +272,13 @@ const PostCard = ({
             </p>
 
             {/* IMAGE SECTION */}
-            {post.image && (
+            {displayImageUrl && (
                 <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
                     <img
-                        src={post.image}
+                        src={displayImageUrl}
                         alt="Post"
                         className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
-                        onClick={() => onImagePreview(post.image)}
+                        onClick={() => onImagePreview(displayImageUrl)}
                         onError={handleImageError}
                     />
                 </div>

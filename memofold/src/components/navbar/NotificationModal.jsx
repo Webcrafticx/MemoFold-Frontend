@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import config from "../../hooks/config";
@@ -29,6 +30,8 @@ const NotificationModal = ({
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [processingRequest, setProcessingRequest] = useState(null); // { notificationId, action }
+    const [selectedPostNotification, setSelectedPostNotification] =
+        useState(null);
     const { token, username } = useAuth();
     const navigate = useNavigate();
     const modalRef = useRef(null);
@@ -58,6 +61,10 @@ const NotificationModal = ({
     useEffect(() => {
         const handleEscapeKey = (event) => {
             if (event.key === "Escape") {
+                if (selectedPostNotification) {
+                    setSelectedPostNotification(null);
+                    return;
+                }
                 onClose();
             }
         };
@@ -69,11 +76,15 @@ const NotificationModal = ({
         return () => {
             document.removeEventListener("keydown", handleEscapeKey);
         };
-    }, [showModal, onClose]);
+    }, [showModal, onClose, selectedPostNotification]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (modalRef.current && !modalRef.current.contains(event.target)) {
+                if (selectedPostNotification) {
+                    setSelectedPostNotification(null);
+                    return;
+                }
                 onClose();
             }
         };
@@ -85,7 +96,7 @@ const NotificationModal = ({
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showModal, onClose]);
+    }, [showModal, onClose, selectedPostNotification]);
 
     useEffect(() => {
         if (showModal && token) {
@@ -277,6 +288,33 @@ const NotificationModal = ({
         );
     };
 
+    const getNotificationPostId = (notification) => {
+        return notification?.postid?._id || notification?.postId || null;
+    };
+
+    const getRenderableImageUrl = (url) => {
+        if (!url || typeof url !== "string") return url;
+
+        const isDng = /\.dng(\?|$)/i.test(url);
+        const isCloudinary =
+            url.includes("res.cloudinary.com") && url.includes("/upload/");
+
+        if (isDng && isCloudinary) {
+            return url.replace("/upload/", "/upload/f_auto,q_auto/");
+        }
+
+        return url;
+    };
+
+    const handleViewMoreFromPreview = () => {
+        const postId = getNotificationPostId(selectedPostNotification);
+        if (!postId) return;
+
+        setSelectedPostNotification(null);
+        navigate(`/post/${postId}`);
+        onClose();
+    };
+
     const handleNotificationClick = (notification) => {
         if (!notification.read) {
             markAsRead(notification._id);
@@ -288,12 +326,8 @@ const NotificationModal = ({
             case "comment":
             case "comment_like": // Added comment_like here
             case "share":
-                if (notification.postid && notification.postid._id) {
-                    navigate(`/post/${notification.postid._id}`);
-                    onClose();
-                } else if (notification.postId) {
-                    navigate(`/post/${notification.postId}`);
-                    onClose();
+                if (getNotificationPostId(notification)) {
+                    setSelectedPostNotification(notification);
                 } else {
                     if (notification.sender?._id) {
                         navigate(`/user/${notification.sender._id}`);
@@ -533,7 +567,7 @@ const NotificationModal = ({
     };
 
     const hasPostData = (notification) => {
-        return notification.postid && notification.postid._id;
+        return !!getNotificationPostId(notification);
     };
 
     // Get profile picture URL from metadata or sender object
@@ -554,20 +588,102 @@ const NotificationModal = ({
 
     if (!showModal) return null;
 
+    const previewModal = selectedPostNotification
+        ? ReactDOM.createPortal(
+              <div
+                  className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
+                  onClick={() => setSelectedPostNotification(null)}
+              >
+                  <div
+                      className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl p-4 ${
+                          darkMode
+                              ? "bg-gray-800 text-white"
+                              : "bg-white text-gray-900"
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                  >
+                      <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold">
+                              Post Preview
+                          </h3>
+                          <button
+                              onClick={() => setSelectedPostNotification(null)}
+                              className={`p-2 rounded-full cursor-pointer ${
+                                  darkMode
+                                      ? "hover:bg-gray-700"
+                                      : "hover:bg-gray-100"
+                              }`}
+                          >
+                              <FaTimes />
+                          </button>
+                      </div>
+
+                      <div className="space-y-3">
+                          {selectedPostNotification?.postid?.content && (
+                              <p className="text-sm whitespace-pre-wrap">
+                                  {selectedPostNotification.postid.content}
+                              </p>
+                          )}
+
+                          {selectedPostNotification?.postid?.image && (
+                              <img
+                                  src={getRenderableImageUrl(
+                                      selectedPostNotification.postid.image
+                                  )}
+                                  alt="Post preview"
+                                  className="max-h-[65vh] w-full object-contain rounded-lg"
+                              />
+                          )}
+
+                          {selectedPostNotification?.postid?.videoUrl && (
+                              <video
+                                  src={selectedPostNotification.postid.videoUrl}
+                                  className="max-h-[65vh] w-full object-contain rounded-lg bg-black"
+                                  controls
+                                  playsInline
+                              />
+                          )}
+                      </div>
+
+                      <div className="mt-4 flex justify-end gap-2">
+                          <button
+                              onClick={() => setSelectedPostNotification(null)}
+                              className={`px-3 py-2 rounded-lg text-sm cursor-pointer ${
+                                  darkMode
+                                      ? "bg-gray-700 hover:bg-gray-600"
+                                      : "bg-gray-100 hover:bg-gray-200"
+                              }`}
+                          >
+                              Close
+                          </button>
+                          <button
+                              onClick={handleViewMoreFromPreview}
+                              className="px-3 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                          >
+                              View more
+                          </button>
+                      </div>
+                  </div>
+              </div>,
+              document.body
+          )
+        : null;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 pb-4 px-2 sm:pt-20 sm:px-4 backdrop-blur-sm cursor-default">
-            <div
-                ref={modalRef}
-                className={`w-full max-w-2xl rounded-xl shadow-2xl ${
-                    darkMode
-                        ? "bg-gray-800 text-white border border-gray-700"
-                        : "bg-white text-gray-800 border border-gray-200"
-                } max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 cursor-default`}
-                style={{
-                    minHeight: "300px",
-                    height: "auto",
-                }}
-            >
+        <>
+            <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 pb-4 px-2 sm:pt-20 sm:px-4 backdrop-blur-sm cursor-default">
+                <div
+                    ref={modalRef}
+                    className={`w-full max-w-2xl rounded-xl shadow-2xl ${
+                        darkMode
+                            ? "bg-gray-800 text-white border border-gray-700"
+                            : "bg-white text-gray-800 border border-gray-200"
+                    } max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100 cursor-default`}
+                    style={{
+                        minHeight: "300px",
+                        height: "auto",
+                    }}
+                >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-inherit cursor-default">
                     <div className="flex items-center space-x-3 cursor-default">
@@ -769,8 +885,9 @@ const NotificationModal = ({
                                                         }`}
                                                     >
                                                         <p className="truncate cursor-pointer">
-                                                            {notification.postid
-                                                                .content ||
+                                                            {notification
+                                                                .postid
+                                                                ?.content ||
                                                                 "View post"}
                                                         </p>
                                                     </div>
@@ -930,7 +1047,8 @@ const NotificationModal = ({
                     )}
                 </div>
             </div>
-        </div>
+            {previewModal}
+        </>
     );
 };
 
