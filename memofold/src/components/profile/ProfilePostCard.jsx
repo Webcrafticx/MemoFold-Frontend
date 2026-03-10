@@ -475,17 +475,25 @@ const ProfilePostCard = ({
 
     // File preview rendering function
     const renderFilePreview = (file) => {
-        if (file && file.type && file.type.startsWith("image/")) {
+        if (file && getFileType(file) === "image") {
             return (
                 <div className="relative">
                     <img
                         src={URL.createObjectURL(file)}
                         alt="Preview"
-                        className="w-16 h-16 object-cover rounded-lg cursor-pointer"
+                        className="w-16 h-16 object-cover rounded-lg cursor-pointer bg-gray-100"
                         onClick={() =>
                             onImagePreview(URL.createObjectURL(file))
                         }
+                        onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget.nextSibling;
+                            if (fallback) fallback.style.display = "flex";
+                        }}
                     />
+                    <div className="w-16 h-16 hidden items-center justify-center rounded-lg bg-gray-100 text-gray-600 text-[10px] px-1 text-center">
+                        Preview not supported
+                    </div>
                     <button
                         onClick={() =>
                         onRemoveEditFile(editFiles.indexOf(file))
@@ -881,7 +889,7 @@ const ProfilePostCard = ({
                                 type="file"
                                 className="hidden"
                                 onChange={handleFileSelect}
-                                accept="image/*,.dng,video/*"
+                                accept="image/*,.dng,.heic,.heif,video/*"
                                 disabled={isUpdatingPost || isCompressing}
                             />
                             <FaPaperclip className="text-gray-500 text-sm" />

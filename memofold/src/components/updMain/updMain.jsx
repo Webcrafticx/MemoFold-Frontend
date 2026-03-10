@@ -566,6 +566,18 @@ const MainDashboard = () => {
         await fetchComments(postId);
     };
 
+    const isImageExtension = (fileName) => {
+        const lowerName = (fileName || "").toLowerCase();
+        return (
+            lowerName.endsWith(".dng") ||
+            lowerName.endsWith(".heic") ||
+            lowerName.endsWith(".heif")
+        );
+    };
+
+    const isImageFile = (file) =>
+        (file?.type || "").startsWith("image/") || isImageExtension(file?.name);
+
     const handleFileSelect = (e) => {
         const files = Array.from(e.target.files);
         const validFiles = files.filter((file) => {
@@ -576,7 +588,7 @@ const MainDashboard = () => {
                 "video/mp4",
                 "text/plain",
             ];
-            return validTypes.includes(file.type);
+            return isImageFile(file) || validTypes.includes(file.type);
         });
 
         if (validFiles.length !== files.length) {
@@ -598,7 +610,7 @@ const MainDashboard = () => {
                 "video/mp4",
                 "text/plain",
             ];
-            return validTypes.includes(file.type);
+            return isImageFile(file) || validTypes.includes(file.type);
         });
 
         if (validFiles.length !== files.length) {
@@ -1083,8 +1095,9 @@ const MainDashboard = () => {
         setActiveCommentPostId(null);
     };
 
-    const getFileIcon = (fileType) => {
-        if (fileType.startsWith("image/")) return "🖼️";
+    const getFileIcon = (file) => {
+        const fileType = file?.type || "";
+        if (isImageFile(file)) return "🖼️";
         if (fileType.startsWith("video/")) return "🎬";
         if (fileType === "application/pdf") return "📄";
         if (fileType.includes("spreadsheet")) return "📊";
@@ -1094,7 +1107,7 @@ const MainDashboard = () => {
     };
 
     const renderImagePreview = (file, isEdit = false) => {
-        if (file.type.startsWith("image/")) {
+        if (isImageFile(file)) {
             return (
                 <div className="relative">
                     <img
@@ -1105,7 +1118,15 @@ const MainDashboard = () => {
                             setPreviewImage(URL.createObjectURL(file));
                             setShowImagePreview(true);
                         }}
+                        onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget.nextSibling;
+                            if (fallback) fallback.style.display = "flex";
+                        }}
                     />
+                    <div className="w-16 h-16 hidden items-center justify-center rounded-lg bg-gray-100 text-gray-600 text-[10px] px-1 text-center">
+                        Preview not supported
+                    </div>
                     <button
                         onClick={() =>
                             isEdit
@@ -1125,7 +1146,7 @@ const MainDashboard = () => {
                     isDarkMode ? "bg-gray-600" : "bg-white"
                 }`}
             >
-                <span className="mr-2">{getFileIcon(file.type)}</span>
+                <span className="mr-2">{getFileIcon(file)}</span>
                 <span className="text-sm truncate max-w-xs">{file.name}</span>
                 <button
                     onClick={() =>
@@ -1346,7 +1367,7 @@ const MainDashboard = () => {
                                                 type="file"
                                                 className="hidden"
                                                 onChange={handleFileSelect}
-                                                accept="image/*,application/pdf,video/mp4,text/plain"
+                                                accept="image/*,.dng,.heic,.heif,application/pdf,video/mp4,text/plain"
                                             />
                                             <FaPaperclip className="text-gray-500" />
                                         </label>
@@ -1558,7 +1579,7 @@ const MainDashboard = () => {
                                                     onChange={
                                                         handleEditFileSelect
                                                     }
-                                                    accept="image/*,application/pdf,video/mp4,text/plain"
+                                                    accept="image/*,.dng,.heic,.heif,application/pdf,video/mp4,text/plain"
                                                 />
                                                 <FaPaperclip className="text-gray-500" />
                                             </label>

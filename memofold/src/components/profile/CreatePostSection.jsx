@@ -33,6 +33,7 @@ const CreatePostSection = ({
     const [filePreview, setFilePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
     const [fileType, setFileType] = useState(null);
+    const [imagePreviewError, setImagePreviewError] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
     const [compressionProgress, setCompressionProgress] = useState(0);
 
@@ -100,6 +101,7 @@ const CreatePostSection = ({
 
             // Create preview
             if (type === 'image') {
+                setImagePreviewError(false);
                 const reader = new FileReader();
                 reader.onload = (event) => setFilePreview(event.target.result);
                 reader.readAsDataURL(processedFile);
@@ -130,6 +132,7 @@ const CreatePostSection = ({
         setSelectedFile(null);
         setFilePreview(null);
         setFileType(null);
+        setImagePreviewError(false);
         setIsCompressing(false);
         setCompressionProgress(0);
         if (fileInputRef.current) fileInputRef.current.value = "";
@@ -268,11 +271,20 @@ const CreatePostSection = ({
             {filePreview && !isCompressing && (
                 <div className="relative mb-3">
                     {fileType === "image" ? (
-                        <img
-                            src={filePreview}
-                            alt="Preview"
-                            className="w-full max-h-96 object-contain rounded-lg cursor-pointer bg-gray-100"
-                        />
+                        <div className="w-full max-h-96">
+                            <img
+                                src={filePreview}
+                                alt="Preview"
+                                className="w-full max-h-96 object-contain rounded-lg cursor-pointer bg-gray-100"
+                                onError={() => setImagePreviewError(true)}
+                                style={imagePreviewError ? { display: "none" } : undefined}
+                            />
+                            {imagePreviewError && (
+                                <div className="w-full max-h-96 min-h-24 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 text-sm px-3 py-6">
+                                    Preview not supported. {selectedFile?.name}
+                                </div>
+                            )}
+                        </div>
                     ) : fileType === "video" ? (
                         <div className="relative">
                             <video
@@ -344,7 +356,7 @@ const CreatePostSection = ({
                         ref={fileInputRef}
                         onChange={handleFileChange}
                         className="hidden"
-                        accept="image/*,.dng,video/*"
+                        accept="image/*,.dng,.heic,.heif,video/*"
                         disabled={isCompressing}
                     />
 

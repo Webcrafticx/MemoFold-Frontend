@@ -13,9 +13,17 @@ export const formatFileSize = (bytes) => {
 export const getFileType = (file) => {
     const fileName = (file?.name || '').toLowerCase();
     const isDngFile = fileName.endsWith('.dng');
+    const isHeicFile =
+        fileName.endsWith('.heic') || fileName.endsWith('.heif');
 
     // Some clients label DNG as generic/unknown MIME, so allow extension fallback.
-    if ((file?.type || '').startsWith('image/') || isDngFile) return 'image';
+    if (
+        (file?.type || '').startsWith('image/') ||
+        isDngFile ||
+        isHeicFile
+    ) {
+        return 'image';
+    }
     if ((file?.type || '').startsWith('video/')) return 'video';
     return 'other';
 };
