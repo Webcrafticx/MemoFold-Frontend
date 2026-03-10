@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import ReactDOM from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import config from "../../hooks/config";
@@ -16,6 +15,8 @@ import {
     FaBell,
     FaCircle,
     FaSpinner,
+    FaClock,
+    FaImage,
 } from "react-icons/fa";
 
 const NotificationModal = ({
@@ -29,14 +30,13 @@ const NotificationModal = ({
     const [unreadCount, setUnreadCount] = useState(0);
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
-    const [processingRequest, setProcessingRequest] = useState(null); // { notificationId, action }
-    const [selectedPostNotification, setSelectedPostNotification] =
-        useState(null);
+    const [processingRequest, setProcessingRequest] = useState(null);
+    const [selectedMemory, setSelectedMemory] = useState(null);
     const { token, username } = useAuth();
     const navigate = useNavigate();
     const modalRef = useRef(null);
     const contentRef = useRef(null);
-    const previewModalRef = useRef(null);
+    const memoryModalRef = useRef(null);
 
     useEffect(() => {
         if (showModal) {
@@ -62,11 +62,11 @@ const NotificationModal = ({
     useEffect(() => {
         const handleEscapeKey = (event) => {
             if (event.key === "Escape") {
-                if (selectedPostNotification) {
-                    setSelectedPostNotification(null);
-                    return;
+                if (selectedMemory) {
+                    setSelectedMemory(null);
+                } else {
+                    onClose();
                 }
-                onClose();
             }
         };
 
@@ -77,23 +77,12 @@ const NotificationModal = ({
         return () => {
             document.removeEventListener("keydown", handleEscapeKey);
         };
-    }, [showModal, onClose, selectedPostNotification]);
+    }, [showModal, onClose, selectedMemory]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (
-                selectedPostNotification &&
-                previewModalRef.current &&
-                previewModalRef.current.contains(event.target)
-            ) {
-                return;
-            }
-
+            if (selectedMemory) return; // memory modal open ho toh main modal band mat karo
             if (modalRef.current && !modalRef.current.contains(event.target)) {
-                if (selectedPostNotification) {
-                    setSelectedPostNotification(null);
-                    return;
-                }
                 onClose();
             }
         };
@@ -105,7 +94,23 @@ const NotificationModal = ({
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showModal, onClose, selectedPostNotification]);
+    }, [showModal, onClose]);
+
+    useEffect(() => {
+        const handleMemoryClickOutside = (event) => {
+            if (memoryModalRef.current && !memoryModalRef.current.contains(event.target)) {
+                setSelectedMemory(null);
+            }
+        };
+
+        if (selectedMemory) {
+            document.addEventListener("mousedown", handleMemoryClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener("mousedown", handleMemoryClickOutside);
+        };
+    }, [selectedMemory]);
 
     useEffect(() => {
         if (showModal && token) {
@@ -190,9 +195,6 @@ const NotificationModal = ({
                 ? notificationIds
                 : [notificationIds];
 
-            // ✅ API requires a path param `{id}`
-            // For single: send the actual id
-            // For multiple: use a placeholder (e.g. "bulk")
             const endpointId = ids.length === 1 ? ids[0] : "bulk";
 
             const response = await fetch(
@@ -244,7 +246,6 @@ const NotificationModal = ({
 
     const handleFriendRequest = async (notificationId, action) => {
         try {
-            // Set processing request with both notificationId and action
             setProcessingRequest({ notificationId, action });
 
             const notification = notifications.find(
@@ -288,7 +289,6 @@ const NotificationModal = ({
         }
     };
 
-    // Helper function to check if a specific button is loading
     const isButtonLoading = (notificationId, action) => {
         return (
             processingRequest &&
@@ -297,73 +297,28 @@ const NotificationModal = ({
         );
     };
 
-    const normalizePostId = (value) => {
-        if (!value) return null;
-        if (typeof value === "string") return value;
-        if (typeof value === "object") {
-            return (
-                value._id ||
-                value.id ||
-                value.$oid ||
-                value.postId ||
-                null
-            );
-        }
-        return null;
-    };
-
-    const getNotificationPostId = (notification) => {
-        return (
-            normalizePostId(notification?.postid?._id) ||
-            normalizePostId(notification?.postid) ||
-            normalizePostId(notification?.postId) ||
-            normalizePostId(notification?.metadata?.postId) ||
-            normalizePostId(notification?.metadata?.postid) ||
-            null
-        );
-    };
-
-    const getRenderableImageUrl = (url) => {
-        if (!url || typeof url !== "string") return url;
-
-        const isDng = /\.dng(\?|$)/i.test(url);
-        const isCloudinary =
-            url.includes("res.cloudinary.com") && url.includes("/upload/");
-
-        if (isDng && isCloudinary) {
-            return url.replace("/upload/", "/upload/f_auto,q_auto/");
-        }
-
-        return url;
-    };
-
-    const handleViewMoreFromPreview = (e) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        const postId = getNotificationPostId(selectedPostNotification);
-        if (!postId) return;
-
-        const targetPath = `/post/${postId}`;
-        // Hard navigation avoids modal unmount/race issues and matches expected redirect behavior
-        window.location.href = targetPath;
-    };
-
     const handleNotificationClick = (notification) => {
         if (!notification.read) {
             markAsRead(notification._id);
         }
 
-        // For comment_like type, also redirect to post
+        // Handle memory notification type
+        if (notification.type === "memory") {
+            setSelectedMemory(notification);
+            return;
+        }
+
         switch (notification.type) {
             case "like":
             case "comment":
-            case "comment_like": // Added comment_like here
+            case "comment_like":
             case "share":
-                if (getNotificationPostId(notification)) {
-                    setSelectedPostNotification(notification);
+                if (notification.postid && notification.postid._id) {
+                    navigate(`/post/${notification.postid._id}`);
+                    onClose();
+                } else if (notification.postId) {
+                    navigate(`/post/${notification.postId}`);
+                    onClose();
                 } else {
                     if (notification.sender?._id) {
                         navigate(`/user/${notification.sender._id}`);
@@ -410,13 +365,36 @@ const NotificationModal = ({
                 );
             case "share":
                 return <FaShare {...iconProps} style={{ color: "#8b5cf6" }} />;
+            case "memory":
+                return <FaClock {...iconProps} style={{ color: "#f59e0b" }} />;
             default:
                 return <FaBell {...iconProps} style={{ color: "#6b7280" }} />;
         }
     };
 
     const getNotificationMessage = (notification) => {
-        // Use metadata if available, otherwise fallback to sender object
+        // For memory notifications, use metadata
+        if (notification.type === "memory") {
+            const yearsAgo = notification.metadata?.yearsAgo || 1;
+            const postContent = notification.metadata?.post?.content || notification.postid?.content || "";
+            
+            return (
+                <>
+                    <span className="font-semibold text-amber-500">
+                        🎉 On This Day
+                    </span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                        {" "}{yearsAgo} year{yearsAgo > 1 ? 's' : ''} ago today
+                    </span>
+                    {postContent && (
+                        <span className="block text-sm mt-1 italic text-gray-500 dark:text-gray-400">
+                            "{postContent.length > 50 ? postContent.substring(0, 50) + "..." : postContent}"
+                        </span>
+                    )}
+                </>
+            );
+        }
+
         const senderName =
             notification.metadata?.realname ||
             notification.sender?.realname ||
@@ -424,7 +402,6 @@ const NotificationModal = ({
             notification.sender?.username ||
             "Someone";
 
-        // For comment-like, we might want to show the comment content
         const commentContent = notification.metadata?.content;
 
         switch (notification.type) {
@@ -603,17 +580,15 @@ const NotificationModal = ({
     };
 
     const hasPostData = (notification) => {
-        return !!getNotificationPostId(notification);
+        return notification.postid && notification.postid._id;
     };
 
-    // Get profile picture URL from metadata or sender object
     const getProfilePic = (notification) => {
         return (
             notification.metadata?.profilePic || notification.sender?.profilePic
         );
     };
 
-    // Get username for avatar fallback
     const getUsernameForAvatar = (notification) => {
         return (
             notification.metadata?.username ||
@@ -622,93 +597,51 @@ const NotificationModal = ({
         );
     };
 
+// Handle memory post click
+const handleMemoryPostClick = (e) => {
+    e.stopPropagation();
+    if (selectedMemory?.postid?._id) {
+        const postPath = `/post/${selectedMemory.postid._id}`;
+        setSelectedMemory(null);
+        onClose();
+        navigate(postPath);
+    }
+};
+
+// Handle view more memories (navigate to profile)
+const handleViewMoreMemories = (e) => {
+    e.stopPropagation();
+    const path = selectedMemory?.sender?._id
+        ? `/user/${selectedMemory.sender._id}`
+        : '/profile';
+    setSelectedMemory(null);
+    onClose();
+    navigate(path);
+};
+
+    // Get memory post from either postid or metadata
+    const getMemoryPost = (memory) => {
+        return memory.postid || memory.metadata?.post || null;
+    };
+
+    // Format the memory date
+    const formatMemoryDate = (dateString) => {
+        try {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch {
+            return 'Unknown date';
+        }
+    };
+
     if (!showModal) return null;
-
-    const previewModal = selectedPostNotification
-        ? ReactDOM.createPortal(
-              <div
-                  className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4"
-                  onClick={() => setSelectedPostNotification(null)}
-              >
-                  <div
-                      ref={previewModalRef}
-                      className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl p-4 ${
-                          darkMode
-                              ? "bg-gray-800 text-white"
-                              : "bg-white text-gray-900"
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                  >
-                      <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-lg font-semibold">
-                              Post Preview
-                          </h3>
-                          <button
-                              onClick={() => setSelectedPostNotification(null)}
-                              className={`p-2 rounded-full cursor-pointer ${
-                                  darkMode
-                                      ? "hover:bg-gray-700"
-                                      : "hover:bg-gray-100"
-                              }`}
-                          >
-                              <FaTimes />
-                          </button>
-                      </div>
-
-                      <div className="space-y-3">
-                          {selectedPostNotification?.postid?.content && (
-                              <p className="text-sm whitespace-pre-wrap">
-                                  {selectedPostNotification.postid.content}
-                              </p>
-                          )}
-
-                          {selectedPostNotification?.postid?.image && (
-                              <img
-                                  src={getRenderableImageUrl(
-                                      selectedPostNotification.postid.image
-                                  )}
-                                  alt="Post preview"
-                                  className="max-h-[65vh] w-full object-contain rounded-lg"
-                              />
-                          )}
-
-                          {selectedPostNotification?.postid?.videoUrl && (
-                              <video
-                                  src={selectedPostNotification.postid.videoUrl}
-                                  className="max-h-[65vh] w-full object-contain rounded-lg bg-black"
-                                  controls
-                                  playsInline
-                              />
-                          )}
-                      </div>
-
-                      <div className="mt-4 flex justify-end gap-2">
-                          <button
-                              onClick={() => setSelectedPostNotification(null)}
-                              className={`px-3 py-2 rounded-lg text-sm cursor-pointer ${
-                                  darkMode
-                                      ? "bg-gray-700 hover:bg-gray-600"
-                                      : "bg-gray-100 hover:bg-gray-200"
-                              }`}
-                          >
-                              Close
-                          </button>
-                          <button
-                              type="button"
-                              onClick={handleViewMoreFromPreview}
-                              className="px-3 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
-                          >
-                              View more
-                          </button>
-                      </div>
-                  </div>
-              </div>,
-              document.body
-          )
-        : null;
 
     return (
         <>
+            {/* Main Notification Modal */}
             <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 pb-4 px-2 sm:pt-20 sm:px-4 backdrop-blur-sm cursor-default">
                 <div
                     ref={modalRef}
@@ -722,371 +655,477 @@ const NotificationModal = ({
                         height: "auto",
                     }}
                 >
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-inherit cursor-default">
-                    <div className="flex items-center space-x-3 cursor-default">
-                        <div className="flex items-center space-x-2 cursor-default">
-                            <FaBell
-                                className={`text-lg cursor-pointer ${
-                                    darkMode ? "text-cyan-400" : "text-blue-600"
-                                }`}
-                            />
-                            <h3 className="text-lg sm:text-xl font-bold cursor-default">
-                                Notifications
-                            </h3>
-                        </div>
-                        {unreadNotifications > 0 && (
-                            <span className="bg-red-500 text-white text-xs font-medium rounded-full px-2 py-1 min-w-[20px] text-center cursor-default">
-                                {unreadNotifications > 99
-                                    ? "99+"
-                                    : unreadNotifications}{" "}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center space-x-2 sm:space-x-3 cursor-default">
-                        {unreadCount > 0 && (
-                            <button
-                                onClick={markAllAsRead}
-                                className={`text-sm px-3 py-1.5 rounded-lg transition-all font-medium cursor-pointer ${
-                                    darkMode
-                                        ? "text-cyan-400 hover:bg-gray-700 active:bg-gray-600"
-                                        : "text-blue-600 hover:bg-gray-100 active:bg-gray-200"
-                                }`}
-                            >
-                                Mark all read
-                            </button>
-                        )}
-                        <button
-                            onClick={onClose}
-                            className={`p-2 rounded-full transition-all cursor-pointer ${
-                                darkMode
-                                    ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700 active:bg-gray-600"
-                                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-100 active:bg-gray-200"
-                            }`}
-                            aria-label="Close notifications"
-                        >
-                            <FaTimes className="text-lg cursor-pointer" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div
-                    ref={contentRef}
-                    className="flex-1 overflow-y-auto cursor-default"
-                    style={{ scrollbarWidth: "thin" }}
-                >
-                    {isLoading && notifications.length === 0 && (
-                        <div className="flex items-center justify-center py-12 cursor-default">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 cursor-default"></div>
-                        </div>
-                    )}
-
-                    {!isLoading && notifications.length === 0 && (
-                        <div className="text-center py-12 px-4 text-gray-500 dark:text-gray-400 cursor-default">
-                            <div className="text-5xl mb-4 opacity-60 cursor-default">
-                                🔔
-                            </div>
-                            <p className="text-lg font-medium mb-2 cursor-default">
-                                No notifications yet
-                            </p>
-                            <p className="text-sm cursor-default">
-                                When you get notifications, they'll show up here
-                            </p>
-                        </div>
-                    )}
-
-                    {notifications.length > 0 && (
-                        <div className="divide-y divide-gray-200 dark:divide-gray-700 cursor-default">
-                            {notifications.map((notification) => (
-                                <div
-                                    key={notification._id}
-                                    className={`p-4 sm:p-6 transition-all duration-200 cursor-pointer group ${
-                                        !notification.read
-                                            ? darkMode
-                                                ? "bg-cyan-900/20"
-                                                : "bg-blue-50"
-                                            : ""
-                                    } ${
-                                        darkMode
-                                            ? "hover:bg-gray-700/50"
-                                            : "hover:bg-gray-50"
-                                    } ${
-                                        hasPostData(notification)
-                                            ? "border-l-4 border-blue-500"
-                                            : ""
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10 bg-inherit cursor-default">
+                        <div className="flex items-center space-x-3 cursor-default">
+                            <div className="flex items-center space-x-2 cursor-default">
+                                <FaBell
+                                    className={`text-lg cursor-pointer ${
+                                        darkMode ? "text-cyan-400" : "text-blue-600"
                                     }`}
-                                    onClick={() =>
-                                        handleNotificationClick(notification)
-                                    }
+                                />
+                                <h3 className="text-lg sm:text-xl font-bold cursor-default">
+                                    Notifications
+                                </h3>
+                            </div>
+                            {unreadNotifications > 0 && (
+                                <span className="bg-red-500 text-white text-xs font-medium rounded-full px-2 py-1 min-w-[20px] text-center cursor-default">
+                                    {unreadNotifications > 99
+                                        ? "99+"
+                                        : unreadNotifications}{" "}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center space-x-2 sm:space-x-3 cursor-default">
+                            {unreadCount > 0 && (
+                                <button
+                                    onClick={markAllAsRead}
+                                    className={`text-sm px-3 py-1.5 rounded-lg transition-all font-medium cursor-pointer ${
+                                        darkMode
+                                            ? "text-cyan-400 hover:bg-gray-700 active:bg-gray-600"
+                                            : "text-blue-600 hover:bg-gray-100 active:bg-gray-200"
+                                    }`}
                                 >
-                                    <div className="flex items-start space-x-3 sm:space-x-4">
-                                        {/* Notification Icon */}
-                                        <div className="flex-shrink-0 mt-1 cursor-pointer">
-                                            {getNotificationIcon(
-                                                notification.type
-                                            )}
-                                        </div>
+                                    Mark all read
+                                </button>
+                            )}
+                            <button
+                                onClick={onClose}
+                                className={`p-2 rounded-full transition-all cursor-pointer ${
+                                    darkMode
+                                        ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700 active:bg-gray-600"
+                                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-100 active:bg-gray-200"
+                                }`}
+                                aria-label="Close notifications"
+                            >
+                                <FaTimes className="text-lg cursor-pointer" />
+                            </button>
+                        </div>
+                    </div>
 
-                                        {/* User Avatar and Content */}
-                                        <div className="flex-1 min-w-0 flex items-start space-x-3 cursor-pointer">
-                                            {/* User Avatar */}
-                                            <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0 cursor-pointer">
-                                                {getProfilePic(notification) ? (
-                                                    <img
-                                                        src={getProfilePic(
-                                                            notification
-                                                        )}
-                                                        alt={getUsernameForAvatar(
-                                                            notification
-                                                        )}
-                                                        className="w-full h-full object-cover cursor-pointer"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (
-                                                                notification
-                                                                    .sender?._id
-                                                            ) {
-                                                                navigate(
-                                                                    `/user/${notification.sender._id}`
-                                                                );
-                                                                onClose();
-                                                            }
-                                                        }}
-                                                        onError={(e) => {
-                                                            e.target.style.display =
-                                                                "none";
-                                                            e.target.nextSibling.style.display =
-                                                                "flex";
-                                                        }}
-                                                    />
-                                                ) : null}
-                                                <span
-                                                    className="flex items-center justify-center w-full h-full text-white font-semibold text-sm cursor-pointer"
-                                                    style={
-                                                        getProfilePic(
-                                                            notification
-                                                        )
-                                                            ? {
-                                                                  display:
-                                                                      "none",
-                                                              }
-                                                            : {}
-                                                    }
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (
-                                                            notification.sender
-                                                                ?._id
-                                                        ) {
-                                                            navigate(
-                                                                `/user/${notification.sender._id}`
-                                                            );
-                                                            onClose();
-                                                        }
-                                                    }}
-                                                >
-                                                    {getUsernameForAvatar(
-                                                        notification
-                                                    )
-                                                        ?.charAt(0)
-                                                        .toUpperCase() || "U"}
-                                                </span>
+                    {/* Content */}
+                    <div
+                        ref={contentRef}
+                        className="flex-1 overflow-y-auto cursor-default"
+                        style={{ scrollbarWidth: "thin" }}
+                    >
+                        {isLoading && notifications.length === 0 && (
+                            <div className="flex items-center justify-center py-12 cursor-default">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 cursor-default"></div>
+                            </div>
+                        )}
+
+                        {!isLoading && notifications.length === 0 && (
+                            <div className="text-center py-12 px-4 text-gray-500 dark:text-gray-400 cursor-default">
+                                <div className="text-5xl mb-4 opacity-60 cursor-default">
+                                    🔔
+                                </div>
+                                <p className="text-lg font-medium mb-2 cursor-default">
+                                    No notifications yet
+                                </p>
+                                <p className="text-sm cursor-default">
+                                    When you get notifications, they'll show up here
+                                </p>
+                            </div>
+                        )}
+
+                        {notifications.length > 0 && (
+                            <div className="divide-y divide-gray-200 dark:divide-gray-700 cursor-default">
+                                {notifications.map((notification) => (
+                                    <div
+                                        key={notification._id}
+                                        className={`p-4 sm:p-6 transition-all duration-200 cursor-pointer group ${
+                                            !notification.read
+                                                ? darkMode
+                                                    ? "bg-cyan-900/20"
+                                                    : "bg-blue-50"
+                                                : ""
+                                        } ${
+                                            darkMode
+                                                ? "hover:bg-gray-700/50"
+                                                : "hover:bg-gray-50"
+                                        } ${
+                                            notification.type === "memory"
+                                                ? "border-l-4 border-amber-500"
+                                                : hasPostData(notification)
+                                                ? "border-l-4 border-blue-500"
+                                                : ""
+                                        }`}
+                                        onClick={() =>
+                                            handleNotificationClick(notification)
+                                        }
+                                    >
+                                        <div className="flex items-start space-x-3 sm:space-x-4">
+                                            {/* Notification Icon */}
+                                            <div className="flex-shrink-0 mt-1 cursor-pointer">
+                                                {getNotificationIcon(
+                                                    notification.type
+                                                )}
                                             </div>
 
-                                            {/* Content */}
-                                            <div className="flex-1 min-w-0 cursor-pointer">
-                                                <p className="text-sm sm:text-base leading-relaxed cursor-pointer">
-                                                    {getNotificationMessage(
-                                                        notification
-                                                    )}
-                                                </p>
-                                                <p
-                                                    className={`text-xs mt-1 cursor-pointer ${
-                                                        darkMode
-                                                            ? "text-gray-400"
-                                                            : "text-gray-600"
-                                                    }`}
-                                                >
-                                                    {formatNotificationTime(
-                                                        notification.createdAt
-                                                    )}
-                                                </p>
-
-                                                {/* Show post preview for notifications with post data */}
-                                                {hasPostData(notification) && (
-                                                    <div
-                                                        className={`mt-2 p-2 rounded-lg text-xs cursor-pointer ${
-                                                            darkMode
-                                                                ? "bg-gray-700 text-gray-300"
-                                                                : "bg-gray-100 text-gray-600"
-                                                        }`}
-                                                    >
-                                                        <p className="truncate cursor-pointer">
-                                                            {notification
-                                                                .postid
-                                                                ?.content ||
-                                                                "View post"}
-                                                        </p>
+                                            {/* User Avatar and Content */}
+                                            <div className="flex-1 min-w-0 flex items-start space-x-3 cursor-pointer">
+                                                {/* User Avatar - Only show if not memory type */}
+                                                {notification.type !== "memory" && (
+                                                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0 cursor-pointer">
+                                                        {getProfilePic(notification) ? (
+                                                            <img
+                                                                src={getProfilePic(
+                                                                    notification
+                                                                )}
+                                                                alt={getUsernameForAvatar(
+                                                                    notification
+                                                                )}
+                                                                className="w-full h-full object-cover cursor-pointer"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (
+                                                                        notification
+                                                                            .sender?._id
+                                                                    ) {
+                                                                        navigate(
+                                                                            `/user/${notification.sender._id}`
+                                                                        );
+                                                                        onClose();
+                                                                    }
+                                                                }}
+                                                                onError={(e) => {
+                                                                    e.target.style.display =
+                                                                        "none";
+                                                                    e.target.nextSibling.style.display =
+                                                                        "flex";
+                                                                }}
+                                                            />
+                                                        ) : null}
+                                                        <span
+                                                            className="flex items-center justify-center w-full h-full text-white font-semibold text-sm cursor-pointer"
+                                                            style={
+                                                                getProfilePic(
+                                                                    notification
+                                                                )
+                                                                    ? {
+                                                                          display:
+                                                                              "none",
+                                                                      }
+                                                                    : {}
+                                                            }
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (
+                                                                    notification.sender
+                                                                        ?._id
+                                                                ) {
+                                                                    navigate(
+                                                                        `/user/${notification.sender._id}`
+                                                                    );
+                                                                    onClose();
+                                                                }
+                                                            }}
+                                                        >
+                                                            {getUsernameForAvatar(
+                                                                notification
+                                                            )
+                                                                ?.charAt(0)
+                                                                .toUpperCase() || "U"}
+                                                        </span>
                                                     </div>
                                                 )}
 
-                                                {/* Friend Request Actions */}
-                                                {notification.type ===
-                                                    "friend_request" &&
-                                                    !notification.isHandled && (
-                                                        <div className="flex space-x-2 mt-3 cursor-pointer">
-                                                            {/* Accept Button */}
-                                                            <button
-                                                                onClick={(
-                                                                    e
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    handleFriendRequest(
-                                                                        notification._id,
-                                                                        "accept"
-                                                                    );
-                                                                }}
-                                                                disabled={
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "accept"
-                                                                    ) ||
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "decline"
-                                                                    )
-                                                                }
-                                                                className={`px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "accept"
-                                                                    ) ||
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "decline"
-                                                                    )
-                                                                        ? "opacity-70 cursor-not-allowed"
-                                                                        : ""
-                                                                }`}
-                                                            >
-                                                                {isButtonLoading(
-                                                                    notification._id,
-                                                                    "accept"
-                                                                ) ? (
-                                                                    <>
-                                                                        <FaSpinner className="animate-spin cursor-pointer" />
-                                                                        <span>
-                                                                            Accepting...
-                                                                        </span>
-                                                                    </>
-                                                                ) : (
-                                                                    "Accept"
-                                                                )}
-                                                            </button>
+                                                {/* Content */}
+                                                <div className="flex-1 min-w-0 cursor-pointer">
+                                                    <p className="text-sm sm:text-base leading-relaxed cursor-pointer">
+                                                        {getNotificationMessage(
+                                                            notification
+                                                        )}
+                                                    </p>
+                                                    <p
+                                                        className={`text-xs mt-1 cursor-pointer ${
+                                                            darkMode
+                                                                ? "text-gray-400"
+                                                                : "text-gray-600"
+                                                        }`}
+                                                    >
+                                                        {formatNotificationTime(
+                                                            notification.createdAt
+                                                        )}
+                                                    </p>
 
-                                                            {/* Decline Button */}
-                                                            <button
-                                                                onClick={(
-                                                                    e
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    handleFriendRequest(
-                                                                        notification._id,
-                                                                        "decline"
-                                                                    );
-                                                                }}
-                                                                disabled={
-                                                                    isButtonLoading(
+                                                    {/* Friend Request Actions */}
+                                                    {notification.type ===
+                                                        "friend_request" &&
+                                                        !notification.isHandled && (
+                                                            <div className="flex space-x-2 mt-3 cursor-pointer">
+                                                                {/* Accept Button */}
+                                                                <button
+                                                                    onClick={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        handleFriendRequest(
+                                                                            notification._id,
+                                                                            "accept"
+                                                                        );
+                                                                    }}
+                                                                    disabled={
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "accept"
+                                                                        ) ||
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "decline"
+                                                                        )
+                                                                    }
+                                                                    className={`px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "accept"
+                                                                        ) ||
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "decline"
+                                                                        )
+                                                                            ? "opacity-70 cursor-not-allowed"
+                                                                            : ""
+                                                                    }`}
+                                                                >
+                                                                    {isButtonLoading(
                                                                         notification._id,
                                                                         "accept"
-                                                                    ) ||
-                                                                    isButtonLoading(
+                                                                    ) ? (
+                                                                        <>
+                                                                            <FaSpinner className="animate-spin cursor-pointer" />
+                                                                            <span>
+                                                                                Accepting...
+                                                                            </span>
+                                                                        </>
+                                                                    ) : (
+                                                                        "Accept"
+                                                                    )}
+                                                                </button>
+
+                                                                {/* Decline Button */}
+                                                                <button
+                                                                    onClick={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        handleFriendRequest(
+                                                                            notification._id,
+                                                                            "decline"
+                                                                        );
+                                                                    }}
+                                                                    disabled={
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "accept"
+                                                                        ) ||
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "decline"
+                                                                        )
+                                                                    }
+                                                                    className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
+                                                                        darkMode
+                                                                            ? "bg-gray-600 text-gray-200 hover:bg-gray-500"
+                                                                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                                                    } ${
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "accept"
+                                                                        ) ||
+                                                                        isButtonLoading(
+                                                                            notification._id,
+                                                                            "decline"
+                                                                        )
+                                                                            ? "opacity-70 cursor-not-allowed"
+                                                                            : ""
+                                                                    }`}
+                                                                >
+                                                                    {isButtonLoading(
                                                                         notification._id,
                                                                         "decline"
-                                                                    )
-                                                                }
-                                                                className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
-                                                                    darkMode
-                                                                        ? "bg-gray-600 text-gray-200 hover:bg-gray-500"
-                                                                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                                                } ${
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "accept"
-                                                                    ) ||
-                                                                    isButtonLoading(
-                                                                        notification._id,
-                                                                        "decline"
-                                                                    )
-                                                                        ? "opacity-70 cursor-not-allowed"
-                                                                        : ""
-                                                                }`}
-                                                            >
-                                                                {isButtonLoading(
-                                                                    notification._id,
-                                                                    "decline"
-                                                                ) ? (
-                                                                    <>
-                                                                        <FaSpinner className="animate-spin cursor-pointer" />
-                                                                        <span>
-                                                                            Declining...
-                                                                        </span>
-                                                                    </>
-                                                                ) : (
-                                                                    "Decline"
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                                    ) ? (
+                                                                        <>
+                                                                            <FaSpinner className="animate-spin cursor-pointer" />
+                                                                            <span>
+                                                                                Declining...
+                                                                            </span>
+                                                                        </>
+                                                                    ) : (
+                                                                        "Decline"
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                </div>
+                                            </div>
+
+                                            {/* Unread Indicator and Actions */}
+                                            <div className="flex items-center space-x-2 flex-shrink-0 cursor-pointer">
+                                                {/* Mark as read button — ONLY if unread */}
+                                                {!notification.read && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            markAsRead(
+                                                                notification._id
+                                                            );
+                                                        }}
+                                                        className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
+                                                            darkMode
+                                                                ? "text-gray-400 hover:text-cyan-400 hover:bg-gray-700"
+                                                                : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
+                                                        }`}
+                                                        title="Mark as read"
+                                                    >
+                                                        <FaCheck className="text-sm cursor-pointer" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-
-                                        {/* Unread Indicator and Actions */}
-                                        <div className="flex items-center space-x-2 flex-shrink-0 cursor-pointer">
-                                            {/* Mark as read button — ONLY if unread */}
-                                            {!notification.read && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        markAsRead(
-                                                            notification._id
-                                                        );
-                                                    }}
-                                                    className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
-                                                        darkMode
-                                                            ? "text-gray-400 hover:text-cyan-400 hover:bg-gray-700"
-                                                            : "text-gray-600 hover:text-blue-600 hover:bg-gray-100"
-                                                    }`}
-                                                    title="Mark as read"
-                                                >
-                                                    <FaCheck className="text-sm cursor-pointer" />
-                                                </button>
-                                            )}
-                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
 
-                            {/* Loading indicator for infinite scroll */}
-                            {isLoading && (
-                                <div className="flex items-center justify-center py-6 cursor-default">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 cursor-default"></div>
-                                </div>
-                            )}
+                                {/* Loading indicator for infinite scroll */}
+                                {isLoading && (
+                                    <div className="flex items-center justify-center py-6 cursor-default">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 cursor-default"></div>
+                                    </div>
+                                )}
 
-                            {/* End of notifications message */}
-                            {!hasMore && notifications.length > 0 && (
-                                <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm cursor-default">
-                                    You're all caught up! 🎉
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                {/* End of notifications message */}
+                                {!hasMore && notifications.length > 0 && (
+                                    <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm cursor-default">
+                                        You're all caught up! 🎉
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
+
+{/* Memory Popup Modal */}
+{selectedMemory && (
+    <div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 cursor-default"
+        style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+        onClick={(e) => e.stopPropagation()}
+    >
+        <div
+            ref={memoryModalRef}
+            className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl cursor-default"
+            style={{
+                background: darkMode
+                    ? 'linear-gradient(160deg, #1e2535 0%, #16202f 100%)'
+                    : 'linear-gradient(160deg, #ffffff 0%, #f0f4ff 100%)',
+                border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {/* Header — centered */}
+            <div className="relative pt-6 pb-3 px-6 text-center">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMemory(null);
+                    }}
+                    className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer"
+                    style={{
+                        background: darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                        color: darkMode ? '#cbd5e1' : '#475569',
+                    }}
+                >
+                    <FaTimes className="text-sm" />
+                </button>
+
+                <div className="flex items-center justify-center gap-2 mb-1">
+                    <span className="text-2xl">📅</span>
+                    <h3
+                        className="text-2xl font-bold tracking-tight"
+                        style={{ color: darkMode ? '#f1f5f9' : '#0f172a' }}
+                    >
+                        On This Day
+                    </h3>
+                </div>
+                <p className="text-sm" style={{ color: darkMode ? '#94a3b8' : '#64748b' }}>
+                    {selectedMemory.metadata?.yearsAgo === 1
+                        ? 'One year ago today...'
+                        : selectedMemory.metadata?.yearsAgo
+                        ? `${selectedMemory.metadata.yearsAgo} years ago today...`
+                        : 'Recently...'}
+                </p>
             </div>
-            {previewModal}
+
+            {/* Content */}
+            <div className="px-5 pb-5 pt-2" onClick={(e) => e.stopPropagation()}>
+                {getMemoryPost(selectedMemory) && (
+                    <div
+                        onClick={handleMemoryPostClick}
+                        className="rounded-xl overflow-hidden cursor-pointer transition-all"
+                        style={{
+                            border: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.08)',
+                            boxShadow: darkMode ? '0 4px 24px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.1)',
+                        }}
+                    >
+                        {(selectedMemory.postid?.image || selectedMemory.metadata?.post?.image) ? (
+                            <div className="relative w-full" style={{ height: '280px' }}>
+                                <img
+                                    src={selectedMemory.postid?.image || selectedMemory.metadata?.post?.image}
+                                    alt="Memory"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                                <div
+                                    className="absolute inset-0 transition-opacity opacity-0 hover:opacity-100 flex items-center justify-center"
+                                    style={{ background: 'rgba(0,0,0,0.25)' }}
+                                >
+                                    <span className="text-white text-sm font-semibold bg-black/40 px-4 py-2 rounded-full">
+                                        View Post
+                                    </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                className="w-full flex flex-col items-center justify-center gap-3"
+                            >
+                               
+                                <p className="text-sm px-6 text-center line-clamp-3">
+                                    {selectedMemory.postid?.content || selectedMemory.metadata?.post?.content || "A memory from the past"}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* View More Button — bold blue */}
+                <button
+                    onClick={handleViewMoreMemories}
+                    className="w-full mt-4 py-3 px-4 rounded-xl font-semibold text-base transition-all cursor-pointer flex items-center justify-center gap-2"
+                    style={{
+                        background: 'linear-gradient(90deg, #2563eb, #3b82f6)',
+                        color: '#ffffff',
+                        boxShadow: '0 4px 14px rgba(37,99,235,0.45)',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(90deg, #1d4ed8, #2563eb)';
+                        e.currentTarget.style.boxShadow = '0 6px 18px rgba(37,99,235,0.55)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'linear-gradient(90deg, #2563eb, #3b82f6)';
+                        e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.45)';
+                    }}
+                >
+                    <span>View More Posts</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+)}
         </>
     );
 };
