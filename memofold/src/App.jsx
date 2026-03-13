@@ -11,6 +11,7 @@ import ContactUploading from "./components/contact_uploading/contact_uploading";
 import ForgotPassword from "./components/forgot_pass/forgot_pass";
 import FeedbackForm from "./components/feedback/feedback";
 import HelpPage from "./components/help/help";
+import HowToCreateMemory from "./components/help/HowToCreateMemory";
 import LoginPage from "./components/login/login";
 import SignUp from "./components/signUp/signUp";
 import MainFeed from "./components/mainFeed/mainFeed";
@@ -168,6 +169,7 @@ function App() {
                                 element={<PrivacyPolicy />}
                             />
                             <Route path="/help" element={<HelpPage />} />
+                            <Route path="/how-to-create-memory" element={<HowToCreateMemory />} />
                             <Route
                                 path="/feedback"
                                 element={<FeedbackForm />}
@@ -246,18 +248,18 @@ function App() {
                                                 on track.
                                             </p>
                                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                                <a
-                                                    href="/feed"
+                                                <button
+                                                    onClick={() => navigate('/feed')}
                                                     className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300"
                                                 >
                                                     Return to Feed
-                                                </a>
-                                                <a
-                                                    href="/"
+                                                </button>
+                                                <button
+                                                    onClick={() => navigate('/')}
                                                     className="px-6 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 hover:scale-105 transition-all duration-300"
                                                 >
                                                     Go Home
-                                                </a>
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
