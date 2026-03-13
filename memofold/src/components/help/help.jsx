@@ -346,7 +346,7 @@ const HelpPage = () => {
                             <ul className="space-y-2 text-sm text-blue-600">
                                 <li>
                                     <a
-                                        href="#"
+                                        onClick={() => navigate("/how-to-create-memory")}
                                         className="hover:underline cursor-pointer"
                                     >
                                         How to create your first memory
@@ -354,20 +354,20 @@ const HelpPage = () => {
                                 </li>
                                 <li>
                                     <a
-                                        href="#"
+                                        onClick={() => navigate("/privacy")}
                                         className="hover:underline cursor-pointer"
                                     >
                                         Privacy settings explained
                                     </a>
                                 </li>
-                                <li>
+                                {/* <li>
                                     <a
-                                        href="#"
+                                        onClick={() => alert('Coming soon!')}
                                         className="hover:underline cursor-pointer"
                                     >
                                         Troubleshooting common issues
                                     </a>
-                                </li>
+                                </li> */}
                             </ul>
                         </div>
                     </section>
