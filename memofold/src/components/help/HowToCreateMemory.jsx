@@ -73,7 +73,7 @@ const HowToCreateMemory = () => {
 
                 {/* Footer */}
                 <footer className="text-center mt-12 text-gray-500">
-                    <p>© 2025 MemoFold</p>
+                    <p>© 2026 MemoFold</p>
                 </footer>
             </div>
         </div>
