@@ -272,7 +272,7 @@ const ContactUploading = () => {
                 </div>
 
                 <footer className="text-center mt-12 text-sm text-gray-500 pb-8">
-                    <p>© 2025 MemoFold. All rights reserved.</p>
+                    <p>© 2026 MemoFold. All rights reserved.</p>
                     <p className="mt-1">We don't just connect people. We protect them. Your trust means everything to us.</p>
                 </footer>
             </main>

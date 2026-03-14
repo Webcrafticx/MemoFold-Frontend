@@ -120,7 +120,7 @@ const TermsOfService = () => {
 
                 {/* Footer */}
                 <footer className="text-center text-gray-500">
-                    <p>© 2025 MemoFold</p>
+                    <p>© 2026 MemoFold</p>
                 </footer>
             </div>
         </div>

@@ -281,7 +281,7 @@ const About = () => {
                     <div className="flex flex-col md:flex-row justify-center items-center gap-3 sm:gap-4">
                         {/* Right side - Copyright */}
                         <div className="text-gray-600 text-xs sm:text-sm text-center">
-                            © Copyright 2025 MemoFold | All Rights Reserved
+                            © Copyright 2026 MemoFold | All Rights Reserved
                         </div>
                     </div>
                 </div>
