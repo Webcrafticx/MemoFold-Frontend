@@ -79,38 +79,36 @@ const NotificationModal = ({
         };
     }, [showModal, onClose, selectedMemory]);
 
+    // ================== 🔥 FIXED OUTSIDE CLICK (MAIN MODAL) ==================
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (selectedMemory) return; // memory modal open ho toh main modal band mat karo
+            // ✅ If memory modal open → ignore main modal close
+            if (selectedMemory) return;
             if (modalRef.current && !modalRef.current.contains(event.target)) {
                 onClose();
             }
         };
-
         if (showModal) {
             document.addEventListener("mousedown", handleClickOutside);
         }
-
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [showModal, onClose]);
+    }, [showModal, onClose, selectedMemory]);
 
+    // ================== 🔥 FIXED MEMORY OUTSIDE CLICK ==================
     useEffect(() => {
         const handleMemoryClickOutside = (event) => {
-            if (memoryModalRef.current && !memoryModalRef.current.contains(event.target)) {
-                setSelectedMemory(null);
-            }
+            // ✅ Ignore clicks inside memory modal
+            if (memoryModalRef.current?.contains(event.target)) return;
+            // ✅ Close only memory modal
+            setSelectedMemory(null);
         };
-
-        if (selectedMemory) {
-            document.addEventListener("mousedown", handleMemoryClickOutside);
-        }
-
+        document.addEventListener("mousedown", handleMemoryClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleMemoryClickOutside);
         };
-    }, [selectedMemory]);
+    }, []);
 
     useEffect(() => {
         if (showModal && token) {
@@ -151,7 +149,7 @@ const NotificationModal = ({
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
-                }
+                },
             );
 
             if (response.ok) {
@@ -206,7 +204,7 @@ const NotificationModal = ({
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({ notificationIds: ids }),
-                }
+                },
             );
 
             if (response.ok) {
@@ -214,8 +212,8 @@ const NotificationModal = ({
                     prev.map((notif) =>
                         ids.includes(notif._id)
                             ? { ...notif, read: true }
-                            : notif
-                    )
+                            : notif,
+                    ),
                 );
                 setUnreadCount((prev) => Math.max(0, prev - ids.length));
             } else {
@@ -229,13 +227,13 @@ const NotificationModal = ({
     const markAllAsRead = async () => {
         try {
             const unreadNotifications = notifications.filter(
-                (notif) => !notif.read
+                (notif) => !notif.read,
             );
 
             if (unreadNotifications.length === 0) return;
 
             const unreadNotificationIds = unreadNotifications.map(
-                (notif) => notif._id
+                (notif) => notif._id,
             );
 
             await markAsRead(unreadNotificationIds);
@@ -249,7 +247,7 @@ const NotificationModal = ({
             setProcessingRequest({ notificationId, action });
 
             const notification = notifications.find(
-                (notif) => notif._id === notificationId
+                (notif) => notif._id === notificationId,
             );
 
             if (!notification) {
@@ -271,7 +269,7 @@ const NotificationModal = ({
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({ action }),
-                }
+                },
             );
 
             if (response.ok) {
@@ -279,8 +277,8 @@ const NotificationModal = ({
                     prev.map((notif) =>
                         notif._id === notificationId
                             ? { ...notif, isHandled: true, status: action }
-                            : notif
-                    )
+                            : notif,
+                    ),
                 );
             }
         } catch (error) {
@@ -376,19 +374,27 @@ const NotificationModal = ({
         // For memory notifications, use metadata
         if (notification.type === "memory") {
             const yearsAgo = notification.metadata?.yearsAgo || 1;
-            const postContent = notification.metadata?.post?.content || notification.postid?.content || "";
-            
+            const postContent =
+                notification.metadata?.post?.content ||
+                notification.postid?.content ||
+                "";
+
             return (
                 <>
                     <span className="font-semibold text-amber-500">
                         🎉 On This Day
                     </span>
                     <span className="text-gray-600 dark:text-gray-400">
-                        {" "}{yearsAgo} year{yearsAgo > 1 ? 's' : ''} ago today
+                        {" "}
+                        {yearsAgo} year{yearsAgo > 1 ? "s" : ""} ago today
                     </span>
                     {postContent && (
                         <span className="block text-sm mt-1 italic text-gray-500 dark:text-gray-400">
-                            "{postContent.length > 50 ? postContent.substring(0, 50) + "..." : postContent}"
+                            "
+                            {postContent.length > 50
+                                ? postContent.substring(0, 50) + "..."
+                                : postContent}
+                            "
                         </span>
                     )}
                 </>
@@ -414,7 +420,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -443,7 +449,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -472,7 +478,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -492,7 +498,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -512,7 +518,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -532,7 +538,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -552,7 +558,7 @@ const NotificationModal = ({
                                 e.stopPropagation();
                                 if (notification.sender?._id) {
                                     navigate(
-                                        `/user/${notification.sender._id}`
+                                        `/user/${notification.sender._id}`,
                                     );
                                     onClose();
                                 }
@@ -597,27 +603,28 @@ const NotificationModal = ({
         );
     };
 
-// Handle memory post click
-const handleMemoryPostClick = (e) => {
-    e.stopPropagation();
-    if (selectedMemory?.postid?._id) {
-        const postPath = `/post/${selectedMemory.postid._id}`;
+    // Handle memory post click
+    const handleMemoryPostClick = (e) => {
+        e.stopPropagation();
+        if (selectedMemory?.postid?._id) {
+            navigate(`/post/${selectedMemory.postid._id}`);
+            setSelectedMemory(null);
+            onClose();
+        }
+    };
+
+    // ================== 🔥 FIXED VIEW MORE BUTTON ==================
+    const handleViewMoreMemories = (e) => {
+        e?.stopPropagation();
+        const path = selectedMemory?.sender?._id
+            ? `/user/${selectedMemory.sender._id}`
+            : "/profile";
+        // ✅ Direct navigation (no delay, no race)
+        navigate(path);
+        // ✅ Close after navigation
         setSelectedMemory(null);
         onClose();
-        navigate(postPath);
-    }
-};
-
-// Handle view more memories (navigate to profile)
-const handleViewMoreMemories = (e) => {
-    e.stopPropagation();
-    const path = selectedMemory?.sender?._id
-        ? `/user/${selectedMemory.sender._id}`
-        : '/profile';
-    setSelectedMemory(null);
-    onClose();
-    navigate(path);
-};
+    };
 
     // Get memory post from either postid or metadata
     const getMemoryPost = (memory) => {
@@ -627,13 +634,13 @@ const handleViewMoreMemories = (e) => {
     // Format the memory date
     const formatMemoryDate = (dateString) => {
         try {
-            return new Date(dateString).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
+            return new Date(dateString).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
             });
         } catch {
-            return 'Unknown date';
+            return "Unknown date";
         }
     };
 
@@ -661,7 +668,9 @@ const handleViewMoreMemories = (e) => {
                             <div className="flex items-center space-x-2 cursor-default">
                                 <FaBell
                                     className={`text-lg cursor-pointer ${
-                                        darkMode ? "text-cyan-400" : "text-blue-600"
+                                        darkMode
+                                            ? "text-cyan-400"
+                                            : "text-blue-600"
                                     }`}
                                 />
                                 <h3 className="text-lg sm:text-xl font-bold cursor-default">
@@ -724,7 +733,8 @@ const handleViewMoreMemories = (e) => {
                                     No notifications yet
                                 </p>
                                 <p className="text-sm cursor-default">
-                                    When you get notifications, they'll show up here
+                                    When you get notifications, they'll show up
+                                    here
                                 </p>
                             </div>
                         )}
@@ -748,48 +758,58 @@ const handleViewMoreMemories = (e) => {
                                             notification.type === "memory"
                                                 ? "border-l-4 border-amber-500"
                                                 : hasPostData(notification)
-                                                ? "border-l-4 border-blue-500"
-                                                : ""
+                                                  ? "border-l-4 border-blue-500"
+                                                  : ""
                                         }`}
                                         onClick={() =>
-                                            handleNotificationClick(notification)
+                                            handleNotificationClick(
+                                                notification,
+                                            )
                                         }
                                     >
                                         <div className="flex items-start space-x-3 sm:space-x-4">
                                             {/* Notification Icon */}
                                             <div className="flex-shrink-0 mt-1 cursor-pointer">
                                                 {getNotificationIcon(
-                                                    notification.type
+                                                    notification.type,
                                                 )}
                                             </div>
 
                                             {/* User Avatar and Content */}
                                             <div className="flex-1 min-w-0 flex items-start space-x-3 cursor-pointer">
                                                 {/* User Avatar - Only show if not memory type */}
-                                                {notification.type !== "memory" && (
+                                                {notification.type !==
+                                                    "memory" && (
                                                     <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-cyan-400 flex-shrink-0 cursor-pointer">
-                                                        {getProfilePic(notification) ? (
+                                                        {getProfilePic(
+                                                            notification,
+                                                        ) ? (
                                                             <img
                                                                 src={getProfilePic(
-                                                                    notification
+                                                                    notification,
                                                                 )}
                                                                 alt={getUsernameForAvatar(
-                                                                    notification
+                                                                    notification,
                                                                 )}
                                                                 className="w-full h-full object-cover cursor-pointer"
-                                                                onClick={(e) => {
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
                                                                     e.stopPropagation();
                                                                     if (
                                                                         notification
-                                                                            .sender?._id
+                                                                            .sender
+                                                                            ?._id
                                                                     ) {
                                                                         navigate(
-                                                                            `/user/${notification.sender._id}`
+                                                                            `/user/${notification.sender._id}`,
                                                                         );
                                                                         onClose();
                                                                     }
                                                                 }}
-                                                                onError={(e) => {
+                                                                onError={(
+                                                                    e,
+                                                                ) => {
                                                                     e.target.style.display =
                                                                         "none";
                                                                     e.target.nextSibling.style.display =
@@ -801,7 +821,7 @@ const handleViewMoreMemories = (e) => {
                                                             className="flex items-center justify-center w-full h-full text-white font-semibold text-sm cursor-pointer"
                                                             style={
                                                                 getProfilePic(
-                                                                    notification
+                                                                    notification,
                                                                 )
                                                                     ? {
                                                                           display:
@@ -812,21 +832,23 @@ const handleViewMoreMemories = (e) => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 if (
-                                                                    notification.sender
+                                                                    notification
+                                                                        .sender
                                                                         ?._id
                                                                 ) {
                                                                     navigate(
-                                                                        `/user/${notification.sender._id}`
+                                                                        `/user/${notification.sender._id}`,
                                                                     );
                                                                     onClose();
                                                                 }
                                                             }}
                                                         >
                                                             {getUsernameForAvatar(
-                                                                notification
+                                                                notification,
                                                             )
                                                                 ?.charAt(0)
-                                                                .toUpperCase() || "U"}
+                                                                .toUpperCase() ||
+                                                                "U"}
                                                         </span>
                                                     </div>
                                                 )}
@@ -835,7 +857,7 @@ const handleViewMoreMemories = (e) => {
                                                 <div className="flex-1 min-w-0 cursor-pointer">
                                                     <p className="text-sm sm:text-base leading-relaxed cursor-pointer">
                                                         {getNotificationMessage(
-                                                            notification
+                                                            notification,
                                                         )}
                                                     </p>
                                                     <p
@@ -846,7 +868,7 @@ const handleViewMoreMemories = (e) => {
                                                         }`}
                                                     >
                                                         {formatNotificationTime(
-                                                            notification.createdAt
+                                                            notification.createdAt,
                                                         )}
                                                     </p>
 
@@ -858,32 +880,32 @@ const handleViewMoreMemories = (e) => {
                                                                 {/* Accept Button */}
                                                                 <button
                                                                     onClick={(
-                                                                        e
+                                                                        e,
                                                                     ) => {
                                                                         e.stopPropagation();
                                                                         handleFriendRequest(
                                                                             notification._id,
-                                                                            "accept"
+                                                                            "accept",
                                                                         );
                                                                     }}
                                                                     disabled={
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "accept"
+                                                                            "accept",
                                                                         ) ||
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "decline"
+                                                                            "decline",
                                                                         )
                                                                     }
                                                                     className={`px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "accept"
+                                                                            "accept",
                                                                         ) ||
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "decline"
+                                                                            "decline",
                                                                         )
                                                                             ? "opacity-70 cursor-not-allowed"
                                                                             : ""
@@ -891,7 +913,7 @@ const handleViewMoreMemories = (e) => {
                                                                 >
                                                                     {isButtonLoading(
                                                                         notification._id,
-                                                                        "accept"
+                                                                        "accept",
                                                                     ) ? (
                                                                         <>
                                                                             <FaSpinner className="animate-spin cursor-pointer" />
@@ -907,22 +929,22 @@ const handleViewMoreMemories = (e) => {
                                                                 {/* Decline Button */}
                                                                 <button
                                                                     onClick={(
-                                                                        e
+                                                                        e,
                                                                     ) => {
                                                                         e.stopPropagation();
                                                                         handleFriendRequest(
                                                                             notification._id,
-                                                                            "decline"
+                                                                            "decline",
                                                                         );
                                                                     }}
                                                                     disabled={
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "accept"
+                                                                            "accept",
                                                                         ) ||
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "decline"
+                                                                            "decline",
                                                                         )
                                                                     }
                                                                     className={`px-4 py-2 text-sm rounded-lg transition-colors font-medium flex items-center space-x-2 cursor-pointer ${
@@ -932,11 +954,11 @@ const handleViewMoreMemories = (e) => {
                                                                     } ${
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "accept"
+                                                                            "accept",
                                                                         ) ||
                                                                         isButtonLoading(
                                                                             notification._id,
-                                                                            "decline"
+                                                                            "decline",
                                                                         )
                                                                             ? "opacity-70 cursor-not-allowed"
                                                                             : ""
@@ -944,7 +966,7 @@ const handleViewMoreMemories = (e) => {
                                                                 >
                                                                     {isButtonLoading(
                                                                         notification._id,
-                                                                        "decline"
+                                                                        "decline",
                                                                     ) ? (
                                                                         <>
                                                                             <FaSpinner className="animate-spin cursor-pointer" />
@@ -969,7 +991,7 @@ const handleViewMoreMemories = (e) => {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             markAsRead(
-                                                                notification._id
+                                                                notification._id,
                                                             );
                                                         }}
                                                         className={`p-2 rounded-full transition-all opacity-0 group-hover:opacity-100 cursor-pointer ${
@@ -1006,126 +1028,177 @@ const handleViewMoreMemories = (e) => {
                 </div>
             </div>
 
-{/* Memory Popup Modal */}
-{selectedMemory && (
-    <div
-        className="fixed inset-0 z-[60] flex items-center justify-center p-4 cursor-default"
-        style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
-        onClick={(e) => e.stopPropagation()}
-    >
-        <div
-            ref={memoryModalRef}
-            className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl cursor-default"
-            style={{
-                background: darkMode
-                    ? 'linear-gradient(160deg, #1e2535 0%, #16202f 100%)'
-                    : 'linear-gradient(160deg, #ffffff 0%, #f0f4ff 100%)',
-                border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.1)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {/* Header — centered */}
-            <div className="relative pt-6 pb-3 px-6 text-center">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedMemory(null);
-                    }}
-                    className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer"
+            {/* Memory Popup Modal */}
+            {selectedMemory && (
+                <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center p-4 cursor-default"
                     style={{
-                        background: darkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                        color: darkMode ? '#cbd5e1' : '#475569',
+                        backgroundColor: "rgba(0,0,0,0.75)",
+                        backdropFilter: "blur(6px)",
                     }}
                 >
-                    <FaTimes className="text-sm" />
-                </button>
-
-                <div className="flex items-center justify-center gap-2 mb-1">
-                    <span className="text-2xl">📅</span>
-                    <h3
-                        className="text-2xl font-bold tracking-tight"
-                        style={{ color: darkMode ? '#f1f5f9' : '#0f172a' }}
-                    >
-                        On This Day
-                    </h3>
-                </div>
-                <p className="text-sm" style={{ color: darkMode ? '#94a3b8' : '#64748b' }}>
-                    {selectedMemory.metadata?.yearsAgo === 1
-                        ? 'One year ago today...'
-                        : selectedMemory.metadata?.yearsAgo
-                        ? `${selectedMemory.metadata.yearsAgo} years ago today...`
-                        : 'Recently...'}
-                </p>
-            </div>
-
-            {/* Content */}
-            <div className="px-5 pb-5 pt-2" onClick={(e) => e.stopPropagation()}>
-                {getMemoryPost(selectedMemory) && (
                     <div
-                        onClick={handleMemoryPostClick}
-                        className="rounded-xl overflow-hidden cursor-pointer transition-all"
+                        ref={memoryModalRef}
+                        className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl cursor-default"
                         style={{
-                            border: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.08)',
-                            boxShadow: darkMode ? '0 4px 24px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.1)',
+                            background: darkMode
+                                ? "linear-gradient(160deg, #1e2535 0%, #16202f 100%)"
+                                : "linear-gradient(160deg, #ffffff 0%, #f0f4ff 100%)",
+                            border: darkMode
+                                ? "1px solid rgba(255,255,255,0.08)"
+                                : "1px solid rgba(0,0,0,0.1)",
                         }}
                     >
-                        {(selectedMemory.postid?.image || selectedMemory.metadata?.post?.image) ? (
-                            <div className="relative w-full" style={{ height: '280px' }}>
-                                <img
-                                    src={selectedMemory.postid?.image || selectedMemory.metadata?.post?.image}
-                                    alt="Memory"
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => { e.target.style.display = 'none'; }}
-                                />
-                                <div
-                                    className="absolute inset-0 transition-opacity opacity-0 hover:opacity-100 flex items-center justify-center"
-                                    style={{ background: 'rgba(0,0,0,0.25)' }}
-                                >
-                                    <span className="text-white text-sm font-semibold bg-black/40 px-4 py-2 rounded-full">
-                                        View Post
-                                    </span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div
-                                className="w-full flex flex-col items-center justify-center gap-3"
+                        {/* Header — centered */}
+                        <div className="relative pt-6 pb-3 px-6 text-center">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedMemory(null);
+                                }}
+                                className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer"
+                                style={{
+                                    background: darkMode
+                                        ? "rgba(255,255,255,0.12)"
+                                        : "rgba(0,0,0,0.08)",
+                                    color: darkMode ? "#cbd5e1" : "#475569",
+                                }}
                             >
-                               
-                                <p className="text-sm px-6 text-center line-clamp-3">
-                                    {selectedMemory.postid?.content || selectedMemory.metadata?.post?.content || "A memory from the past"}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
+                                <FaTimes className="text-sm" />
+                            </button>
 
-                {/* View More Button — bold blue */}
-                <button
-                    onClick={handleViewMoreMemories}
-                    className="w-full mt-4 py-3 px-4 rounded-xl font-semibold text-base transition-all cursor-pointer flex items-center justify-center gap-2"
-                    style={{
-                        background: 'linear-gradient(90deg, #2563eb, #3b82f6)',
-                        color: '#ffffff',
-                        boxShadow: '0 4px 14px rgba(37,99,235,0.45)',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(90deg, #1d4ed8, #2563eb)';
-                        e.currentTarget.style.boxShadow = '0 6px 18px rgba(37,99,235,0.55)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(90deg, #2563eb, #3b82f6)';
-                        e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.45)';
-                    }}
-                >
-                    <span>View More Posts</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </div>
-)}
+                            <div className="flex items-center justify-center gap-2 mb-1">
+                                <span className="text-2xl">📅</span>
+                                <h3
+                                    className="text-2xl font-bold tracking-tight"
+                                    style={{
+                                        color: darkMode ? "#f1f5f9" : "#0f172a",
+                                    }}
+                                >
+                                    On This Day
+                                </h3>
+                            </div>
+                            <p
+                                className="text-sm"
+                                style={{
+                                    color: darkMode ? "#94a3b8" : "#64748b",
+                                }}
+                            >
+                                {selectedMemory.metadata?.yearsAgo === 1
+                                    ? "One year ago today..."
+                                    : selectedMemory.metadata?.yearsAgo
+                                      ? `${selectedMemory.metadata.yearsAgo} years ago today...`
+                                      : "Recently..."}
+                            </p>
+                        </div>
+
+                        {/* Content — no stopPropagation so button clicks flow freely */}
+                        <div className="px-5 pb-5 pt-2">
+                            {getMemoryPost(selectedMemory) && (
+                                <div
+                                    onClick={handleMemoryPostClick}
+                                    className="rounded-xl overflow-hidden cursor-pointer transition-all"
+                                    style={{
+                                        border: darkMode
+                                            ? "1px solid rgba(255,255,255,0.07)"
+                                            : "1px solid rgba(0,0,0,0.08)",
+                                        boxShadow: darkMode
+                                            ? "0 4px 24px rgba(0,0,0,0.5)"
+                                            : "0 4px 20px rgba(0,0,0,0.1)",
+                                    }}
+                                >
+                                    {selectedMemory.postid?.image ||
+                                    selectedMemory.metadata?.post?.image ? (
+                                        <div
+                                            className="relative w-full"
+                                            style={{ height: "280px" }}
+                                        >
+                                            <img
+                                                src={
+                                                    selectedMemory.postid
+                                                        ?.image ||
+                                                    selectedMemory.metadata
+                                                        ?.post?.image
+                                                }
+                                                alt="Memory"
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display =
+                                                        "none";
+                                                }}
+                                            />
+                                            <div
+                                                className="absolute inset-0 transition-opacity opacity-0 hover:opacity-100 flex items-center justify-center"
+                                                style={{
+                                                    background:
+                                                        "rgba(0,0,0,0.25)",
+                                                }}
+                                            >
+                                                <span className="text-white text-sm font-semibold bg-black/40 px-4 py-2 rounded-full">
+                                                    View Post
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full flex flex-col items-center justify-center gap-3">
+                                            <p className="text-sm px-6 text-center line-clamp-3">
+                                                {selectedMemory.postid
+                                                    ?.content ||
+                                                    selectedMemory.metadata
+                                                        ?.post?.content ||
+                                                    "A memory from the past"}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ================== 🔥 FIXED VIEW MORE BUTTON ================== */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewMoreMemories(e);
+                                }}
+                                className="w-full mt-4 py-3 px-4 rounded-xl font-semibold text-base transition-all cursor-pointer flex items-center justify-center gap-2"
+                                style={{
+                                    background:
+                                        "linear-gradient(90deg, #2563eb, #3b82f6)",
+                                    color: "#ffffff",
+                                    boxShadow:
+                                        "0 4px 14px rgba(37,99,235,0.45)",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background =
+                                        "linear-gradient(90deg, #1d4ed8, #2563eb)";
+                                    e.currentTarget.style.boxShadow =
+                                        "0 6px 18px rgba(37,99,235,0.55)";
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background =
+                                        "linear-gradient(90deg, #2563eb, #3b82f6)";
+                                    e.currentTarget.style.boxShadow =
+                                        "0 4px 14px rgba(37,99,235,0.45)";
+                                }}
+                            >
+                                <span>View More Posts</span>
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2.5}
+                                        d="M9 5l7 7-7 7"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
