@@ -310,6 +310,7 @@ const NotificationModal = ({
             case "like":
             case "comment":
             case "comment_like":
+            case "mention":
             case "share":
                 if (notification.postid && notification.postid._id) {
                     navigate(`/post/${notification.postid._id}`);
@@ -352,6 +353,10 @@ const NotificationModal = ({
             case "comment":
                 return (
                     <FaComment {...iconProps} style={{ color: "#3b82f6" }} />
+                );
+            case "mention":
+                return (
+                    <FaComment {...iconProps} style={{ color: "#0ea5e9" }} />
                 );
             case "friend_request":
                 return (
@@ -547,6 +552,28 @@ const NotificationModal = ({
                             {senderName}
                         </span>{" "}
                         liked your post
+                    </>
+                );
+            case "mention":
+                return (
+                    <>
+                        <span
+                            className="font-semibold hover:underline cursor-pointer"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.sender?._id) {
+                                    navigate(
+                                        `/user/${notification.sender._id}`,
+                                    );
+                                    onClose();
+                                }
+                            }}
+                        >
+                            {senderName}
+                        </span>{" "}
+                        {notification.metadata?.sourceCommentId
+                            ? "mentioned you in a comment"
+                            : "mentioned you in a post"}
                     </>
                 );
             default:

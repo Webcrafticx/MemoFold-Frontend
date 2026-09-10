@@ -2,10 +2,11 @@ import { motion } from "framer-motion";
 import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useVideo } from "../../context/VideoContext";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
+import PostLocationBadge from "../common/PostLocationBadge";
+import PostMediaCarousel from "./PostMediaCarousel";
 
 const PostCard = ({
     post,
@@ -44,9 +45,7 @@ const PostCard = ({
     onShowLikesModal,
     activeReplyInputs,
 }) => {
-    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
     const likeButtonRef = useRef(null);
-    const videoRefs = useRef({});
     const navigate = useNavigate();
 
     const navigateToProfile = (userId) => {
@@ -68,20 +67,6 @@ const PostCard = ({
 
     const likedUsers = getLikedUsers();
     const totalLikes = post.likeCount || 0;
-    const getRenderableImageUrl = (url) => {
-        if (!url || typeof url !== "string") return url;
-
-        const isDng = /\.dng(\?|$)/i.test(url);
-        const isCloudinary =
-            url.includes("res.cloudinary.com") && url.includes("/upload/");
-
-        if (isDng && isCloudinary) {
-            return url.replace("/upload/", "/upload/f_auto,q_auto/");
-        }
-
-        return url;
-    };
-    const displayImageUrl = getRenderableImageUrl(post.image);
 
     const handleShowAllLikes = (e) => {
         e.stopPropagation();
@@ -108,108 +93,12 @@ const PostCard = ({
         onLike(post._id, e, rect);
     };
 
-    const handleImageError = (e) => {
-        e.target.style.display = "none";
-        if (e.target.nextSibling) {
-            e.target.nextSibling.style.display = "flex";
-        }
-    };
-
     const handleProfilePicError = (e) => {
         e.target.style.display = "none";
         if (e.target.nextSibling) {
             e.target.nextSibling.style.display = "flex";
         }
     };
-
-
-    // Handle context menu to prevent download
-    const handleVideoContextMenu = (e) => {
-        e.preventDefault();
-        return false;
-    };
-
-    // Sync video mute state with global context
-    const handleVideoVolumeChange = (postId) => (e) => {
-        const video = e.target;
-        if (video && activeVideoId === postId) {
-            setGlobalMuted(video.muted);
-        }
-    };
-
-    // Handle video touch/click for mobile
-    const handleVideoTap = (postId, e) => {
-        e.stopPropagation();
-        const video = videoRefs.current[postId];
-        if (video) {
-            if (video.paused) {
-                video.play();
-            } else {
-                video.pause();
-            }
-        }
-    };
-
-    // Intersection Observer logic for video autoplay and mute control
-    useEffect(() => {
-        if (!post.videoUrl) return;
-        const videoEl = videoRefs.current[post._id];
-        if (!videoEl) return;
-
-        let observer;
-        if ('IntersectionObserver' in window && typeof setActiveVideoId === 'function') {
-            observer = new window.IntersectionObserver(
-                (entries) => {
-                    entries.forEach((entry) => {
-                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-                            setActiveVideoId(post._id);
-                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
-                            setActiveVideoId(null);
-                        }
-                    });
-                },
-                { threshold: 0.5 }
-            );
-            observer.observe(videoEl);
-        }
-        return () => {
-            if (observer && videoEl) observer.unobserve(videoEl);
-        };
-    }, [post._id, post.videoUrl, setActiveVideoId, activeVideoId]);
-
-
-    // Handle tab visibility: pause and mute video if tab is not active
-    useEffect(() => {
-        if (!post.videoUrl) return;
-        const videoEl = videoRefs.current[post._id];
-        if (!videoEl) return;
-
-        const handleVisibility = () => {
-            if (document.visibilityState !== "visible") {
-                videoEl.pause();
-                videoEl.muted = true;
-            } else {
-                // Only play and unmute if this post is the active video
-                if (activeVideoId === post._id) {
-                    videoEl.muted = isGlobalMuted;
-                    videoEl.play().catch(() => {});
-                } else {
-                    videoEl.pause();
-                    videoEl.muted = true;
-                }
-            }
-        };
-
-        document.addEventListener("visibilitychange", handleVisibility);
-        // Initial check
-        handleVisibility();
-
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibility);
-        };
-    }, [activeVideoId, post._id, post.videoUrl, isGlobalMuted]);
-
-
 
     return (
         <div
@@ -259,6 +148,21 @@ const PostCard = ({
                     >
                         @{post.userId.username || "unknown"} ·{" "}
                         {formatDate(post.createdAt)}
+                        {currentUserProfile?._id &&
+                            post.userId?._id &&
+                            String(currentUserProfile._id) ===
+                                String(post.userId._id) &&
+                            post.visibility === "friends" && (
+                                <span
+                                    className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        isDarkMode
+                                            ? "bg-gray-700 text-gray-300"
+                                            : "bg-gray-200 text-gray-600"
+                                    }`}
+                                >
+                                    Friends only
+                                </span>
+                            )}
                     </p>
                 </div>
             </div>
@@ -268,51 +172,12 @@ const PostCard = ({
                     isDarkMode ? "text-gray-200" : "text-gray-700"
                 }`}
             >
-                {highlightMentionsAndHashtags(post.content)}
+                {highlightMentionsAndHashtags(post.content, post.mentions)}
             </p>
+            <PostLocationBadge location={post.location} />
 
-            {/* IMAGE SECTION */}
-            {displayImageUrl && (
-                <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                    <img
-                        src={displayImageUrl}
-                        alt="Post"
-                        className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
-                        onClick={() => onImagePreview(displayImageUrl)}
-                        onError={handleImageError}
-                    />
-                </div>
-            )}
-
-            {/* VIDEO SECTION - OPTIMIZED */}
-            {post.videoUrl && (
-                <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
-                    <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
-                        <video
-                            ref={(el) => videoRefs.current[post._id] = el}
-                            src={post.videoUrl}
-                            className="w-full h-auto max-h-96 object-contain rounded-xl"
-                            muted={isGlobalMuted || activeVideoId !== post._id}
-                            loop
-                            playsInline
-                            controls
-                            controlsList="nodownload nofullscreen noplaybackrate"
-                            onContextMenu={handleVideoContextMenu}
-                            onVolumeChange={handleVideoVolumeChange(post._id)}
-                            style={{
-                                backgroundColor: 'transparent',
-                                display: 'block'
-                            }}
-                            preload="metadata"
-                        />
-                        {/* Mobile tap indicator */}
-                        <div 
-                            className="absolute inset-0 pointer-events-none"
-                            onClick={(e) => handleVideoTap(post._id, e)}
-                        />
-                    </div>
-                </div>
-            )}
+            {/* MEDIA CAROUSEL */}
+            <PostMediaCarousel post={post} onImagePreview={onImagePreview} />
 
             <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
                 <div className="flex items-center gap-3">

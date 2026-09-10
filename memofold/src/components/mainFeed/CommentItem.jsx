@@ -9,6 +9,7 @@ import {
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import ReplyItem from "./ReplyItem";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
+import MentionInput from "../common/MentionInput";
 
 const CommentItem = ({
     comment,
@@ -156,7 +157,7 @@ const CommentItem = ({
                         isDarkMode ? "text-gray-200" : "text-gray-700"
                     }`}
                 >
-                    {highlightMentionsAndHashtags(comment.content)}
+                    {highlightMentionsAndHashtags(comment.content, comment.mentions)}
                 </p>
 
                 <div className="mt-1 flex items-center justify-between">
@@ -238,17 +239,19 @@ const CommentItem = ({
                 {isReplyInputActive && (
                     <div className="mt-2 ml-2">
                         <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            <input
-                                type="text"
+                            <MentionInput
+                                singleLine
                                 className={`flex-1 px-3 py-1 rounded-full text-xs border ${
                                     isDarkMode
                                         ? "bg-gray-600 border-gray-500 text-white"
                                         : "bg-white border-gray-300 text-gray-800"
                                 } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                placeholder="Write a reply..."
+                                placeholder="Write a reply... Use @ to mention"
                                 value={currentReplyContent || ""}
-                                onChange={handleInputChange}
-                                onKeyDown={handleInputKeyPress}
+                                onChange={(next) =>
+                                    handleInputChange({ target: { value: next } })
+                                }
+                                onKeyPress={handleInputKeyPress}
                             />
                             <div className="flex space-x-2">
                                 <button

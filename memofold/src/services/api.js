@@ -58,6 +58,61 @@ export const apiService = {
         return response.json();
     },
 
+    checkUsername: async (username, token = null) => {
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const url = token
+            ? `${config.apiUrl}/user/check-username?username=${encodeURIComponent(username)}`
+            : `${config.apiUrl}/auth/check-username?username=${encodeURIComponent(username)}`;
+        const response = await fetch(url, { headers });
+        return response.json();
+    },
+
+    mentionSuggest: async (token, q = "", limit = 8, signal) => {
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        params.set("limit", String(limit));
+        const response = await fetch(
+            `${config.apiUrl}/user/mention-suggest?${params}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                signal,
+            }
+        );
+        return response.json();
+    },
+
+    searchPlaces: async (token, q = "", limit = 8, proximity = null, signal) => {
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        params.set("limit", String(limit));
+        if (proximity?.lat != null && proximity?.lng != null) {
+            params.set("lat", String(proximity.lat));
+            params.set("lng", String(proximity.lng));
+        }
+        const response = await fetch(
+            `${config.apiUrl}/places/search?${params}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                signal,
+            }
+        );
+        return response.json();
+    },
+
+    getPlaceDetails: async (token, placeId, signal) => {
+        const params = new URLSearchParams();
+        params.set("placeId", placeId);
+        const response = await fetch(
+            `${config.apiUrl}/places/details?${params}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                signal,
+            }
+        );
+        return response.json();
+    },
+
     uploadProfilePic: async (token, formData) => {
         const response = await fetch(
             `${config.apiUrl}/user/upload-profile-pic`,

@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import {
+    USERNAME_DEBOUNCE_MS,
+    validateUsernameLocal,
+    fetchUsernameAvailability,
+} from "../../utils/usernameAvailability";
 
 const SignUp = () => {
     const [formData, setFormData] = useState({
@@ -10,10 +15,18 @@ const SignUp = () => {
         email: "",
         password: "",
         confirmPassword: "",
+        dateOfBirth: "",
     });
     const [formErrors, setFormErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [usernameStatus, setUsernameStatus] = useState({
+        checking: false,
+        available: null,
+        message: "",
+    });
+    const debounceRef = useRef(null);
+    const abortRef = useRef(null);
     const { register, loading, error, token } = useAuth();
     const navigate = useNavigate();
 
@@ -22,6 +35,89 @@ const SignUp = () => {
             navigate("/feed");
         }
     }, [token, navigate]);
+
+    useEffect(() => {
+        return () => {
+            clearTimeout(debounceRef.current);
+            abortRef.current?.abort();
+        };
+    }, []);
+
+    const scheduleUsernameCheck = (username) => {
+        clearTimeout(debounceRef.current);
+        abortRef.current?.abort();
+
+        const local = validateUsernameLocal(username);
+        if (!local.ok) {
+            setUsernameStatus({
+                checking: false,
+                available: local.available,
+                message: local.message,
+            });
+            return;
+        }
+
+        // Idle until debounce fires — do not hit API yet
+        setUsernameStatus({
+            checking: false,
+            available: null,
+            message: "",
+        });
+
+        debounceRef.current = setTimeout(async () => {
+            const controller = new AbortController();
+            abortRef.current = controller;
+            setUsernameStatus({
+                checking: true,
+                available: null,
+                message: "Checking availability...",
+            });
+
+            try {
+                const data = await fetchUsernameAvailability(local.value, {
+                    signal: controller.signal,
+                });
+                if (controller.signal.aborted) return;
+                setUsernameStatus({
+                    checking: false,
+                    available: data.available,
+                    message: data.message,
+                });
+            } catch (err) {
+                if (err?.name === "AbortError") return;
+                setUsernameStatus({
+                    checking: false,
+                    available: null,
+                    message: "Could not check username",
+                });
+            }
+        }, USERNAME_DEBOUNCE_MS);
+    };
+
+    const verifyUsernameOnSubmit = async (username) => {
+        clearTimeout(debounceRef.current);
+        abortRef.current?.abort();
+
+        const local = validateUsernameLocal(username);
+        if (!local.ok) {
+            return { ok: false, message: local.message || "Invalid username" };
+        }
+
+        try {
+            const data = await fetchUsernameAvailability(local.value);
+            setUsernameStatus({
+                checking: false,
+                available: data.available,
+                message: data.message,
+            });
+            if (!data.available) {
+                return { ok: false, message: data.message };
+            }
+            return { ok: true };
+        } catch {
+            return { ok: false, message: "Could not verify username. Please try again." };
+        }
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -32,20 +128,20 @@ const SignUp = () => {
         if (formErrors[name]) {
             setFormErrors((prev) => ({ ...prev, [name]: "" }));
         }
+        if (name === "username") {
+            scheduleUsernameCheck(value);
+        }
     };
 
-    const togglePasswordVisibility = () => {
-        setShowPassword(!showPassword);
-    };
-
-    const toggleConfirmPasswordVisibility = () => {
-        setShowConfirmPassword(!showConfirmPassword);
+    const getMaxDob = () => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() - 13);
+        return d.toISOString().slice(0, 10);
     };
 
     const validateForm = () => {
         const errors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
         if (!formData.realname.trim()) {
             errors.realname = "Full name is required";
@@ -53,13 +149,26 @@ const SignUp = () => {
             errors.realname = "Full name must be at least 2 characters";
         }
 
+        const localUser = validateUsernameLocal(formData.username);
         if (!formData.username.trim()) {
             errors.username = "Username is required";
-        } else if (formData.username.length < 3) {
-            errors.username = "Username must be at least 3 characters";
-        } else if (!usernameRegex.test(formData.username)) {
-            errors.username =
-                "Username can only contain letters, numbers, and underscores";
+        } else if (!localUser.ok) {
+            errors.username = localUser.message;
+        } else if (usernameStatus.available === false) {
+            errors.username = "Username is already taken";
+        }
+
+        if (!formData.dateOfBirth) {
+            errors.dateOfBirth = "Date of birth is required";
+        } else {
+            const dob = new Date(formData.dateOfBirth);
+            const minAgeDate = new Date();
+            minAgeDate.setFullYear(minAgeDate.getFullYear() - 13);
+            if (dob > new Date()) {
+                errors.dateOfBirth = "Date of birth cannot be in the future";
+            } else if (dob > minAgeDate) {
+                errors.dateOfBirth = "You must be at least 13 years old";
+            }
         }
 
         if (!formData.email.trim()) {
@@ -98,12 +207,23 @@ const SignUp = () => {
         }
 
         if (!validateForm()) return;
+        if (usernameStatus.checking) return;
+
+        const verify = await verifyUsernameOnSubmit(formData.username);
+        if (!verify.ok) {
+            setFormErrors((prev) => ({
+                ...prev,
+                username: verify.message,
+            }));
+            return;
+        }
 
         await register(
             formData.realname,
             formData.username,
             formData.email,
-            formData.password
+            formData.password,
+            formData.dateOfBirth
         );
     };
 
@@ -164,17 +284,64 @@ const SignUp = () => {
                             onChange={handleChange}
                             required
                             className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
-                                formErrors.username
+                                formErrors.username || usernameStatus.available === false
                                     ? "border-red-500"
-                                    : "border-gray-300 focus:border-blue-500"
+                                    : usernameStatus.available === true
+                                      ? "border-green-500"
+                                      : "border-gray-300 focus:border-blue-500"
                             }`}
                             placeholder="Choose a username"
+                            autoComplete="off"
                         />
                         {formErrors.username && (
                             <p className="mt-1 text-sm text-red-600">
                                 {formErrors.username}
                             </p>
                         )}
+                        {!formErrors.username && usernameStatus.message && (
+                            <p
+                                className={`mt-1 text-sm ${
+                                    usernameStatus.available === true
+                                        ? "text-green-600"
+                                        : usernameStatus.available === false
+                                          ? "text-red-600"
+                                          : "text-gray-500"
+                                }`}
+                            >
+                                {usernameStatus.message}
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="dateOfBirth"
+                            className="block text-sm font-medium text-gray-600 mb-1"
+                        >
+                            Date of Birth *
+                        </label>
+                        <input
+                            type="date"
+                            id="dateOfBirth"
+                            name="dateOfBirth"
+                            value={formData.dateOfBirth}
+                            onChange={handleChange}
+                            required
+                            max={getMaxDob()}
+                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none transition-colors ${
+                                formErrors.dateOfBirth
+                                    ? "border-red-500"
+                                    : "border-gray-300 focus:border-blue-500"
+                            }`}
+                        />
+                        {formErrors.dateOfBirth && (
+                            <p className="mt-1 text-sm text-red-600">
+                                {formErrors.dateOfBirth}
+                            </p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                            You must be at least 13 years old
+                        </p>
                     </div>
 
                     <div>
@@ -228,7 +395,7 @@ const SignUp = () => {
                         />
                         <button
                             type="button"
-                            onClick={togglePasswordVisibility}
+                            onClick={() => setShowPassword(!showPassword)}
                             className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
                             aria-label={
                                 showPassword ? "Hide password" : "Show password"
@@ -270,7 +437,9 @@ const SignUp = () => {
                         />
                         <button
                             type="button"
-                            onClick={toggleConfirmPasswordVisibility}
+                            onClick={() =>
+                                setShowConfirmPassword(!showConfirmPassword)
+                            }
                             className="absolute right-3 top-9 text-gray-500 hover:text-gray-700 cursor-pointer"
                             aria-label={
                                 showConfirmPassword
@@ -293,31 +462,15 @@ const SignUp = () => {
 
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={
+                            loading ||
+                            usernameStatus.checking ||
+                            usernameStatus.available === false
+                        }
                         className="w-full bg-gradient-to-r from-[#00c6ff] to-[#0072ff] text-white py-3 rounded-lg font-bold hover:bg-gradient-to-r hover:from-[#0072ff] hover:to-[#00c6ff] transition-colors disabled:opacity-70 cursor-pointer disabled:cursor-not-allowed"
                     >
                         {loading ? (
                             <span className="flex items-center justify-center">
-                                <svg
-                                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <circle
-                                        className="opacity-25"
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="4"
-                                    ></circle>
-                                    <path
-                                        className="opacity-75"
-                                        fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                    ></path>
-                                </svg>
                                 Creating account...
                             </span>
                         ) : (

@@ -15,6 +15,8 @@ import ConfirmationModal from "../../common/ConfirmationModal";
 import { apiService } from "../../services/api";
 import { localStorageService } from "../../services/localStorage";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
+import PostLocationBadge from "../common/PostLocationBadge";
+import PostMediaCarousel from "../mainFeed/PostMediaCarousel";
 
 const Post = () => {
     const { postId } = useParams();
@@ -1282,45 +1284,16 @@ const Post = () => {
                                 darkMode ? "text-gray-200" : "text-gray-700"
                             }`}
                         >
-                            {highlightMentionsAndHashtags(post.content || "")}
+                            {highlightMentionsAndHashtags(post.content || "", post.mentions)}
                         </p>
+                        <PostLocationBadge location={post.location} className="mb-4" />
 
 
-                        {/* Post Video */}
-                        {post.videoUrl && (
-                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                                <video
-                                    ref={el => (videoRefs.current[post._id] = el)}
-                                    src={post.videoUrl}
-                                    className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl bg-black"
-                                    muted={isGlobalMuted || activeVideoId !== post._id}
-                                    autoPlay
-                                    playsInline
-                                    onClick={e => handleVideoTap(post._id, e)}
-                                    onContextMenu={handleVideoContextMenu}
-                                    onVolumeChange={handleVideoVolumeChange}
-                                    controls={activeVideoId === post._id}
-                                    style={{ backgroundColor: "black" }}
-                                />
-                            </div>
-                        )}
-
-                        {/* Post Image */}
-                        {getRenderableImageUrl(post.image) && (
-                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                                <img
-                                    src={getRenderableImageUrl(post.image)}
-                                    alt="Post"
-                                    className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl"
-                                    onClick={() =>
-                                        handleImagePreview(
-                                            getRenderableImageUrl(post.image)
-                                        )
-                                    }
-                                    onError={handleImageError}
-                                />
-                            </div>
-                        )}
+                        {/* Post Media */}
+                        <PostMediaCarousel
+                            post={post}
+                            onImagePreview={handleImagePreview}
+                        />
 
                         {/* Engagement Stats and Actions */}
                         <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">

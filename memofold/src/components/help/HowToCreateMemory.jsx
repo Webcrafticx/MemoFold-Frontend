@@ -55,7 +55,8 @@ const HowToCreateMemory = () => {
                     <ol className="list-decimal pl-6 space-y-3 text-gray-700">
                         <li>Log in to your MemoFold account.</li>
                         <li>Click the <span className="font-bold">'+'</span> button in the navigation bar.</li>
-                        <li>Select photos or videos from your device that you want to save as a memory.</li>
+                        <li>Select up to 10 photos or videos from your device that you want to save as a memory.</li>
+                        <li>Videos can be up to 32 seconds long.</li>
                         <li>Add a caption to describe your memory.</li>
                         <li>Select emotions that best represent your memory.</li>
                         <li>Choose privacy settings to control who can view your memory.</li>

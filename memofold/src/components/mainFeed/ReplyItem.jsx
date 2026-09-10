@@ -209,7 +209,7 @@ const ReplyItem = ({
                             isDarkMode ? "text-gray-200" : "text-gray-700"
                         }`}
                     >
-                        {highlightMentionsAndHashtags(reply?.content || "")}
+                        {highlightMentionsAndHashtags(reply?.content || "", reply?.mentions)}
                     </p>
 
                     <div className="mt-1 flex items-center justify-between flex-wrap gap-2">

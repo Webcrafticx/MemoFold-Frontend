@@ -10,6 +10,7 @@ import {
 import ReplyItem from "../mainFeed/ReplyItem";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
+import MentionInput from "../common/MentionInput";
 
 const ProfileCommentSection = ({
     post,
@@ -247,7 +248,7 @@ const ProfileCommentSection = ({
                                             </span>
                                         </div>
                                         <p className="text-sm whitespace-pre-line mt-1">
-                                            {highlightMentionsAndHashtags(comment.content)}
+                                            {highlightMentionsAndHashtags(comment.content, comment.mentions)}
                                         </p>
                                         <div className="flex items-center justify-between mt-1">
                                             <button
@@ -365,23 +366,23 @@ const ProfileCommentSection = ({
                                         {/* Reply Input for Main Comment */}
                                         {activeReplyInputs[replyKey] && (
                                             <div className="mt-2 flex items-center space-x-2">
-                                                <input
-                                                    type="text"
+                                                <MentionInput
+                                                    singleLine
                                                     className={`flex-1 px-3 py-1 rounded-full text-xs border ${
                                                         isDarkMode
                                                             ? "bg-gray-600 border-gray-500 text-white"
                                                             : "bg-white border-gray-300 text-gray-800"
                                                     } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                    placeholder="Write a reply..."
+                                                    placeholder="Write a reply... Use @ to mention"
                                                     value={
                                                         replyContent[
                                                             replyKey
                                                         ] || ""
                                                     }
-                                                    onChange={(e) =>
+                                                    onChange={(next) =>
                                                         onSetReplyContent(
                                                             replyKey,
-                                                            e.target.value
+                                                            next
                                                         )
                                                     }
                                                     onKeyPress={(e) => {
@@ -533,19 +534,19 @@ const ProfileCommentSection = ({
                         )}
                     </div>
                     <div className="flex-1 flex space-x-2">
-                        <input
-                            type="text"
+                        <MentionInput
+                            singleLine
                             className={`flex-1 px-3 py-2 rounded-full text-sm border ${
                                 isDarkMode
                                     ? "bg-gray-700 border-gray-600 text-white"
                                     : "bg-white border-gray-300 text-gray-800"
                             } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                            placeholder="Write a comment..."
+                            placeholder="Write a comment... Use @ to mention"
                             value={commentContent[post._id] || ""}
-                            onChange={(e) =>
+                            onChange={(next) =>
                                 onSetCommentContent({
                                     ...commentContent,
-                                    [post._id]: e.target.value,
+                                    [post._id]: next,
                                 })
                             }
                             onKeyPress={(e) => {

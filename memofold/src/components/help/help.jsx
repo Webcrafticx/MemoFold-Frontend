@@ -92,7 +92,7 @@ const HelpPage = () => {
                     </p>
                     <ol className="list-decimal pl-5 space-y-2 text-gray-700">
                         <li>Click the '+' button in the navigation bar</li>
-                        <li>Select photos/videos from your device</li>
+                        <li>Select up to 10 photos/videos from your device (videos up to 32 seconds)</li>
                         <li>Add a caption and select emotions</li>
                         <li>Choose privacy settings</li>
                         <li>Click "Post" to share</li>

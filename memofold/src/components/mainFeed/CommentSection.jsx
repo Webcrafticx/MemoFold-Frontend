@@ -1,6 +1,7 @@
 
 import React, { useRef, useEffect } from "react";
 import CommentItem from "./CommentItem";
+import MentionInput from "../common/MentionInput";
 
 const CommentSection = ({
     post,
@@ -150,19 +151,19 @@ const CommentSection = ({
                         )}
                     </div>
                     <div className="flex-1 flex space-x-2">
-                        <input
-                            type="text"
+                        <MentionInput
+                            singleLine
                             className={`flex-1 px-3 py-2 rounded-full text-sm border ${
                                 isDarkMode
                                     ? "bg-gray-700 border-gray-600 text-white"
                                     : "bg-white border-gray-300 text-gray-900"
                             } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                            placeholder="Write a comment..."
+                            placeholder="Write a comment... Use @ to mention"
                             value={commentContent[post._id] || ""}
-                            onChange={(e) =>
+                            onChange={(next) =>
                                 onSetCommentContent({
                                     ...commentContent,
-                                    [post._id]: e.target.value,
+                                    [post._id]: next,
                                 })
                             }
                         />
