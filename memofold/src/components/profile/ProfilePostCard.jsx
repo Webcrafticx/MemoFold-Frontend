@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from "react";
-import { useVideo } from "../../context/VideoContext";
 import {
     FaHeart,
     FaRegHeart,
@@ -7,23 +6,25 @@ import {
     FaEdit,
     FaTrashAlt,
     FaPaperclip,
-    FaCheck,
     FaTimes,
-    FaVideo,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import { useNavigate } from "react-router-dom";
 import ProfileCommentSection from "./ProfileCommentSection";
+import PostMediaCarousel from "../mainFeed/PostMediaCarousel";
+import MentionInput from "../common/MentionInput";
+import PostLocationBadge from "../common/PostLocationBadge";
+import LocationAutocomplete from "../common/LocationAutocomplete";
 import {
     compressImage,
     compressVideo,
     shouldCompressFile,
     getFileType,
     checkVideoDuration,
-    formatFileSize
 } from "../../utils/fileCompression";
+import { MAX_MEDIA_ITEMS, MAX_VIDEO_DURATION_SEC } from "../../utils/mediaLimits";
 
 const ProfilePostCard = ({
     post,
@@ -48,25 +49,22 @@ const ProfilePostCard = ({
     isLikingComment,
     isFetchingComments,
     token,
-    // Likes modal prop
     onShowLikesModal,
-    // Like loading state
     isLiking,
-    // Edit state props
     editingPostId,
     editContent,
     onEditContentChange,
+    editLocation = null,
+    onEditLocationChange,
+    editVisibility = "public",
+    onEditVisibilityChange,
     isUpdatingPost,
     isDeletingPost,
-    // File upload props
     editFiles = [],
     onEditFileSelect,
     onRemoveEditFile,
-    // Existing media props
-    existingImage,
-    existingVideo,
+    existingMedia = [],
     onRemoveExistingMedia,
-    // Reply functionality props
     activeReplyInputs,
     replyContent,
     onToggleReplyInput,
@@ -79,54 +77,31 @@ const ProfilePostCard = ({
     isFetchingReplies,
     isLikingReply,
     isDeletingReply,
-    // Pagination props
     commentsNextCursor,
     repliesNextCursor,
 }) => {
-    const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
     const editTextareaRef = useRef(null);
     const fileInputRef = useRef(null);
-    const videoRefs = useRef({});
 
     const isOwner = post.userId?._id === currentUserProfile?._id;
     const isEditing = editingPostId === post._id;
     const navigate = useNavigate();
 
-    // Compression states
     const [isCompressing, setIsCompressing] = React.useState(false);
     const [compressionProgress, setCompressionProgress] = React.useState(0);
-    const [newVideoUrl, setNewVideoUrl] = React.useState(null);
-    const [showMediaAlert, setShowMediaAlert] = React.useState(false);
-    // Custom notification state for edit section
-    const [notification, setNotification] = React.useState({ message: '', visible: false });
+    const [notification, setNotification] = React.useState({ message: "", visible: false });
     const notificationTimeoutRef = React.useRef(null);
-    // Notification UI helper
-    const renderNotification = () => (
-        notification.visible && (
-            <div className={`flex items-center justify-between mb-3 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
-                <span className="text-sm font-medium select-none">{notification.message}</span>
-                <button
-                    onClick={() => setNotification({ message: '', visible: false })}
-                    className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
-                    title="Close"
-                >
-                    <FaTimes size={16} className="cursor-pointer" />
-                </button>
-            </div>
-        )
-    );
 
-    // Properly handle like count
-    const getLikeCount = () => {
-        return post.likeCount || 0;
+    const showNotification = (message, ms = 6000) => {
+        setNotification({ message, visible: true });
+        clearTimeout(notificationTimeoutRef.current);
+        notificationTimeoutRef.current = setTimeout(() => {
+            setNotification({ message: "", visible: false });
+        }, ms);
     };
 
-    // Properly handle comment count
-    const getCommentCount = () => {
-        return post.commentCount || 0;
-    };
-
-    
+    const getLikeCount = () => post.likeCount || 0;
+    const getCommentCount = () => post.commentCount || 0;
 
     useEffect(() => {
         if (isEditing && editTextareaRef.current) {
@@ -136,16 +111,6 @@ const ProfilePostCard = ({
         }
     }, [isEditing]);
 
-    // Cleanup video URL on unmount
-    useEffect(() => {
-        return () => {
-            if (newVideoUrl) {
-                URL.revokeObjectURL(newVideoUrl);
-            }
-        };
-    }, [newVideoUrl]);
-
-    // Cleanup notification timeout on unmount
     useEffect(() => {
         return () => {
             if (notificationTimeoutRef.current) {
@@ -154,65 +119,6 @@ const ProfilePostCard = ({
         };
     }, []);
 
-    // Intersection Observer logic for video autoplay and mute control
-    useEffect(() => {
-        if (!post.videoUrl) return;
-        const videoEl = videoRefs.current[post._id];
-        if (!videoEl) return;
-
-        let observer;
-        if ('IntersectionObserver' in window && typeof setActiveVideoId === 'function') {
-            observer = new window.IntersectionObserver(
-                (entries) => {
-                    entries.forEach((entry) => {
-                        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-                            setActiveVideoId(post._id);
-                        } else if (activeVideoId === post._id && (!entry.isIntersecting || entry.intersectionRatio < 0.5)) {
-                            setActiveVideoId(null);
-                        }
-                    });
-                },
-                { threshold: 0.5 }
-            );
-            observer.observe(videoEl);
-        }
-        return () => {
-            if (observer && videoEl) observer.unobserve(videoEl);
-        };
-    }, [post._id, post.videoUrl, setActiveVideoId, activeVideoId]);
-
-    // Handle tab visibility: pause and mute video if tab is not active
-    useEffect(() => {
-        if (!post.videoUrl) return;
-        const videoEl = videoRefs.current[post._id];
-        if (!videoEl) return;
-
-        const handleVisibility = () => {
-            if (document.visibilityState !== "visible") {
-                videoEl.pause();
-                videoEl.muted = true;
-            } else {
-                // Only play and unmute if this post is the active video
-                if (activeVideoId === post._id) {
-                    videoEl.muted = isGlobalMuted;
-                    videoEl.play().catch(() => {});
-                } else {
-                    videoEl.pause();
-                    videoEl.muted = true;
-                }
-            }
-        };
-
-        document.addEventListener("visibilitychange", handleVisibility);
-        // Initial check
-        handleVisibility();
-
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibility);
-        };
-    }, [activeVideoId, post._id, post.videoUrl, isGlobalMuted]);
-
-    // Profile picture source properly handle karein - multiple fallbacks
     const getProfilePic = () => {
         if (
             post.userId?.profilePic &&
@@ -247,7 +153,6 @@ const ProfilePostCard = ({
     };
 
     const getUsername = () => {
-        // Always use the latest username prop for the current user's posts
         if (isOwner) {
             return username || post.userId?.username || post.username || "User";
         }
@@ -255,20 +160,15 @@ const ProfilePostCard = ({
     };
 
     const getRealName = () => {
-        // Always use the latest realName for the current user's posts
         if (isOwner) {
             return currentUserProfile?.realname || post.userId?.realname || getUsername();
         }
         return post.userId?.realname || currentUserProfile?.realname || getUsername();
     };
 
-    const getUserId = () => {
-        return post.userId?._id || currentUserProfile?._id;
-    };
+    const getUserId = () => post.userId?._id || currentUserProfile?._id;
 
-    // Get liked users for display - same logic as main feed
     const getLikedUsers = () => {
-        // Use likesPreview from API
         if (post.likesPreview && post.likesPreview.length > 0) {
             return post.likesPreview;
         }
@@ -278,525 +178,312 @@ const ProfilePostCard = ({
     const likedUsers = getLikedUsers();
     const totalLikes = getLikeCount();
     const isPostLiked = post.isLikedByMe || false;
+
     const getRenderableImageUrl = (url) => {
         if (!url || typeof url !== "string") return url;
-
         const isDng = /\.dng(\?|$)/i.test(url);
-        const isCloudinary = url.includes("res.cloudinary.com") && url.includes("/upload/");
-
+        const isCloudinary =
+            url.includes("res.cloudinary.com") && url.includes("/upload/");
         if (isDng && isCloudinary) {
             return url.replace("/upload/", "/upload/f_auto,q_auto/");
         }
-
         return url;
     };
-    const displayImageUrl = getRenderableImageUrl(post.image);
 
-    const handleEditClick = () => {
-        onEditPost(post._id);
-    };
-
-    const handleUpdateClick = () => {
-        onUpdatePost(post._id);
-    };
-
+    const handleEditClick = () => onEditPost(post._id);
+    const handleUpdateClick = () => onUpdatePost(post._id);
     const handleCancelClick = () => {
-        // Cleanup video URL
-        if (newVideoUrl) {
-            URL.revokeObjectURL(newVideoUrl);
-            setNewVideoUrl(null);
-        }
         setIsCompressing(false);
         setCompressionProgress(0);
         onCancelEdit();
     };
 
-    // Handle likes modal
     const handleShowLikes = (e) => {
         e.stopPropagation();
         if (onShowLikesModal && totalLikes > 0) {
             onShowLikesModal(post._id);
         }
     };
-    
-    const navigateToProfile = (userId) => {
-        // Check if this is the current user
-        const isCurrentUser = userId === getUserId();
 
-        if (isCurrentUser) {
+    const navigateToProfile = (userId) => {
+        if (userId === getUserId()) {
             navigate("/profile");
         } else {
             navigate(`/user/${userId}`);
         }
     };
 
-    // Check if existing media is present
-    const hasExistingMedia = () => {
-        return existingImage || existingVideo;
-    };
+    const totalEditMediaCount =
+        (existingMedia?.length || 0) + (editFiles?.length || 0);
 
-    // Check if new media is present
-    const hasNewMedia = () => {
-        return editFiles.length > 0 || newVideoUrl;
-    };
-
-    // Unified Add Media handler
     const handleFileSelect = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (files.length === 0) return;
 
-        const type = getFileType(file);
-        if (type !== 'image' && type !== 'video') {
-            setNotification({ message: "Please select an image or video file", visible: true });
-            clearTimeout(notificationTimeoutRef.current);
-            notificationTimeoutRef.current = setTimeout(() => {
-                setNotification({ message: '', visible: false });
-            }, 6000);
+        const remaining = MAX_MEDIA_ITEMS - totalEditMediaCount;
+        if (remaining <= 0) {
+            showNotification(`Maximum ${MAX_MEDIA_ITEMS} media files allowed`);
             return;
         }
 
-        // Check if existing media needs to be removed first
-        if (hasExistingMedia()) {
-            setShowMediaAlert(true);
-            return;
+        const toProcess = files.slice(0, remaining);
+        if (files.length > remaining) {
+            showNotification(`Only ${remaining} more media file(s) can be added`);
         }
+
+        setIsCompressing(true);
+        setCompressionProgress(0);
 
         try {
-            setIsCompressing(true);
-            setCompressionProgress(10);
-
-            // Validate video duration
-            if (type === 'video') {
-                const duration = await checkVideoDuration(file);
-                if (duration > 15) {
-                    setNotification({ message: "Video must be 15 seconds or less", visible: true });
-                    clearTimeout(notificationTimeoutRef.current);
-                    notificationTimeoutRef.current = setTimeout(() => {
-                        setNotification({ message: '', visible: false });
-                    }, 6000);
-                    setIsCompressing(false);
-                    setCompressionProgress(0);
-                    return;
+            for (let i = 0; i < toProcess.length; i++) {
+                const file = toProcess[i];
+                const type = getFileType(file);
+                if (type !== "image" && type !== "video") {
+                    showNotification("Please select an image or video file");
+                    continue;
                 }
-            }
 
-            let processedFile = file;
-            // Apply compression if needed
-            if (shouldCompressFile(file)) {
-                try {
-                    if (type === 'image') {
-                        processedFile = await compressImage(file, (progress) => {
-                            setCompressionProgress(progress);
-                        });
-                    } else if (type === 'video') {
-                        processedFile = await compressVideo(file, (progress) => {
-                            setCompressionProgress(progress);
-                        });
+                if (type === "video") {
+                    const duration = await checkVideoDuration(file);
+                    if (Math.floor(duration) > MAX_VIDEO_DURATION_SEC) {
+                        showNotification(
+                            `Video must be ${MAX_VIDEO_DURATION_SEC} seconds or less`
+                        );
+                        continue;
                     }
-                } catch (error) {
-                    setNotification({ message: 'Compression failed. Using original file.', visible: true });
-                    clearTimeout(notificationTimeoutRef.current);
-                    notificationTimeoutRef.current = setTimeout(() => {
-                        setNotification({ message: '', visible: false });
-                    }, 3000);
+                }
+
+                let processedFile = file;
+                if (shouldCompressFile(file)) {
+                    if (type === "image") {
+                        processedFile = await compressImage(
+                            file,
+                            setCompressionProgress
+                        );
+                    } else {
+                        processedFile = await compressVideo(
+                            file,
+                            setCompressionProgress
+                        );
+                    }
+                }
+
+                if (onEditFileSelect) {
+                    await onEditFileSelect(processedFile);
                 }
             }
-
-            // Cleanup previous video URL
-            if (newVideoUrl) {
-                URL.revokeObjectURL(newVideoUrl);
-            }
-
-            // Create preview for video
-            if (type === 'video') {
-                const videoUrl = URL.createObjectURL(processedFile);
-                setNewVideoUrl(videoUrl);
-                // Clear any existing edit files (video replaces everything)
-                editFiles.forEach((file, index) => {
-                    onRemoveEditFile(index);
-                });
-            } else {
-                // For image, clear any video
-                if (newVideoUrl) {
-                    URL.revokeObjectURL(newVideoUrl);
-                    setNewVideoUrl(null);
-                }
-            }
-
-            if (onEditFileSelect) {
-                onEditFileSelect(processedFile);
-            }
+        } catch (error) {
+            showNotification("Error processing file. Please try again.", 3000);
+        } finally {
             setTimeout(() => {
                 setIsCompressing(false);
                 setCompressionProgress(0);
-            }, 500);
-
-        } catch (error) {
-            setNotification({ message: 'Error processing file. Please try again.', visible: true });
-            clearTimeout(notificationTimeoutRef.current);
-            notificationTimeoutRef.current = setTimeout(() => {
-                setNotification({ message: '', visible: false });
-            }, 3000);
-            setIsCompressing(false);
-            setCompressionProgress(0);
+            }, 300);
         }
     };
 
-    // Remove existing media
-    const handleRemoveExistingMedia = () => {
-        if (onRemoveExistingMedia) {
-            onRemoveExistingMedia();
+    const renderEditMediaStrip = () => {
+        if (
+            (!existingMedia || existingMedia.length === 0) &&
+            editFiles.length === 0
+        ) {
+            return null;
         }
-        // Also clear any new media
-        editFiles.forEach((file, index) => {
-            if (onRemoveEditFile) {
-                onRemoveEditFile(index);
-            }
-        });
-        if (newVideoUrl) {
-            URL.revokeObjectURL(newVideoUrl);
-            setNewVideoUrl(null);
-        }
-        setShowMediaAlert(false);
-    };
-
-    // Remove new media
-    const handleRemoveNewMedia = () => {
-        editFiles.forEach((file, index) => {
-            if (onRemoveEditFile) {
-                onRemoveEditFile(index);
-            }
-        });
-        if (newVideoUrl) {
-            URL.revokeObjectURL(newVideoUrl);
-            setNewVideoUrl(null);
-        }
-    };
-
-    // File preview rendering function
-    const renderFilePreview = (file) => {
-        if (file && getFileType(file) === "image") {
-            return (
-                <div className="relative">
-                    <img
-                        src={URL.createObjectURL(file)}
-                        alt="Preview"
-                        className="w-16 h-16 object-cover rounded-lg cursor-pointer bg-gray-100"
-                        onClick={() =>
-                            onImagePreview(URL.createObjectURL(file))
-                        }
-                        onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            const fallback = e.currentTarget.nextSibling;
-                            if (fallback) fallback.style.display = "flex";
-                        }}
-                    />
-                    <div className="w-16 h-16 hidden items-center justify-center rounded-lg bg-gray-100 text-gray-600 text-[10px] px-1 text-center">
-                        Preview not supported
-                    </div>
-                    <button
-                        onClick={() =>
-                        onRemoveEditFile(editFiles.indexOf(file))
-                        }
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
-                    >
-                        <FaTimes />
-                    </button>
-                </div>
-            );
-        }
-        return (
-            <div
-                className={`p-2 rounded-lg flex items-center ${
-                    isDarkMode ? "bg-gray-600" : "bg-white"
-                }`}
-            >
-                <span className="mr-2">📁</span>
-                <span className="text-sm truncate max-w-xs">{file?.name || "File"}</span>
-                <button
-                    onClick={() => onRemoveEditFile(editFiles.indexOf(file))}
-                    className="ml-2 text-red-500 hover:text-red-700 cursor-pointer"
-                >
-                    <FaTimes />
-                </button>
-            </div>
-        );
-    };
-
-    // Render existing media in edit mode
-    const renderExistingMedia = () => {
-        const hasMedia = hasExistingMedia();
-        const hasNew = hasNewMedia();
-        
-        if (!hasMedia && !hasNew) return null;
 
         return (
-            <div className="relative mb-3">
+            <div className="mb-3">
                 <p
                     className={`text-sm mb-2 ${
                         isDarkMode ? "text-gray-400" : "text-gray-600"
                     }`}
                 >
-                    {hasMedia ? "Current Media:" : "New Media:"}
+                    Media ({totalEditMediaCount}/{MAX_MEDIA_ITEMS})
                 </p>
-                
-                {/* Existing Media - Only show in edit mode */}
-                        {hasMedia && isEditing && (
-                    <div className="relative inline-block mb-2">
-                        {existingImage ? (
-                            <>
-                                <img
-                                    src={getRenderableImageUrl(existingImage)}
-                                    alt="Current post"
-                                    className="max-h-48 max-w-full object-contain rounded-lg cursor-pointer"
-                                    onClick={() => onImagePreview(getRenderableImageUrl(existingImage))}
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                    {(existingMedia || []).map((item, index) => (
+                        <div
+                            key={`existing-${item.publicId || item.url}-${index}`}
+                            className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-gray-300"
+                        >
+                            {item.type === "video" ? (
+                                <video
+                                    src={item.url}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    preload="metadata"
                                 />
-                                <button
-                                    onClick={handleRemoveExistingMedia}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
-                                    title="Remove current media"
-                                >
-                                    <FaTimes />
-                                </button>
-                                <div className="mt-1 text-xs text-gray-500">
-                                    Click ✕ to remove before adding new
-                                </div>
-                            </>
-                        ) : existingVideo ? (
-                            <>
-                                <div className="relative w-full max-w-full">
+                            ) : (
+                                <img
+                                    src={getRenderableImageUrl(item.url)}
+                                    alt=""
+                                    className="w-full h-full object-cover cursor-pointer"
+                                    onClick={() =>
+                                        onImagePreview(
+                                            getRenderableImageUrl(item.url)
+                                        )
+                                    }
+                                />
+                            )}
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onRemoveExistingMedia &&
+                                    onRemoveExistingMedia(index)
+                                }
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
+                                title="Remove"
+                            >
+                                <FaTimes size={10} />
+                            </button>
+                        </div>
+                    ))}
+                    {editFiles.map((file, index) => {
+                        const type = getFileType(file);
+                        const preview = URL.createObjectURL(file);
+                        return (
+                            <div
+                                key={`new-${file.name}-${index}`}
+                                className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 border-blue-400"
+                            >
+                                {type === "video" ? (
                                     <video
-                                        src={existingVideo}
-                                        className="max-h-48 max-w-full object-contain rounded-lg"
-                                        autoPlay
+                                        src={preview}
+                                        className="w-full h-full object-cover"
                                         muted
-                                        loop
-                                        playsInline
-                                        controls
-                                        controlsList="nodownload nofullscreen noplaybackrate"
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            return false;
-                                        }}
-                                        style={{
-                                            backgroundColor: "transparent",
-                                            display: "block",
-                                        }}
                                         preload="metadata"
                                     />
-                                </div>
-                                <button
-                                    onClick={handleRemoveExistingMedia}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
-                                    title="Remove current video"
-                                >
-                                    <FaTimes />
-                                </button>
-                                <div className="mt-1 text-xs text-gray-500">
-                                    Click ✕ to remove before adding new
-                                </div>
-                            </>
-                        ) : null}
-                    </div>
-                )}
-                
-                {/* New Media */}
-                {hasNew && (
-                    <div className="mt-3">
-                        {newVideoUrl ? (
-                            <div className="relative inline-block mb-2">
-                                <div className="relative w-full max-w-full">
-                                    <video
-                                        src={newVideoUrl}
-                                        className="max-h-48 max-w-full object-contain rounded-lg"
-                                        autoPlay
-                                        muted
-                                        loop
-                                        playsInline
-                                        controls
-                                        controlsList="nodownload nofullscreen noplaybackrate"
-                                        onContextMenu={(e) => {
-                                            e.preventDefault();
-                                            return false;
-                                        }}
-                                        style={{
-                                            backgroundColor: "transparent",
-                                            display: "block",
-                                        }}
-                                        preload="metadata"
+                                ) : (
+                                    <img
+                                        src={preview}
+                                        alt=""
+                                        className="w-full h-full object-cover"
                                     />
-                                </div>
+                                )}
                                 <button
-                                    onClick={handleRemoveNewMedia}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer hover:bg-red-600 transition-colors"
-                                    title="Remove new video"
+                                    type="button"
+                                    onClick={() => onRemoveEditFile(index)}
+                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 text-xs cursor-pointer"
+                                    title="Remove"
                                 >
-                                    <FaTimes />
+                                    <FaTimes size={10} />
                                 </button>
-                                {/* <div className="mt-1 text-xs text-green-500">
-                                    New video ready to upload
-                                </div> */}
                             </div>
-                        ) : editFiles.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {editFiles.map((file, index) => (
-                                    <div key={index}>
-                                        {renderFilePreview(file)}
-                                    </div>
-                                ))}
-                                <div className="text-xs text-gray-500 mt-1">
-                                    Remove ✕ to add different media
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
-                )}
+                        );
+                    })}
+                </div>
             </div>
         );
     };
 
-    // ✅ Handle context menu to prevent download
-    const handleVideoContextMenu = (e) => {
-        e.preventDefault();
-        return false;
-    };
-
-    // ✅ Handle video touch/click for mobile
-    const handleVideoTap = (e) => {
-        e.stopPropagation();
-        const video = videoRefs.current[post._id];
-        if (video) {
-            if (video.paused) {
-                video.play();
-            } else {
-                video.pause();
-            }
-        }
-    };
-
-    // Sync video mute state with global context
-    const handleVideoVolumeChange = (e) => {
-        const video = e.target;
-        if (video && activeVideoId === post._id) {
-            setGlobalMuted(video.muted);
-        }
-    };
-
-    const likeCount = getLikeCount();
-    const commentCount = getCommentCount();
-
     return (
         <div
-            className={`${
+            className={`w-full max-w-2xl mx-auto mb-4 sm:mb-6 ${
                 isDarkMode
                     ? "bg-gray-800 border-gray-700 text-gray-100"
                     : "bg-white border-gray-200 text-gray-800"
-            } border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-default`}
+            } border rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md hover:shadow-lg transition-all duration-300 cursor-default`}
         >
-            {/* Post Header */}
-            <div className="flex items-start justify-between mb-3 sm:mb-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <div
-                        className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-gray-200 cursor-pointer"
-                        onClick={() => navigateToUserProfile(getUserId())}
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-r from-blue-500 to-cyan-400 cursor-pointer"
+                        onClick={() => navigateToProfile(getUserId())}
                     >
                         {getProfilePic() ? (
                             <img
                                 src={getProfilePic()}
                                 alt={getUsername()}
-                                className="w-10 h-10 object-cover"
+                                className="w-full h-full object-cover"
                                 onError={(e) => {
                                     e.target.style.display = "none";
-                                    const parent = e.target.parentElement;
-                                    const fallback =
-                                        parent.querySelector(
-                                            ".profile-fallback"
-                                        );
-                                    if (fallback) {
-                                        fallback.style.display = "flex";
-                                    }
+                                    e.target.nextSibling.style.display = "flex";
                                 }}
                             />
-                        ) : (
-                            <span className="profile-fallback flex items-center cursor-pointer justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
-                                {getUsername().charAt(0).toUpperCase()}
-                            </span>
-                        )}
-                        {/* Hidden fallback for error case */}
-                        <span className="profile-fallback hidden items-center justify-center w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 text-white font-semibold text-lg">
-                            {getUsername().charAt(0).toUpperCase()}
+                        ) : null}
+                        <span
+                            className="flex items-center justify-center w-full h-full text-white font-semibold text-sm"
+                            style={getProfilePic() ? { display: "none" } : {}}
+                        >
+                            {getUsername()?.charAt(0).toUpperCase() || "U"}
                         </span>
                     </div>
-
                     <div>
                         <h3
-                            className="text-base font-semibold hover:text-blue-500 transition-colors cursor-pointer"
-                            onClick={() => navigateToUserProfile(getUserId())}
+                            className="font-semibold cursor-pointer hover:text-blue-500 text-sm sm:text-base"
+                            onClick={() => navigateToProfile(getUserId())}
                         >
                             {getRealName()}
                         </h3>
                         <p
                             className={`text-xs ${
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
-                            } cursor-default`}
+                            }`}
                         >
                             @{getUsername()} · {formatDate(post.createdAt)}
+                            {post.createdAt && (
+                                <span className="ml-1">
+                                    ({getTimeDifference(post.createdAt)})
+                                </span>
+                            )}
+                            {isOwner && post.visibility === "friends" && (
+                                <span
+                                    className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        isDarkMode
+                                            ? "bg-gray-700 text-gray-300"
+                                            : "bg-gray-200 text-gray-600"
+                                    }`}
+                                >
+                                    Friends only
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
 
-                {/* Edit/Delete buttons - Only show when not editing */}
                 {isOwner && !isEditing && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex gap-1 sm:gap-2">
                         <button
                             onClick={handleEditClick}
-                            className={`p-2 rounded-full ${
+                            className={`p-1.5 sm:p-2 rounded-lg ${
                                 isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-100"
+                                    ? "hover:bg-gray-700 text-gray-400"
+                                    : "hover:bg-gray-100 text-gray-500"
                             } cursor-pointer`}
                             title="Edit post"
                         >
-                            <FaEdit className="text-blue-500 text-sm" />
+                            <FaEdit className="text-sm sm:text-base" />
                         </button>
                         <button
                             onClick={() => onDeletePost(post._id)}
                             disabled={isDeletingPost}
-                            className={`p-2 rounded-full ${
-                                isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-100"
-                            } cursor-pointer ${
+                            className={`p-1.5 sm:p-2 rounded-lg ${
                                 isDeletingPost
                                     ? "opacity-50 cursor-not-allowed"
-                                    : ""
-                            }`}
+                                    : isDarkMode
+                                      ? "hover:bg-gray-700 text-gray-400 hover:text-red-400"
+                                      : "hover:bg-gray-100 text-gray-500 hover:text-red-500"
+                            } cursor-pointer`}
                             title="Delete post"
                         >
-                            <FaTrashAlt className="text-red-500 text-sm" />
+                            <FaTrashAlt className="text-sm sm:text-base" />
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* Post Content - Edit Mode */}
             {isEditing ? (
-                <div className="mb-3 sm:mb-4">
-                    <textarea
-                        ref={editTextareaRef}
+                <div>
+                    <MentionInput
+                        inputRef={editTextareaRef}
                         value={editContent}
-                        onChange={(e) => {
-                            onEditContentChange(e.target.value);
-
+                        onChange={(next) => {
+                            onEditContentChange(next);
                             const textarea = editTextareaRef.current;
                             if (!textarea) return;
-
                             textarea.style.height = "auto";
-                            textarea.style.height =
-                                textarea.scrollHeight + "px";
+                            textarea.style.height = textarea.scrollHeight + "px";
                         }}
-                        rows={3}
-                        placeholder="Edit your post..."
                         disabled={isUpdatingPost || isCompressing}
                         className={`w-full p-4 rounded-lg border resize-none max-h-96 overflow-y-auto ${
                             isDarkMode
@@ -805,57 +492,104 @@ const ProfilePostCard = ({
                         } focus:outline-none focus:ring-2 focus:ring-blue-500`}
                     />
 
-                    {/* Media Alert */}
-                    {showMediaAlert && (
-                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-yellow-900 border border-yellow-700' : 'bg-yellow-50 border border-yellow-200'}`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className={`text-sm font-medium ${isDarkMode ? 'text-yellow-200' : 'text-yellow-800'}`}>
-                                    ⚠️ Remove current media first
-                                </p>
-                                <button
-                                    onClick={() => setShowMediaAlert(false)}
-                                    className="text-gray-500 hover:text-gray-700"
-                                >
-                                    <FaTimes size={12} />
-                                </button>
-                            </div>
-                            <p className={`text-xs ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
-                                You can only have one media file at a time. Please remove the current media before adding a new one.
-                            </p>
-                        </div>
-                    )}
+                    <div className="mt-2 mb-2">
+                        <LocationAutocomplete
+                            value={editLocation}
+                            onChange={(loc) => onEditLocationChange?.(loc)}
+                            isDarkMode={isDarkMode}
+                            disabled={isUpdatingPost || isCompressing}
+                            placeholder="Search for a location"
+                        />
+                    </div>
 
-                    {/* Compression Progress */}
+                    <div className="mb-2 flex items-center gap-2">
+                        <span
+                            className={`text-xs ${
+                                isDarkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                        >
+                            Who can see
+                        </span>
+                        <div
+                            className={`inline-flex rounded-lg border overflow-hidden text-xs ${
+                                isDarkMode ? "border-gray-600" : "border-gray-300"
+                            }`}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => onEditVisibilityChange?.("public")}
+                                disabled={isUpdatingPost || isCompressing}
+                                className={`px-3 py-1.5 cursor-pointer transition-colors ${
+                                    editVisibility === "public"
+                                        ? "bg-blue-500 text-white"
+                                        : isDarkMode
+                                          ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                            >
+                                Public
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onEditVisibilityChange?.("friends")}
+                                disabled={isUpdatingPost || isCompressing}
+                                className={`px-3 py-1.5 cursor-pointer transition-colors ${
+                                    editVisibility === "friends"
+                                        ? "bg-blue-500 text-white"
+                                        : isDarkMode
+                                          ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                            >
+                                Friends only
+                            </button>
+                        </div>
+                    </div>
+
                     {isCompressing && (
-                        <div className={`mb-3 p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                        <div
+                            className={`mb-3 p-3 rounded-lg ${
+                                isDarkMode ? "bg-gray-700" : "bg-gray-100"
+                            }`}
+                        >
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="inline-block h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm">
-                                    Processing...
-                                </span>
+                                <span className="text-sm">Processing...</span>
                             </div>
                             <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-2">
-                                <div 
+                                <div
                                     className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                                     style={{ width: `${compressionProgress}%` }}
                                 ></div>
                             </div>
-                            <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
-                                Progress: {compressionProgress}%
-                            </div>
                         </div>
                     )}
 
-                    {/* Show existing media */}
-                    {renderExistingMedia()}
+                    {renderEditMediaStrip()}
 
-                    {/* Custom Notification for edit section */}
                     {notification.visible && (
-                        <div className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${isDarkMode ? 'bg-red-900 border-red-700 text-red-200' : 'bg-red-100 border-red-400 text-red-800'} transition-all`}>
-                            <span className="text-sm font-medium">{notification.message}</span>
+                        <div
+                            className={`flex items-center justify-between mb-3 mt-2 p-3 rounded-lg border ${
+                                isDarkMode
+                                    ? "bg-red-900 border-red-700 text-red-200"
+                                    : "bg-red-100 border-red-400 text-red-800"
+                            } transition-all`}
+                        >
+                            <span className="text-sm font-medium">
+                                {notification.message}
+                            </span>
                             <button
-                                onClick={() => setNotification({ message: '', visible: false })}
-                                className={`ml-4 p-1 rounded-full ${isDarkMode ? 'hover:bg-red-800' : 'hover:bg-red-200'} focus:outline-none cursor-pointer`}
+                                onClick={() =>
+                                    setNotification({
+                                        message: "",
+                                        visible: false,
+                                    })
+                                }
+                                className={`ml-4 p-1 rounded-full ${
+                                    isDarkMode
+                                        ? "hover:bg-red-800"
+                                        : "hover:bg-red-200"
+                                } focus:outline-none cursor-pointer`}
                                 title="Close"
                             >
                                 <FaTimes size={16} />
@@ -863,26 +597,31 @@ const ProfilePostCard = ({
                         </div>
                     )}
 
-                    {/* File Upload Section - Unified Add Media */}
                     <div className="mt-3 flex flex-row items-center gap-2 justify-end">
                         <button
                             onClick={() => {
-                                if (hasExistingMedia() && !hasNewMedia()) {
-                                    setShowMediaAlert(true);
-                                    return;
-                                }
                                 if (fileInputRef.current) {
                                     fileInputRef.current.value = "";
                                     fileInputRef.current.click();
                                 }
                             }}
-                            disabled={isCompressing || isUpdatingPost}
+                            disabled={
+                                isCompressing ||
+                                isUpdatingPost ||
+                                totalEditMediaCount >= MAX_MEDIA_ITEMS
+                            }
                             className={`p-2 rounded-lg flex items-center gap-2 ${
                                 isDarkMode
                                     ? "hover:bg-gray-700 bg-gray-800"
                                     : "hover:bg-gray-100 bg-gray-50"
-                            } ${isCompressing || isUpdatingPost ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            title="Update Media"
+                            } ${
+                                isCompressing ||
+                                isUpdatingPost ||
+                                totalEditMediaCount >= MAX_MEDIA_ITEMS
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : "cursor-pointer"
+                            }`}
+                            title="Add Media"
                         >
                             <input
                                 ref={fileInputRef}
@@ -890,10 +629,14 @@ const ProfilePostCard = ({
                                 className="hidden"
                                 onChange={handleFileSelect}
                                 accept="image/*,.dng,.heic,.heif,video/*"
+                                multiple
                                 disabled={isUpdatingPost || isCompressing}
                             />
                             <FaPaperclip className="text-gray-500 text-sm" />
-                            <span className="text-xs">Update Media</span>
+                            <span className="text-xs">
+                                Add Media ({totalEditMediaCount}/
+                                {MAX_MEDIA_ITEMS})
+                            </span>
                         </button>
                         <button
                             onClick={handleUpdateClick}
@@ -916,64 +659,23 @@ const ProfilePostCard = ({
                     </div>
                 </div>
             ) : (
-                /* Normal Post View */
                 <>
                     <p
                         className={`mb-3 sm:mb-4 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                         } text-sm sm:text-base cursor-default whitespace-pre-line`}
                     >
-                        {highlightMentionsAndHashtags(post.content)}
+                        {highlightMentionsAndHashtags(post.content, post.mentions)}
                     </p>
+                    <PostLocationBadge location={post.location} className="mb-3" />
 
-                    {/* Post Image */}
-                    {displayImageUrl && !isEditing && (
-                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center">
-                            <img
-                                src={displayImageUrl}
-                                alt="Post"
-                                className="max-h-96 max-w-full object-contain rounded-lg cursor-pointer"
-                                onClick={() => onImagePreview(displayImageUrl)}
-                                onError={(e) => {
-                                    e.target.style.display = "none";
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {/* Post Video - Only show when NOT editing */}
-                    {post.videoUrl && !isEditing && (
-                        <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
-                            <div className="relative w-full max-w-full" style={{ maxHeight: '24rem' }}>
-                                <video
-                                    ref={(el) => videoRefs.current[post._id] = el}
-                                    src={post.videoUrl}
-                                    className="w-full h-auto max-h-96 object-contain rounded-xl"
-                                    muted={isGlobalMuted || activeVideoId !== post._id}
-                                    loop
-                                    playsInline
-                                    controls
-                                    controlsList="nodownload nofullscreen noplaybackrate"
-                                    onContextMenu={handleVideoContextMenu}
-                                    onVolumeChange={handleVideoVolumeChange}
-                                    style={{
-                                        backgroundColor: 'transparent',
-                                        display: 'block'
-                                    }}
-                                    preload="metadata"
-                                />
-                                {/* Mobile tap indicator */}
-                                <div 
-                                    className="absolute inset-0 pointer-events-none"
-                                    onClick={handleVideoTap}
-                                />
-                            </div>
-                        </div>
-                    )}
+                    <PostMediaCarousel
+                        post={post}
+                        onImagePreview={onImagePreview}
+                    />
                 </>
             )}
 
-            {/* Post Actions - Hide when editing */}
             {!isEditing && (
                 <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-3">
                     <div className="flex items-center gap-3">
@@ -988,10 +690,10 @@ const ProfilePostCard = ({
                                 isLiking
                                     ? "opacity-50 cursor-not-allowed"
                                     : isPostLiked
-                                    ? "text-red-500 hover:text-red-600"
-                                    : isDarkMode
-                                    ? "text-gray-400 hover:text-gray-300"
-                                    : "text-gray-500 hover:text-gray-700"
+                                      ? "text-red-500 hover:text-red-600"
+                                      : isDarkMode
+                                        ? "text-gray-400 hover:text-gray-300"
+                                        : "text-gray-500 hover:text-gray-700"
                             } transition-colors cursor-pointer text-xs sm:text-sm`}
                         >
                             {isLiking ? (
@@ -1001,34 +703,20 @@ const ProfilePostCard = ({
                                     animate={{
                                         scale: isPostLiked ? [1, 1.2, 1] : 1,
                                     }}
-                                    transition={{
-                                        duration: 0.3,
-                                    }}
+                                    transition={{ duration: 0.3 }}
                                 >
                                     {isPostLiked ? (
-                                        <FaHeart className="text-red-500" />
+                                        <FaHeart className="text-lg sm:text-xl" />
                                     ) : (
-                                        <FaRegHeart className="text-gray-400" />
+                                        <FaRegHeart className="text-lg sm:text-xl" />
                                     )}
                                 </motion.div>
                             )}
-                            <motion.span
-                                key={likeCount}
-                                initial={{ scale: 1 }}
-                                animate={{ scale: [1.2, 1] }}
-                                transition={{ duration: 0.2 }}
-                                className={`text-sm font-medium ${
-                                    isPostLiked
-                                        ? "text-red-500"
-                                        : "text-gray-400"
-                                }`}
-                            >
-                            </motion.span>
+                            <span className="font-medium">{totalLikes}</span>
                         </motion.button>
 
-                        {/* Liked by text - turant update hoga - SAME AS MAIN FEED */}
                         {totalLikes > 0 && (
-                            <div className="text-sm">
+                            <div className="text-xs sm:text-sm">
                                 <div className="flex items-center flex-wrap">
                                     {likedUsers.length > 0 ? (
                                         <>
@@ -1036,71 +724,64 @@ const ProfilePostCard = ({
                                                 .slice(0, 2)
                                                 .map((user, index) => (
                                                     <span
-                                                        key={index}
-                                                        className={`font-medium mr-1 cursor-pointer hover:underline ${
-                                                            isDarkMode
-                                                                ? "text-gray-300"
-                                                                : "text-gray-700"
-                                                        }`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigateToProfile(
-                                                                user.id
-                                                            );
-                                                        }}
+                                                        key={user.id || index}
                                                     >
-                                                        {user.username}
+                                                        <span
+                                                            className={`font-medium cursor-pointer hover:underline ${
+                                                                isDarkMode
+                                                                    ? "text-blue-400"
+                                                                    : "text-blue-600"
+                                                            }`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigateToProfile(
+                                                                    user.id
+                                                                );
+                                                            }}
+                                                        >
+                                                            {user.username}
+                                                        </span>
                                                         {index <
-                                                        Math.min(
-                                                            2,
-                                                            likedUsers.length -
-                                                                1
-                                                        )
-                                                            ? ","
-                                                            : ""}
+                                                            Math.min(
+                                                                likedUsers.length,
+                                                                2
+                                                            ) -
+                                                                1 && ", "}
                                                     </span>
                                                 ))}
-
                                             {totalLikes > 2 && (
-                                                <button
-                                                    onClick={handleShowLikes}
-                                                    className={`font-medium cursor-pointer ${
+                                                <span
+                                                    className={`ml-1 cursor-pointer hover:underline ${
                                                         isDarkMode
-                                                            ? "text-blue-300"
-                                                            : "text-blue-500"
-                                                    } hover:underline`}
+                                                            ? "text-gray-400"
+                                                            : "text-gray-600"
+                                                    }`}
+                                                    onClick={handleShowLikes}
                                                 >
-                                                    and {totalLikes - 2} others
-                                                </button>
+                                                    and{" "}
+                                                    {totalLikes -
+                                                        Math.min(
+                                                            likedUsers.length,
+                                                            2
+                                                        )}{" "}
+                                                    others
+                                                </span>
                                             )}
-
-                                            {totalLikes === 2 &&
-                                                likedUsers.length === 1 && (
-                                                    <span
-                                                        className={`font-medium mr-1 ${
-                                                            isDarkMode
-                                                                ? "text-gray-300"
-                                                                : "text-gray-700"
-                                                        }`}
-                                                    >
-                                                        and 1 other
-                                                    </span>
-                                                )}
                                         </>
                                     ) : (
-                                        <button
-                                            onClick={handleShowLikes}
-                                            className={`font-medium cursor-pointer ${
+                                        <span
+                                            className={`cursor-pointer hover:underline ${
                                                 isDarkMode
-                                                    ? "text-blue-300"
-                                                    : "text-blue-500"
-                                            } hover:underline`}
+                                                    ? "text-gray-400"
+                                                    : "text-gray-600"
+                                            }`}
+                                            onClick={handleShowLikes}
                                         >
                                             {totalLikes}{" "}
                                             {totalLikes === 1
                                                 ? "like"
                                                 : "likes"}
-                                        </button>
+                                        </span>
                                     )}
                                 </div>
                             </div>
@@ -1108,58 +789,54 @@ const ProfilePostCard = ({
                     </div>
 
                     <button
-                        className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                         onClick={() => onToggleCommentDropdown(post._id)}
-                        disabled={isFetchingComments}
+                        className={`flex items-center gap-1 ${
+                            isDarkMode
+                                ? "text-gray-400 hover:text-gray-300"
+                                : "text-gray-500 hover:text-gray-700"
+                        } transition-colors cursor-pointer text-xs sm:text-sm`}
                     >
-                        <FaComment />
-                        <span className="text-sm">{commentCount}</span>
-                        {isFetchingComments && (
-                            <div className="inline-block h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin ml-1"></div>
-                        )}
+                        <FaComment className="text-lg sm:text-xl" />
+                        <span className="font-medium">
+                            {getCommentCount()}
+                        </span>
                     </button>
                 </div>
             )}
 
-            {/* Comments Section */}
-            {!isEditing &&
-                activeCommentPostId === post._id &&
-                post.comments && (
-                    <ProfileCommentSection
-                        post={post}
-                        isDarkMode={isDarkMode}
-                        username={username}
-                        currentUserProfile={currentUserProfile}
-                        activeCommentPostId={activeCommentPostId}
-                        commentContent={commentContent}
-                        isCommenting={isCommenting}
-                        isFetchingComments={isFetchingComments}
-                        onCommentSubmit={onCommentSubmit}
-                        onSetCommentContent={onSetCommentContent}
-                        onDeleteComment={onDeleteComment}
-                        navigateToUserProfile={navigateToUserProfile}
-                        formatDate={getTimeDifference}
-                        onLikeComment={onLikeComment}
-                        isLikingComment={isLikingComment}
-                        onToggleCommentDropdown={onToggleCommentDropdown}
-                        // Reply functionality props
-                        activeReplyInputs={activeReplyInputs}
-                        replyContent={replyContent}
-                        onToggleReplyInput={onToggleReplyInput}
-                        onReplySubmit={onReplySubmit}
-                        onSetReplyContent={onSetReplyContent}
-                        onToggleReplies={onToggleReplies}
-                        onLikeReply={onLikeReply}
-                        onDeleteReply={onDeleteReply}
-                        isReplying={isReplying}
-                        isFetchingReplies={isFetchingReplies}
-                        isLikingReply={isLikingReply}
-                        isDeletingReply={isDeletingReply}
-                        // Pagination props
-                        commentsNextCursor={commentsNextCursor}
-                        repliesNextCursor={repliesNextCursor}
-                    />
-                )}
+            {activeCommentPostId === post._id && !isEditing && (
+                <ProfileCommentSection
+                    post={post}
+                    isDarkMode={isDarkMode}
+                    username={username}
+                    currentUserProfile={currentUserProfile}
+                    activeCommentPostId={activeCommentPostId}
+                    commentContent={commentContent}
+                    onCommentSubmit={onCommentSubmit}
+                    onSetCommentContent={onSetCommentContent}
+                    isCommenting={isCommenting}
+                    onDeleteComment={onDeleteComment}
+                    onLikeComment={onLikeComment}
+                    isLikingComment={isLikingComment}
+                    isFetchingComments={isFetchingComments}
+                    navigateToUserProfile={navigateToUserProfile}
+                    onToggleCommentDropdown={onToggleCommentDropdown}
+                    activeReplyInputs={activeReplyInputs}
+                    replyContent={replyContent}
+                    onToggleReplyInput={onToggleReplyInput}
+                    onReplySubmit={onReplySubmit}
+                    onSetReplyContent={onSetReplyContent}
+                    onToggleReplies={onToggleReplies}
+                    onLikeReply={onLikeReply}
+                    onDeleteReply={onDeleteReply}
+                    isReplying={isReplying}
+                    isFetchingReplies={isFetchingReplies}
+                    isLikingReply={isLikingReply}
+                    isDeletingReply={isDeletingReply}
+                    commentsNextCursor={commentsNextCursor}
+                    repliesNextCursor={repliesNextCursor}
+                />
+            )}
         </div>
     );
 };

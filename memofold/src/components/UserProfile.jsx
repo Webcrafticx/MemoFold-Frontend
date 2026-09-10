@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { highlightMentionsAndHashtags } from "../utils/highlightMentionsAndHashtags.jsx";
+import PostLocationBadge from "./common/PostLocationBadge";
+import MentionInput from "./common/MentionInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useVideo } from "../context/VideoContext";
@@ -29,6 +31,7 @@ import config from "../hooks/config";
 import Navbar from "./navbar/navbar";
 import { apiService } from "../services/api";
 import LikesModal from "./mainFeed/LikesModal";
+import PostMediaCarousel from "./mainFeed/PostMediaCarousel";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 import FriendButton from "../components/FriendButton";
@@ -1934,7 +1937,7 @@ const UserProfile = () => {
                                         : "text-gray-700"
                                 }`}
                             >
-                                {highlightMentionsAndHashtags(reply.content)}
+                                {highlightMentionsAndHashtags(reply.content, reply.mentions)}
                             </p>
 
                             <div className="mt-1 flex items-center justify-between flex-wrap gap-2">
@@ -2553,88 +2556,20 @@ const UserProfile = () => {
                                             }`}
                                         >
                                             {highlightMentionsAndHashtags(
-                                                post.content
+                                                post.content,
+                                                post.mentions
                                             )}
                                         </p>
+                                        <PostLocationBadge location={post.location} />
 
-                                        {/* Post Image */}
-                                        {getRenderableImageUrl(post.image) && (
-                                            <div className="w-full mb-3 overflow-hidden flex justify-center">
-                                                <img
-                                                    src={getRenderableImageUrl(
-                                                        post.image
-                                                    )}
-                                                    alt="Post"
-                                                    className="max-h-96 max-w-full object-contain cursor-pointer rounded-xl border border-gray-200"
-                                                    onClick={() => {
-                                                        setPreviewImage(
-                                                            getRenderableImageUrl(
-                                                                post.image
-                                                            )
-                                                        );
-                                                        setShowImagePreview(
-                                                            true
-                                                        );
-                                                    }}
-                                                    onError={(e) => {
-                                                        e.target.style.display =
-                                                            "none";
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-                                        {/* ✅ YEH VIDEO SECTION ADD KARO: */}
-                                        {post.videoUrl && (
-                                            <div className="w-full mb-3 overflow-hidden rounded-xl flex justify-center relative bg-transparent">
-                                                <div
-                                                    className="relative w-full max-w-full"
-                                                    style={{
-                                                        maxHeight: "24rem",
-                                                    }}
-                                                >
-                                                    <video
-                                                        ref={(el) =>
-                                                            (videoRefs.current[
-                                                                post._id
-                                                            ] = el)
-                                                        }
-                                                        src={post.videoUrl}
-                                                        className="w-full h-auto max-h-96 object-contain rounded-xl"
-                                                        muted={
-                                                            isGlobalMuted ||
-                                                            activeVideoId !==
-                                                                post._id
-                                                        }
-                                                        loop
-                                                        playsInline
-                                                        controls
-                                                        controlsList="nodownload nofullscreen noplaybackrate"
-                                                        onContextMenu={
-                                                            handleVideoContextMenu
-                                                        }
-                                                        onVolumeChange={handleVideoVolumeChange(
-                                                            post._id
-                                                        )}
-                                                        style={{
-                                                            backgroundColor:
-                                                                "transparent",
-                                                            display: "block",
-                                                        }}
-                                                        preload="metadata"
-                                                    />
-                                                    {/* Mobile tap indicator */}
-                                                    <div
-                                                        className="absolute inset-0 pointer-events-none"
-                                                        onClick={(e) =>
-                                                            handleVideoTap(
-                                                                post._id,
-                                                                e
-                                                            )
-                                                        }
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
+                                        {/* Post Media */}
+                                        <PostMediaCarousel
+                                            post={post}
+                                            onImagePreview={(url) => {
+                                                setPreviewImage(url);
+                                                setShowImagePreview(true);
+                                            }}
+                                        />
 
                                         <div
                                             className={`flex items-center justify-between border-t pt-3 ${
@@ -2980,7 +2915,8 @@ const UserProfile = () => {
                                                                                     }`}
                                                                                 >
                                                                                     {highlightMentionsAndHashtags(
-                                                                                        comment.content
+                                                                                        comment.content,
+                                                                                        comment.mentions
                                                                                     )}
                                                                                 </p>
                                                                                 <div className="mt-1 flex items-center justify-between">
@@ -3480,27 +3416,25 @@ const UserProfile = () => {
                                                         </div>
 
                                                         <div className="flex-1 flex space-x-2">
-                                                            <input
-                                                                type="text"
+                                                            <MentionInput
+                                                                singleLine
                                                                 className={`flex-1 px-3 py-2 rounded-full text-sm border ${
                                                                     isDarkMode
                                                                         ? "bg-gray-700 border-gray-600 text-white"
                                                                         : "bg-white border-gray-300"
                                                                 } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                                                                placeholder="Write a comment..."
+                                                                placeholder="Write a comment... Use @ to mention"
                                                                 value={
                                                                     commentContent[
                                                                         post._id
                                                                     ] || ""
                                                                 }
-                                                                onChange={(e) =>
+                                                                onChange={(next) =>
                                                                     setCommentContent(
                                                                         {
                                                                             ...commentContent,
                                                                             [post._id]:
-                                                                                e
-                                                                                    .target
-                                                                                    .value,
+                                                                                next,
                                                                         }
                                                                     )
                                                                 }

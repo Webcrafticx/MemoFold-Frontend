@@ -26,6 +26,7 @@ const ProfileHeader = ({
     realName,
     email,
     bio,
+    dateOfBirth,
     posts,
     stats,
     isDarkMode,
@@ -477,8 +478,10 @@ const ProfileHeader = ({
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
                 currentUsername={username}
+                currentRealName={realName}
                 currentEmail={email || ""}
-                currentBio={bio} // Pass current bio to modal
+                currentBio={bio}
+                currentDateOfBirth={dateOfBirth}
                 isDarkMode={isDarkMode}
                 onSave={handleProfileSave}
                 apiService={apiService}

@@ -90,7 +90,7 @@ export const useAuth = () => {
         }
     };
 
-    const register = async (realname, username, email, password) => {
+    const register = async (realname, username, email, password, dateOfBirth) => {
         setLoading(true);
         setError(null);
 
@@ -105,6 +105,7 @@ export const useAuth = () => {
                         username,
                         email,
                         password,
+                        dateOfBirth,
                     }),
                     credentials: "include",
                 }
