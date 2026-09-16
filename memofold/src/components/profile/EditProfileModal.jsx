@@ -28,6 +28,7 @@ const EditProfileModal = ({
     currentEmail,
     currentBio,
     currentDateOfBirth,
+    currentIsPrivate,
     isDarkMode,
     onSave,
     apiService,
@@ -36,6 +37,7 @@ const EditProfileModal = ({
     const [username, setUsername] = useState(currentUsername || "");
     const [email, setEmail] = useState(currentEmail || "");
     const [bio, setBio] = useState(currentBio || "");
+    const [isPrivate, setIsPrivate] = useState(currentIsPrivate || false);
     const [dateOfBirth, setDateOfBirth] = useState(
         toDateInputValue(currentDateOfBirth)
     );
@@ -55,6 +57,7 @@ const EditProfileModal = ({
             setUsername(currentUsername || "");
             setEmail(currentEmail || "");
             setBio(currentBio || "");
+            setIsPrivate(currentIsPrivate || false);
             setDateOfBirth(toDateInputValue(currentDateOfBirth));
             setError("");
             setUsernameStatus({ checking: false, available: true, message: "" });
@@ -66,6 +69,7 @@ const EditProfileModal = ({
         currentEmail,
         currentBio,
         currentDateOfBirth,
+        currentIsPrivate,
     ]);
 
     useEffect(() => {
@@ -236,6 +240,7 @@ const EditProfileModal = ({
                 username: local.value,
                 email: email.trim(),
                 description: bio.trim(),
+                isPrivate: isPrivate,
             };
             if (dateOfBirth) {
                 payload.dateOfBirth = dateOfBirth;
@@ -465,6 +470,29 @@ const EditProfileModal = ({
                                     />
                                     <div className="text-right text-xs text-gray-500 dark:text-gray-400 mt-1">
                                         {bio.length}/200
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className={`block text-sm font-medium ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                                            Private Account
+                                        </label>
+                                        <p className={`text-xs mt-1 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
+                                            When your account is private, only people you approve can see your photos and videos.
+                                        </p>
+                                    </div>
+                                    <div 
+                                        onClick={() => !loading && setIsPrivate(!isPrivate)}
+                                        className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors ${
+                                            isPrivate ? 'bg-blue-500' : isDarkMode ? 'bg-gray-600' : 'bg-gray-300'
+                                        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        <div
+                                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                                                isPrivate ? 'translate-x-6' : 'translate-x-0'
+                                            }`}
+                                        />
                                     </div>
                                 </div>
                             </div>

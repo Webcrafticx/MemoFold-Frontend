@@ -189,6 +189,7 @@ function App() {
                                 element={<UserProfile />}
                             />
                             <Route path="/post/:postId" element={<Post />} />
+                            <Route path="/shared/:shareToken" element={<Post />} />
 
                             {/* Protected Routes */}
                             <Route

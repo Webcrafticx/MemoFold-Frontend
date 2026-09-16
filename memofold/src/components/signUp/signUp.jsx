@@ -7,6 +7,7 @@ import {
     validateUsernameLocal,
     fetchUsernameAvailability,
 } from "../../utils/usernameAvailability";
+import { apiService } from "../../services/api";
 
 const SignUp = () => {
     const [formData, setFormData] = useState({
@@ -20,6 +21,10 @@ const SignUp = () => {
     const [formErrors, setFormErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isOtpSent, setIsOtpSent] = useState(false);
+    const [otp, setOtp] = useState("");
+    const [otpError, setOtpError] = useState("");
+    const [sendingOtp, setSendingOtp] = useState(false);
     const [usernameStatus, setUsernameStatus] = useState({
         checking: false,
         available: null,
@@ -218,29 +223,106 @@ const SignUp = () => {
             return;
         }
 
+        setSendingOtp(true);
+        setOtpError("");
+        try {
+            const res = await apiService.sendSignupOtp({
+                email: formData.email,
+                username: formData.username
+            });
+            if (res.message === "OTP sent successfully.") {
+                setIsOtpSent(true);
+            } else {
+                setOtpError(res.message || "Failed to send OTP.");
+            }
+        } catch (err) {
+            setOtpError(err.message || "Something went wrong.");
+        } finally {
+            setSendingOtp(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setOtpError("");
+        if (otp.length !== 6) {
+            setOtpError("OTP must be 6 digits.");
+            return;
+        }
+
         await register(
             formData.realname,
             formData.username,
             formData.email,
             formData.password,
-            formData.dateOfBirth
+            formData.dateOfBirth,
+            otp
         );
     };
 
     return (
         <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4 sm:p-5">
             <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-md mx-auto">
-                <h2 className="text-center text-2xl font-semibold text-gray-800 mb-6">
-                    Create New Account
-                </h2>
+                {isOtpSent ? (
+                    <div>
+                        <h2 className="text-center text-2xl font-semibold text-gray-800 mb-6">
+                            Verify Email
+                        </h2>
+                        <p className="text-center text-gray-600 mb-4">
+                            We've sent a 6-digit verification code to <strong>{formData.email}</strong>
+                        </p>
 
-                {error && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
-                        {error}
+                        {(error || otpError) && (
+                            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+                                {error || otpError}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleVerifyOtp} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-600 mb-1">
+                                    Verification Code
+                                </label>
+                                <input
+                                    type="text"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0,6))}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-center tracking-[0.5em] text-lg font-semibold focus:ring-2 focus:ring-[#379777] focus:border-transparent outline-none"
+                                    placeholder="000000"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className={`w-full bg-[#379777] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2b7a5f] transition duration-200 ${
+                                    loading ? "opacity-70 cursor-not-allowed" : ""
+                                }`}
+                            >
+                                {loading ? "Verifying..." : "Verify & Create Account"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsOtpSent(false)}
+                                disabled={loading}
+                                className="w-full mt-2 text-[#379777] font-medium hover:underline text-sm"
+                            >
+                                Back
+                            </button>
+                        </form>
                     </div>
-                )}
+                ) : (
+                    <>
+                        <h2 className="text-center text-2xl font-semibold text-gray-800 mb-6">
+                            Create New Account
+                        </h2>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label
                             htmlFor="realname"
@@ -494,6 +576,8 @@ const SignUp = () => {
                         Login
                     </a>
                 </div>
+                </>
+                )}
             </div>
         </div>
     );

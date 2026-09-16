@@ -38,6 +38,7 @@ const ProfileHeader = ({
     toast,
     onFriendsClick,
     onProfileUpdate,
+    isPrivate,
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showCameraOptions, setShowCameraOptions] = useState(false);
@@ -482,6 +483,7 @@ const ProfileHeader = ({
                 currentEmail={email || ""}
                 currentBio={bio}
                 currentDateOfBirth={dateOfBirth}
+                currentIsPrivate={isPrivate}
                 isDarkMode={isDarkMode}
                 onSave={handleProfileSave}
                 apiService={apiService}
