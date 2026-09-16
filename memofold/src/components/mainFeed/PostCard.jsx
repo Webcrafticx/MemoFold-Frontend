@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
-import { FaHeart, FaRegHeart, FaComment } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaComment, FaRegPaperPlane } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import CommentSection from "./CommentSection";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import PostLocationBadge from "../common/PostLocationBadge";
 import PostMediaCarousel from "./PostMediaCarousel";
+import ShareModal from "./ShareModal";
 
 const PostCard = ({
     post,
@@ -47,6 +48,7 @@ const PostCard = ({
 }) => {
     const likeButtonRef = useRef(null);
     const navigate = useNavigate();
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const navigateToProfile = (userId) => {
         const isCurrentUser = userId === (currentUserProfile?._id || user?._id);
@@ -297,6 +299,15 @@ const PostCard = ({
                 </div>
 
                 <button
+                    className="flex items-center space-x-1 hover:text-green-500 transition-colors cursor-pointer"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsShareModalOpen(true);
+                    }}
+                >
+                    <FaRegPaperPlane />
+                </button>
+                <button
                     className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                     onClick={(e) => onToggleCommentDropdown(post._id, e)}
                     disabled={loadingComments[post._id]}
@@ -308,6 +319,14 @@ const PostCard = ({
                     )}
                 </button>
             </div>
+
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                postId={post._id}
+                token={token}
+                isDarkMode={isDarkMode}
+            />
 
             <CommentSection
                 post={post}

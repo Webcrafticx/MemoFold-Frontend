@@ -27,6 +27,41 @@ export const apiService = {
         return res.json();
     },
 
+    fetchFriendsList: async (token) => {
+        const res = await fetch(`${config.apiUrl}/friends/friends-list`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        return res.json();
+    },
+
+    getShareLink: async (postId, token) => {
+        const res = await fetch(`${config.apiUrl}/posts/share-link/${postId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        return res.json();
+    },
+
+    fetchSharedPost: async (shareToken, token) => {
+        const headers = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${config.apiUrl}/posts/shared/${shareToken}`, {
+            headers,
+        });
+        return res.json();
+    },
+
+    sharePostToDMs: async (friendIds, link, token) => {
+        const res = await fetch(`${config.apiUrl}/chat/share-post`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ friendIds, link }),
+        });
+        return res.json();
+    },
+
     // Profile-specific endpoints
     fetchUserPosts: async (token, userId, cursor = null) => {
         // Use userId instead of username
@@ -400,6 +435,50 @@ updatePost: async (token, postId, postData, isFormData = false) => {
                 },
             }
         );
+        return response.json();
+    },
+
+    resetPassword: async (token, newPassword) => {
+        const response = await fetch(`${config.apiUrl}/auth/reset-password`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token, newPassword }),
+        });
+        return response.json();
+    },
+
+    sendSignupOtp: async (data) => {
+        const response = await fetch(`${config.apiUrl}/auth/send-signup-otp`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+        });
+        return response.json();
+    },
+
+    sendVerificationOtp: async (token) => {
+        const response = await fetch(`${config.apiUrl}/auth/send-verification-otp`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        return response.json();
+    },
+
+    verifyEmail: async (token, otp) => {
+        const response = await fetch(`${config.apiUrl}/auth/verify-email`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ otp }),
+        });
         return response.json();
     },
 

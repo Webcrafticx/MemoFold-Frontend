@@ -22,6 +22,7 @@ import CreatePostSection from "./CreatePostSection";
 import ProfilePostCard from "./ProfilePostCard";
 import FloatingHearts from "../mainFeed/FloatingHearts";
 import ImagePreviewModal from "../mainFeed/ImagePreviewModal";
+import EmailVerificationModal from "../common/EmailVerificationModal";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import LikesModal from "../mainFeed/LikesModal";
 import ProfileSkeleton from "./ProfileSkeleton";
@@ -510,6 +511,7 @@ const ProfilePage = () => {
                 username: userData.username || "",
                 realName: userData.realname || "",
                 dateOfBirth: userData.dateOfBirth || null,
+                isPrivate: userData.isPrivate || false,
             }));
         } catch (error) {
             console.error("Error fetching user data:", error);
@@ -1504,7 +1506,15 @@ const ProfilePage = () => {
         }
     };
 
+    const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
+
     const handleCreatePost = async (content, mediaItems, selectedDate, location = null, visibility = "public") => {
+        const isVerified = currentUserProfile?.user?.isEmailVerified || currentUserProfile?.isEmailVerified;
+        if (!isVerified) {
+            setShowEmailVerificationModal(true);
+            return;
+        }
+
         const items = Array.isArray(mediaItems) ? mediaItems : [];
         if (!content.trim() && items.length === 0) {
             toast.error("Post content or media cannot be empty");
@@ -1863,6 +1873,16 @@ const ProfilePage = () => {
                     hearts={floatingHearts}
                     setHearts={setFloatingHearts}
                 />
+                
+                <EmailVerificationModal
+                    isOpen={showEmailVerificationModal}
+                    onClose={() => setShowEmailVerificationModal(false)}
+                    token={token}
+                    onVerifySuccess={() => {
+                        setShowEmailVerificationModal(false);
+                        window.location.reload();
+                    }}
+                />
 
                 <ToastContainer
                     position="top-right"
@@ -1929,6 +1949,7 @@ const ProfilePage = () => {
                         stats={profileData.stats}
                         isDarkMode={uiState.darkMode}
                         joinedDate={formattedDate}
+                        isPrivate={profileData.isPrivate}
                         onProfilePicUpdate={handleProfilePicUpdate}
                         onBioUpdate={handleBioUpdate}
                         uploadingProfilePic={uploadingProfilePic}
@@ -1980,6 +2001,7 @@ const ProfilePage = () => {
                                     email: result.email || prev.email,
                                     bio: result.description ?? prev.bio,
                                     dateOfBirth: result.dateOfBirth ?? prev.dateOfBirth,
+                                    isPrivate: result.isPrivate ?? prev.isPrivate,
                                     posts: updatedPosts,
                                 };
                             });

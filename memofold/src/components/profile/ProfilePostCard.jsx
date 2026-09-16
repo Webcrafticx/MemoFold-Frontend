@@ -7,6 +7,7 @@ import {
     FaTrashAlt,
     FaPaperclip,
     FaTimes,
+    FaRegPaperPlane,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { formatDate, getTimeDifference } from "../../services/dateUtils";
@@ -16,6 +17,7 @@ import ProfileCommentSection from "./ProfileCommentSection";
 import PostMediaCarousel from "../mainFeed/PostMediaCarousel";
 import MentionInput from "../common/MentionInput";
 import PostLocationBadge from "../common/PostLocationBadge";
+import ShareModal from "../mainFeed/ShareModal";
 import LocationAutocomplete from "../common/LocationAutocomplete";
 import {
     compressImage,
@@ -89,6 +91,7 @@ const ProfilePostCard = ({
 
     const [isCompressing, setIsCompressing] = React.useState(false);
     const [compressionProgress, setCompressionProgress] = React.useState(0);
+    const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
     const [notification, setNotification] = React.useState({ message: "", visible: false });
     const notificationTimeoutRef = React.useRef(null);
 
@@ -788,21 +791,44 @@ const ProfilePostCard = ({
                         )}
                     </div>
 
-                    <button
-                        onClick={() => onToggleCommentDropdown(post._id)}
-                        className={`flex items-center gap-1 ${
-                            isDarkMode
-                                ? "text-gray-400 hover:text-gray-300"
-                                : "text-gray-500 hover:text-gray-700"
-                        } transition-colors cursor-pointer text-xs sm:text-sm`}
-                    >
+                    <div className="flex gap-4">
+                        <button
+                            className={`flex items-center gap-1 ${
+                                isDarkMode
+                                    ? "text-gray-400 hover:text-green-400"
+                                    : "text-gray-500 hover:text-green-600"
+                            } transition-colors cursor-pointer text-xs sm:text-sm`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsShareModalOpen(true);
+                            }}
+                        >
+                            <FaRegPaperPlane className="text-lg sm:text-xl" />
+                        </button>
+                        <button
+                            onClick={() => onToggleCommentDropdown(post._id)}
+                            className={`flex items-center gap-1 ${
+                                isDarkMode
+                                    ? "text-gray-400 hover:text-gray-300"
+                                    : "text-gray-500 hover:text-gray-700"
+                            } transition-colors cursor-pointer text-xs sm:text-sm`}
+                        >
                         <FaComment className="text-lg sm:text-xl" />
                         <span className="font-medium">
                             {getCommentCount()}
                         </span>
                     </button>
+                    </div>
                 </div>
             )}
+
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                postId={post._id}
+                token={token}
+                isDarkMode={isDarkMode}
+            />
 
             {activeCommentPostId === post._id && !isEditing && (
                 <ProfileCommentSection

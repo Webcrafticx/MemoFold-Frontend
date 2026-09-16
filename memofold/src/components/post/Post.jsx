@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useVideo } from "../../context/VideoContext";
 import { motion } from "framer-motion";
-import { FaHeart, FaRegHeart, FaComment, FaArrowLeft } from "react-icons/fa";
+import { FaHeart, FaRegHeart, FaComment, FaArrowLeft, FaRegPaperPlane } from "react-icons/fa";
 import { formatDate } from "../../services/dateUtils";
 import LikesModal from "../mainFeed/LikesModal";
 import CommentSection from "../mainFeed/CommentSection";
@@ -17,9 +17,10 @@ import { localStorageService } from "../../services/localStorage";
 import { highlightMentionsAndHashtags } from "../../utils/highlightMentionsAndHashtags.jsx";
 import PostLocationBadge from "../common/PostLocationBadge";
 import PostMediaCarousel from "../mainFeed/PostMediaCarousel";
+import ShareModal from "../mainFeed/ShareModal";
 
 const Post = () => {
-    const { postId } = useParams();
+    const { postId, shareToken } = useParams();
     const navigate = useNavigate();
     const { token, user, username, realname } = useAuth();
     const { isGlobalMuted, setGlobalMuted, activeVideoId, setActiveVideoId } = useVideo();
@@ -73,6 +74,7 @@ const Post = () => {
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [previewImage, setPreviewImage] = useState("");
     const [floatingHearts, setFloatingHearts] = useState([]);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     // Video logic states
     const videoRefs = useRef({});
@@ -168,11 +170,11 @@ const Post = () => {
     }, [activeVideoId, post, isGlobalMuted]);
 
     useEffect(() => {
-        if (postId && token) {
-            fetchCurrentUserProfile();
+        if ((postId && token) || shareToken) {
+            if (token) fetchCurrentUserProfile();
             fetchPost();
         }
-    }, [postId, token]);
+    }, [postId, token, shareToken]);
 
     useEffect(() => {
         document.body.classList.toggle("dark", darkMode);
@@ -195,8 +197,12 @@ const Post = () => {
         try {
             setLoading(true);
 
-            // Use the new single post endpoint
-            const response = await apiService.fetchSinglePost(token, postId);
+            let response;
+            if (shareToken) {
+                response = await apiService.fetchSharedPost(shareToken, token);
+            } else {
+                response = await apiService.fetchSinglePost(token, postId);
+            }
 
             // The response should be the single post object
             const foundPost = response.post || response;
@@ -220,11 +226,11 @@ const Post = () => {
                     postLikes.length;
 
                 const hasUserLiked =
-                    postLikes.includes(user._id) ||
-                    postLikes.includes(username) ||
+                    (user && postLikes.includes(user._id)) ||
+                    (username && postLikes.includes(username)) ||
                     (postLikesPreview &&
                         postLikesPreview.some(
-                            (like) => like.username === username
+                            (like) => username && like.username === username
                         ));
 
                 setPost({
@@ -1223,6 +1229,14 @@ const Post = () => {
                             isDarkMode={darkMode}
                         />
 
+                        <ShareModal
+                            isOpen={isShareModalOpen}
+                            onClose={() => setIsShareModalOpen(false)}
+                            postId={post._id}
+                            token={token}
+                            isDarkMode={darkMode}
+                        />
+
                         {/* User Info */}
                         <div
                             className="flex items-center gap-3 mb-3 cursor-pointer"
@@ -1427,6 +1441,15 @@ const Post = () => {
                                 )}
                             </div>
 
+                            <button
+                                className="flex items-center space-x-1 hover:text-green-500 transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsShareModalOpen(true);
+                                }}
+                            >
+                                <FaRegPaperPlane />
+                            </button>
                             <button
                                 className="flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer"
                                 onClick={(e) =>

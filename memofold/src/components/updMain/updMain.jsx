@@ -14,18 +14,30 @@ import {
     FaEdit,
     FaSave,
     FaTimesCircle,
+    FaUsers,
+    FaArrowRight,
+    FaPaperPlane,
+    FaRegPaperPlane,
 } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import config from "../../hooks/config";
+import io from "socket.io-client";
+import ShareModal from "../mainFeed/ShareModal";
 import imageCompression from "browser-image-compression";
 import { motion } from "framer-motion";
 import Navbar from "../navbar/navbar";
+import EmailVerificationModal from "../common/EmailVerificationModal";
 
 const MainDashboard = () => {
     const [postContent, setPostContent] = useState("");
     const [posts, setPosts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [activeSharePostId, setActiveSharePostId] = useState(null);
     const [error, setError] = useState(null);
     const [activeCommentPostId, setActiveCommentPostId] = useState(null);
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -680,7 +692,15 @@ const MainDashboard = () => {
         }
     };
 
+    const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
+
     const handlePostSubmit = async () => {
+        const isVerified = currentUserProfile?.user?.isEmailVerified || currentUserProfile?.isEmailVerified;
+        if (!isVerified) {
+            setShowEmailVerificationModal(true);
+            return;
+        }
+
         if (!postContent.trim() && selectedFiles.length === 0) {
             setError("Post content or file cannot be empty.");
             return;
@@ -1253,6 +1273,16 @@ const MainDashboard = () => {
             {/* Floating Hearts Animation */}
             <FloatingHearts />
 
+            <EmailVerificationModal
+                isOpen={showEmailVerificationModal}
+                onClose={() => setShowEmailVerificationModal(false)}
+                token={token}
+                onVerifySuccess={() => {
+                    setShowEmailVerificationModal(false);
+                    window.location.reload();
+                }}
+            />
+
             <ToastContainer
                 position="top-right"
                 autoClose={3000}
@@ -1662,6 +1692,19 @@ const MainDashboard = () => {
                                             </span>
                                         </button>
                                         <button
+                                            onClick={() => {
+                                                setActiveSharePostId(post._id);
+                                                setIsShareModalOpen(true);
+                                            }}
+                                            className={`flex items-center space-x-1 p-2 rounded-lg text-gray-500 ${
+                                                isDarkMode
+                                                    ? "hover:bg-gray-700"
+                                                    : "hover:bg-gray-100"
+                                            }`}
+                                        >
+                                            <FaRegPaperPlane />
+                                        </button>
+                                        <button
                                             onClick={() =>
                                                 toggleCommentDropdown(post._id)
                                             }
@@ -1864,6 +1907,13 @@ const MainDashboard = () => {
                     )}
                 </div>
             </div>
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                postId={activeSharePostId}
+                token={token}
+                isDarkMode={isDarkMode}
+            />
         </div>
     );
 };

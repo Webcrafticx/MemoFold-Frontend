@@ -25,6 +25,8 @@ import {
     FaChartBar,
     FaMapMarkerAlt,
     FaUsers,
+    FaRegPaperPlane,
+    FaLock,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import config from "../hooks/config";
@@ -32,6 +34,7 @@ import Navbar from "./navbar/navbar";
 import { apiService } from "../services/api";
 import LikesModal from "./mainFeed/LikesModal";
 import PostMediaCarousel from "./mainFeed/PostMediaCarousel";
+import ShareModal from "./mainFeed/ShareModal";
 import FriendsSidebar from "../components/navbar/FriendsSidebar";
 import ProfileSkeleton from "../components/profile/ProfileSkeleton";
 import FriendButton from "../components/FriendButton";
@@ -61,6 +64,10 @@ const UserProfile = () => {
         friendsCount: 0,
     });
     const [showFriendsSidebar, setShowFriendsSidebar] = useState(false);
+    const [showLikesModal, setShowLikesModal] = useState(false);
+    const [selectedPostIdForLikes, setSelectedPostIdForLikes] = useState(null);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [activeSharePostId, setActiveSharePostId] = useState(null);
     const [friendStatus, setFriendStatus] = useState("loading");
     // Always scroll to top when page loads or userId changes
     useEffect(() => {
@@ -2178,6 +2185,14 @@ const UserProfile = () => {
                 token={token}
                 isDarkMode={isDarkMode}
             />
+            
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                postId={activeSharePostId}
+                token={token}
+                isDarkMode={isDarkMode}
+            />
 
             {/* ✅ ADDED: Comment Deletion Confirmation Modal */}
             <ConfirmationModal
@@ -2439,7 +2454,35 @@ const UserProfile = () => {
                         Posts
                     </h3>
 
-                    {userPosts.length === 0 &&
+                    {userData?.user?.isPrivate && friendStatus !== "remove" && user?._id !== userId ? (
+                        <div
+                            className={`rounded-lg p-10 text-center shadow-sm border ${
+                                isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+                            }`}
+                        >
+                            <div className={`w-20 h-20 rounded-full mx-auto mb-4 border-2 flex items-center justify-center ${isDarkMode ? "border-gray-600" : "border-gray-400"}`}>
+                                <FaLock
+                                    className={`text-4xl ${
+                                        isDarkMode
+                                            ? "text-gray-400"
+                                            : "text-gray-500"
+                                    }`}
+                                />
+                            </div>
+                            <h3 className={`text-xl font-bold mb-2 ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}>
+                                This account is private
+                            </h3>
+                            <p
+                                className={`${
+                                    isDarkMode
+                                        ? "text-gray-400"
+                                        : "text-gray-500"
+                                }`}
+                            >
+                                Add them as a friend to see their photos and videos.
+                            </p>
+                        </div>
+                    ) : userPosts.length === 0 &&
                     !isLoading &&
                     !paginationState.isLoadingMore ? (
                         <div
@@ -2746,6 +2789,21 @@ const UserProfile = () => {
                                                     </div>
                                                 )}
                                             </div>
+
+                                            <button
+                                                className={`flex items-center space-x-1 hover:text-green-500 transition-colors cursor-pointer ${
+                                                    isDarkMode
+                                                        ? "text-gray-400"
+                                                        : "text-gray-600"
+                                                }`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveSharePostId(post._id);
+                                                    setIsShareModalOpen(true);
+                                                }}
+                                            >
+                                                <FaRegPaperPlane />
+                                            </button>
 
                                             <button
                                                 className={`flex items-center space-x-1 hover:text-blue-500 transition-colors cursor-pointer ${
