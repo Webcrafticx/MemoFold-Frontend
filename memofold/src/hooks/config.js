@@ -1,8 +1,9 @@
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const socketUrl = apiUrl.replace(/\/api\/?$/, "");
+
 const config = {
-      // apiUrl: "https://memofold1.onrender.com/api", //Production API URL
-    apiUrl: "http://localhost:5000/api", 
-    socketUrl: "http://localhost:5000",
-      // socketUrl: "https://memofold1.onrender.com"
+    apiUrl,
+    socketUrl,
 };
 
 export default config;

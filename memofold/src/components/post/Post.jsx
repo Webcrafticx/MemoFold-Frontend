@@ -1214,13 +1214,7 @@ const Post = () => {
             {/* Main Content */}
             <div className="max-w-2xl mx-auto p-4">
                 {post && (
-                    <div
-                        className={`w-full rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
-                            darkMode
-                                ? "bg-gray-800 text-gray-100"
-                                : "bg-white text-gray-900"
-                        }`}
-                    >
+                    <>
                         <LikesModal
                             postId={post._id}
                             isOpen={showLikesModal}
@@ -1236,6 +1230,14 @@ const Post = () => {
                             token={token}
                             isDarkMode={darkMode}
                         />
+
+                        <div
+                            className={`w-full rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
+                                darkMode
+                                    ? "bg-gray-800 text-gray-100"
+                                    : "bg-white text-gray-900"
+                            }`}
+                        >
 
                         {/* User Info */}
                         <div
@@ -1504,6 +1506,7 @@ const Post = () => {
                             fetchComments={fetchComments}
                         />
                     </div>
+                    </>
                 )}
             </div>
         </div>

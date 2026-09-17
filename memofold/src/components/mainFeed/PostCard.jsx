@@ -103,6 +103,7 @@ const PostCard = ({
     };
 
     return (
+        <>
         <div
             className={`w-full max-w-2xl rounded-2xl p-5 shadow-md hover:-translate-y-1 hover:shadow-lg transition-all duration-300 cursor-default ${
                 isDarkMode
@@ -320,13 +321,7 @@ const PostCard = ({
                 </button>
             </div>
 
-            <ShareModal
-                isOpen={isShareModalOpen}
-                onClose={() => setIsShareModalOpen(false)}
-                postId={post._id}
-                token={token}
-                isDarkMode={isDarkMode}
-            />
+
 
             <CommentSection
                 post={post}
@@ -361,6 +356,14 @@ const PostCard = ({
                 fetchComments={typeof window !== 'undefined' ? window.__mainFeedFetchComments : undefined}
             />
         </div>
+        <ShareModal
+            isOpen={isShareModalOpen}
+            onClose={() => setIsShareModalOpen(false)}
+            postId={post._id}
+            token={token}
+            isDarkMode={isDarkMode}
+        />
+        </>
     );
 };
 

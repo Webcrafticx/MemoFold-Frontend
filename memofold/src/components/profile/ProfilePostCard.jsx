@@ -380,6 +380,7 @@ const ProfilePostCard = ({
     };
 
     return (
+        <>
         <div
             className={`w-full max-w-2xl mx-auto mb-4 sm:mb-6 ${
                 isDarkMode
@@ -822,13 +823,7 @@ const ProfilePostCard = ({
                 </div>
             )}
 
-            <ShareModal
-                isOpen={isShareModalOpen}
-                onClose={() => setIsShareModalOpen(false)}
-                postId={post._id}
-                token={token}
-                isDarkMode={isDarkMode}
-            />
+
 
             {activeCommentPostId === post._id && !isEditing && (
                 <ProfileCommentSection
@@ -864,6 +859,14 @@ const ProfilePostCard = ({
                 />
             )}
         </div>
+        <ShareModal
+            isOpen={isShareModalOpen}
+            onClose={() => setIsShareModalOpen(false)}
+            postId={post._id}
+            token={token}
+            isDarkMode={isDarkMode}
+        />
+        </>
     );
 };
 
